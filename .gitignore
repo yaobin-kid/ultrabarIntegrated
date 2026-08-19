@@ -1,0 +1,12 @@
+# Java SDK for Ultrabar plugin protocol
+
+# Build artifacts
+.gradle/
+build/
+
+# IDE
+.idea/
+*.iml
+
+# logs
+logs/
