@@ -24,7 +24,19 @@ cd ultrabarIntegrated
 build/libs/ultrabar-plugin-sdk-1.0-SNAPSHOT.jar
 ```
 
-2) 运行示例（本地测试）
+2) 必要依赖（Gradle）
+
+在你的项目的 build.gradle 中添加：
+
+```groovy
+implementation 'io.netty:netty-all:4.1.94.Final'
+implementation 'com.fasterxml.jackson.core:jackson-databind:2.15.2'
+implementation 'org.slf4j:slf4j-simple:2.0.7'
+```
+
+（或使用 Maven 对应的 artifact）
+
+3) 运行示例（本地测试）
 
 > 注意：示例依赖一个能够接收协议消息的服务端（默认 127.0.0.1:39001）。服务端需以换行符 `\n` 作为消息结束（Line-based framing）。
 
@@ -32,7 +44,7 @@ build/libs/ultrabar-plugin-sdk-1.0-SNAPSHOT.jar
 java -jar build/libs/ultrabar-plugin-sdk-1.0-SNAPSHOT.jar
 ```
 
-3) 在你的项目中集成 SDK（示例代码）
+4) 在你的项目中集成 SDK（示例代码）
 
 下面示例展示了如何：
 - 使用默认地址创建 PluginClient
@@ -43,147 +55,99 @@ java -jar build/libs/ultrabar-plugin-sdk-1.0-SNAPSHOT.jar
 - 处理来自主 App 的 incoming `call`（CallHandler）
 
 ```java
-import com.example.plugin.PluginClient;
-import com.example.plugin.callback.RegisterCallback;
-import com.example.plugin.callback.ActionsCallback;
-import com.example.plugin.callback.ActionsUpdateCallback;
-import com.example.plugin.callback.CallHandler;
-import com.example.plugin.model.RegisterPayload;
-import com.example.plugin.model.PluginInfo;
-import com.example.plugin.model.ActionsPayload;
-import com.example.plugin.model.ActionSummary;
-import com.example.plugin.model.CallPayload;
-import com.example.plugin.callback.CallResponder;
+import com.ultrabar.plugin.PluginClient;
+import com.ultrabar.plugin.callback.RegisterCallback;
+import com.ultrabar.plugin.callback.ActionsCallback;
+import com.ultrabar.plugin.callback.ActionsUpdateCallback;
+import com.ultrabar.plugin.callback.CallHandler;
+import com.ultrabar.plugin.model.RegisterPayload;
+import com.ultrabar.plugin.model.PluginInfo;
+import com.ultrabar.plugin.model.ActionsPayload;
+import com.ultrabar.plugin.model.ActionSummary;
+import com.ultrabar.plugin.model.CallPayload;
+import com.ultrabar.plugin.callback.CallResponder;
 
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.CompletableFuture;
 
 public class MyPluginApp {
   public static void main(String[] args) throws Exception {
-    // 可选传 host/port
+    // 创建客户端（可指定 host/port）
     PluginClient client = new PluginClient("127.0.0.1", 39001);
-    client.start();
 
-    // 注册回调 - 保存 sessionId/sessionToken
-    client.register(createRegisterPayload(), new RegisterCallback() {
+    // 等待 TCP 连接就绪
+    client.startAsync().thenRun(() -> System.out.println("TCP connected"));
+
+    // 注册并等待 register_result
+    CompletableFuture<com.fasterxml.jackson.databind.JsonNode> regFut = new CompletableFuture<>();
+    RegisterPayload rp = createRegisterPayload();
+    client.register(rp, new RegisterCallback() {
       @Override
-      public void onSuccess(com.fasterxml.jackson.databind.JsonNode registerResultPayload) {
-        System.out.println("Register success: " + registerResultPayload.toPrettyString());
-        // TODO: 从 registerResultPayload 中读取 sessionId / sessionToken 并保存到安全存储
+      public void onSuccess(com.fasterxml.jackson.databind.JsonNode payload) {
+        System.out.println("register ok: " + payload.toPrettyString());
+        regFut.complete(payload);
       }
-
       @Override
       public void onError(Throwable t) {
-        System.err.println("Register error: " + t.getMessage());
+        regFut.completeExceptionally(t);
       }
     });
 
-    // 设置 actions_update 推送监听
-    client.setActionsUpdateCallback(new ActionsUpdateCallback() {
-      @Override
-      public void onUpdate(com.fasterxml.jackson.databind.JsonNode updatePayload) {
-        System.out.println("actions_update: " + updatePayload.toPrettyString());
-      }
-    });
-
-    // 上报 actions
-    ActionSummary a1 = new ActionSummary();
-    a1.id = "music.play";
-    a1.version = 1;
-    a1.name = "播放音乐";
-    a1.description = "在指定设备播放音乐";
-
-    ActionSummary a2 = new ActionSummary();
-    a2.id = "music.pause";
-    a2.version = 1;
-    a2.name = "暂停";
-    a2.description = "暂停播放";
-
-    ActionsPayload ap = new ActionsPayload(Arrays.asList(a1, a2));
-
-    client.sendActions(ap, new ActionsCallback() {
-      @Override
-      public void onSuccess(com.fasterxml.jackson.databind.JsonNode ackPayload) {
-        System.out.println("Actions ack: " + ackPayload.toPrettyString());
-      }
-
-      @Override
-      public void onError(Throwable t) {
-        System.err.println("Actions error: " + t.getMessage());
-      }
-    });
-
-    // 示例 describe（假设已保存 sessionId 和 token）
-    // client.describe(sessionId, sessionToken, "music.play").thenAccept(...)
-
-    // 示例 call（假设已保存 sessionId 和 token）
-    Map<String, Object> params = new HashMap<>();
-    params.put("device", "speaker-001");
-    params.put("keyword", "晴天");
-    params.put("mode", "normal");
-
-    // client.call(sessionId, sessionToken, "music.play", params).thenAccept(...)
-
-    // --- 处理来自主 App 的 incoming `call` 示例 ---
-    // 推荐做法：在 handler 中不要阻塞，若工作耗时应先 sendAccepted 然后在后台线程完成后 sendSuccess/sendError
-
-    ExecutorService exec = Executors.newFixedThreadPool(4);
-
-    client.setCallHandler(new CallHandler() {
-      @Override
-      public void onCall(CallPayload payload, CallResponder responder) {
-        // 快速校验
-        Map<String,Object> p = payload.params;
-        if (p == null || !p.containsKey("device")) {
-          responder.sendError("MISSING_PARAM", "device is required", false, null);
-          return;
+    // 在注册成功后再上报 actions
+    regFut.thenAccept(p -> {
+      ActionSummary a1 = new ActionSummary();
+      a1.id = "music.play"; a1.version = 1; a1.name = "播放音乐"; a1.description = "在指定设备播放音乐";
+      ActionsPayload ap = new ActionsPayload(Arrays.asList(a1));
+      client.sendActions(ap, new ActionsCallback() {
+        @Override public void onSuccess(com.fasterxml.jackson.databind.JsonNode ackPayload) {
+          System.out.println("actions ack: " + ackPayload.toPrettyString());
         }
-
-        // 立即 accepted，异步执行真实任务
-        String taskId = "task-" + java.util.UUID.randomUUID();
-        responder.sendAccepted(null, taskId, "http://127.0.0.1:42101/tasks/" + taskId);
-
-        exec.submit(() -> {
-          try {
-            // 模拟耗时工作
-            Thread.sleep(1000);
-            Map<String,Object> result = new HashMap<>();
-            result.put("taskId", taskId);
-            result.put("status", "ok");
-            responder.sendSuccess(result);
-          } catch (Exception e) {
-            Map<String,Object> details = new HashMap<>();
-            details.put("cause", e.getMessage());
-            responder.sendError("EXEC_FAILED", "执行失败", true, details);
-          }
-        });
-      }
+        @Override public void onError(Throwable t) { System.err.println("actions error: " + t.getMessage()); }
+      });
     });
 
-    // 在真实程序中请优雅地停止 client.stop();
+    // 处理主 App 发起的 call
+    ExecutorService exec = Executors.newFixedThreadPool(4);
+    client.setCallHandler((CallPayload payload, CallResponder responder) -> {
+      Map<String,Object> params = payload.params;
+      if (params == null || !params.containsKey("device")) {
+        responder.sendError("MISSING_PARAM", "device is required", false, null);
+        return;
+      }
+      String taskId = "task-" + java.util.UUID.randomUUID();
+      responder.sendAccepted(null, taskId, "http://127.0.0.1:42101/tasks/" + taskId);
+      exec.submit(() -> {
+        try {
+          Thread.sleep(1000);
+          Map<String,Object> result = new HashMap<>();
+          result.put("taskId", taskId);
+          result.put("status", "ok");
+          responder.sendSuccess(result);
+        } catch (Exception e) {
+          Map<String,Object> details = new HashMap<>();
+          details.put("cause", e.getMessage());
+          responder.sendError("EXEC_FAILED", "执行失败", true, details);
+        }
+      });
+    });
+
+    // 运行一段时间用于 demo
+    Thread.sleep(20_000);
+    client.stop();
+    exec.shutdownNow();
   }
 
   private static RegisterPayload createRegisterPayload() {
     RegisterPayload rp = new RegisterPayload();
     rp.plugin = new PluginInfo();
-    rp.plugin.id = "com.example.music";
+    rp.plugin.id = "com.ultrabar.music";
     rp.plugin.name = "Music";
     rp.plugin.version = "1.2.0";
-    rp.plugin.packageName = "com.example.music";
+    rp.plugin.packageName = "com.ultrabar.music";
     return rp;
   }
 }
-```
-
-4) 注意事项
-- Framing：当前 SDK 使用基于换行的分包（LineBasedFrameDecoder）。服务端必须每条 JSON 用 `\n` 结尾。若你需要更可靠的 framing（长度前缀），我可以在 SDK 中切换为 LengthField 编解码器。
-- 身份与鉴权：register_result 会返回 sessionToken，示例未自动保存 token；生产中建议在注册成功后将 token 存储并在后续 describe/call 中传入（envelope.auth 字段）。
-- CallHandler：当收到主 App 的 `call` 请求时，SDK 会把 payload 转为 `CallPayload` 并在 Netty IO 线程调度 `CallHandler.onCall(payload, responder)`。不要在 handler 中阻塞耗时操作；推荐 sendAccepted 然后在后台线程完成后用 responder 发送最终结果。
-- 可扩展性：当前 SDK 是最小实现，包含重连和 pending 请求映射。若需自动超时、心跳、并发限制或更严格的安全，请提出，我可以继续完善。
-
----
-
-如果你希望，我可以把 README 中的示例改成 Maven 方式或直接提供一个可运行的 demo 服务端用于本地联调。
