@@ -26,13 +26,15 @@ import io.netty.handler.codec.string.StringEncoder;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * PluginClient - minimal Netty-based client for Ultrabar protocol.
- * Use model POJOs for payloads. Now supports incoming `call` dispatch via CallHandler.
+ * PluginClient - Netty-based client for Ultrabar protocol.
+ * Adds heartbeat and automatic re-register / actions resend on reconnect.
  */
 public class PluginClient {
 
@@ -51,9 +53,21 @@ public class PluginClient {
   private volatile ActionsUpdateCallback actionsUpdateCallback;
   private volatile CallHandler callHandler;
 
+  // stored for automatic re-register / resend
+  private volatile RegisterPayload lastRegisterPayload;
+  private volatile ActionsPayload lastActionsPayload;
+
+  // saved session info from register_result
+  private volatile String savedSessionId;
+  private volatile String savedSessionToken;
+
   private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
   private volatile boolean stopped = false;
   private final long reconnectIntervalMillis = 3000;
+
+  // heartbeat task
+  private ScheduledFuture<?> heartbeatTask;
+  private volatile long heartbeatIntervalMillis = 30000; // default
 
   public PluginClient() { this("127.0.0.1", 39001); }
   public PluginClient(String host, int port) { this.host = host; this.port = port; }
@@ -63,6 +77,7 @@ public class PluginClient {
     stopped = true;
     if (channel != null) channel.close();
     if (group != null) group.shutdownGracefully();
+    cancelHeartbeat();
     scheduler.shutdownNow();
   }
 
@@ -87,6 +102,8 @@ public class PluginClient {
       if (future.isSuccess()) {
         channel = future.channel();
         System.out.println("Connected to " + host + ":" + port);
+        // on connect, attempt to re-register if we have previous registration payload
+        onConnected();
       } else {
         System.err.println("Connect failed: " + future.cause() + ", retry in " + reconnectIntervalMillis + "ms");
         scheduleReconnect();
@@ -100,6 +117,9 @@ public class PluginClient {
 
   // --- Public API ---
   public void register(RegisterPayload payload, RegisterCallback callback) {
+    // store last payload for auto re-register
+    this.lastRegisterPayload = payload;
+
     String reqId = nextRequestId();
     Envelope env = new Envelope();
     env.type = "register";
@@ -113,6 +133,9 @@ public class PluginClient {
   }
 
   public void sendActions(ActionsPayload payload, ActionsCallback callback) {
+    // store last actions payload for resend
+    this.lastActionsPayload = payload;
+
     String reqId = nextRequestId();
     Envelope env = new Envelope();
     env.type = "actions";
@@ -131,8 +154,8 @@ public class PluginClient {
     env.requestId = reqId;
     env.timestamp = Instant.now().toString();
     env.protocol = new Protocol("ultrabar.plugin", 1);
-    env.sessionId = sessionId;
-    env.auth = authBearer;
+    env.sessionId = (sessionId != null) ? sessionId : savedSessionId;
+    env.auth = (authBearer != null) ? authBearer : savedSessionToken;
     env.payload = new com.example.plugin.model.DescribePayload(actionId);
 
     CompletableFuture<Object> fut = new CompletableFuture<>();
@@ -148,8 +171,8 @@ public class PluginClient {
     env.requestId = reqId;
     env.timestamp = Instant.now().toString();
     env.protocol = new Protocol("ultrabar.plugin", 1);
-    env.sessionId = sessionId;
-    env.auth = authBearer;
+    env.sessionId = (sessionId != null) ? sessionId : savedSessionId;
+    env.auth = (authBearer != null) ? authBearer : savedSessionToken;
 
     CallPayload cp = new CallPayload();
     cp.action = action;
@@ -203,10 +226,104 @@ public class PluginClient {
     }
   }
 
+  private void onConnected() {
+    // When connection established, cancel any previous heartbeat and clear saved session (we'll re-register)
+    cancelHeartbeat();
+    savedSessionId = null;
+    savedSessionToken = null;
+
+    // If we had previously registered, attempt to re-register and then resend actions
+    if (lastRegisterPayload != null) {
+      System.out.println("Attempting automatic re-register...");
+      attemptReRegister();
+    }
+  }
+
+  private void attemptReRegister() {
+    RegisterPayload payload = lastRegisterPayload;
+    if (payload == null) return;
+
+    // Use internal callback to save session and schedule heartbeat, then resend actions
+    this.register(payload, new RegisterCallback() {
+      @Override
+      public void onSuccess(JsonNode registerResultPayload) {
+        try {
+          RegisterResultPayload rr = mapper.treeToValue(registerResultPayload, RegisterResultPayload.class);
+          if (rr != null) {
+            savedSessionId = rr.sessionId;
+            savedSessionToken = rr.sessionToken;
+            if (rr.heartbeat != null && rr.heartbeat.interval != null) {
+              heartbeatIntervalMillis = rr.heartbeat.interval;
+            }
+            scheduleHeartbeat();
+          }
+        } catch (Exception e) {
+          e.printStackTrace();
+        }
+
+        // resend actions if present
+        if (lastActionsPayload != null) {
+          System.out.println("Resending actions after re-register...");
+          sendActions(lastActionsPayload, new ActionsCallback() {
+            @Override
+            public void onSuccess(JsonNode ackPayload) {
+              System.out.println("Actions resent and acked: " + ackPayload.toString());
+            }
+
+            @Override
+            public void onError(Throwable t) {
+              System.err.println("Resend actions failed: " + t.getMessage());
+            }
+          });
+        }
+      }
+
+      @Override
+      public void onError(Throwable t) {
+        System.err.println("Auto re-register failed: " + t.getMessage());
+        // schedule another attempt
+        scheduler.schedule(PluginClient.this::attemptReRegister, reconnectIntervalMillis, TimeUnit.MILLISECONDS);
+      }
+    });
+  }
+
+  private void scheduleHeartbeat() {
+    cancelHeartbeat();
+    if (heartbeatIntervalMillis <= 0) return;
+    heartbeatTask = scheduler.scheduleAtFixedRate(() -> {
+      try {
+        if (channel == null || !channel.isActive()) return;
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("sessionId", savedSessionId);
+        payload.put("status", "alive");
+        Envelope env = new Envelope();
+        env.type = "heartbeat";
+        env.requestId = nextRequestId();
+        env.timestamp = Instant.now().toString();
+        env.protocol = new Protocol("ultrabar.plugin", 1);
+        env.payload = payload;
+        sendEnvelope(env);
+      } catch (Exception e) {
+        e.printStackTrace();
+      }
+    }, heartbeatIntervalMillis, heartbeatIntervalMillis, TimeUnit.MILLISECONDS);
+  }
+
+  private void cancelHeartbeat() {
+    if (heartbeatTask != null && !heartbeatTask.isCancelled()) {
+      heartbeatTask.cancel(true);
+      heartbeatTask = null;
+    }
+  }
+
   private class ClientHandler extends SimpleChannelInboundHandler<String> {
     @Override
     public void channelInactive(ChannelHandlerContext ctx) {
       System.err.println("Channel inactive, scheduling reconnect");
+      // cancel heartbeat and clear saved session (we'll re-register on reconnect)
+      cancelHeartbeat();
+      savedSessionId = null;
+      savedSessionToken = null;
       if (!stopped) scheduleReconnect();
     }
 
@@ -232,8 +349,18 @@ public class PluginClient {
           RegisterCallback cb = registerCallbacks.remove(reqId);
           if (cb != null) {
             RegisterResultPayload rr = mapper.treeToValue(payload, RegisterResultPayload.class);
-            if (Boolean.TRUE.equals(rr.success)) cb.onSuccess(payload);
-            else cb.onError(new RuntimeException("register_result returned success=false"));
+            if (Boolean.TRUE.equals(rr.success)) {
+              // save session and schedule heartbeat
+              savedSessionId = rr.sessionId;
+              savedSessionToken = rr.sessionToken;
+              if (rr.heartbeat != null && rr.heartbeat.interval != null) {
+                heartbeatIntervalMillis = rr.heartbeat.interval;
+              }
+              scheduleHeartbeat();
+              cb.onSuccess(payload);
+            } else {
+              cb.onError(new RuntimeException("register_result returned success=false"));
+            }
             return;
           }
         }
