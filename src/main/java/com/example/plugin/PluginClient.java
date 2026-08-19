@@ -26,15 +26,18 @@ import io.netty.handler.codec.string.StringEncoder;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.Queue;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * PluginClient - Netty-based client for Ultrabar protocol.
- * Adds heartbeat and automatic re-register / actions resend on reconnect.
+ * Adds heartbeat, automatic re-register/resend actions on reconnect,
+ * and a startAsync() that completes when a TCP connection is established.
  */
 public class PluginClient {
 
@@ -63,18 +66,50 @@ public class PluginClient {
 
   private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
   private volatile boolean stopped = false;
-  private final long reconnectIntervalMillis = 3000;
+  private final long baseReconnectIntervalMillis = 3000;
 
   // heartbeat task
   private ScheduledFuture<?> heartbeatTask;
   private volatile long heartbeatIntervalMillis = 30000; // default
 
+  // queued envelopes before connection is established
+  private final Queue<Envelope> pendingEnvelopes = new ConcurrentLinkedQueue<>();
+
+  // connection future (completes when a TCP connection is established)
+  private final AtomicReference<CompletableFuture<Void>> connectFutureRef = new AtomicReference<>();
+
   public PluginClient() { this("127.0.0.1", 39001); }
   public PluginClient(String host, int port) { this.host = host; this.port = port; }
 
-  public void start() { stopped = false; connect(); }
+  /**
+   * Start connecting asynchronously. Returns a CompletableFuture that completes when a TCP
+   * connection is established. The connectionFuture will complete exceptionally if stop() is
+   * called before connection succeeds.
+   */
+  public CompletableFuture<Void> startAsync() {
+    stopped = false;
+    CompletableFuture<Void> existing = connectFutureRef.get();
+    if (existing != null && !existing.isDone()) return existing;
+
+    CompletableFuture<Void> future = new CompletableFuture<>();
+    if (!connectFutureRef.compareAndSet(existing, future)) {
+      CompletableFuture<Void> cur = connectFutureRef.get();
+      return (cur != null) ? cur : future;
+    }
+    // Trigger connect attempts
+    connect();
+    return future;
+  }
+
+  /**
+   * Convenience start that does not wait. Use startAsync().thenRun(...) if you need to wait for connection.
+   */
+  public void start() { startAsync(); }
+
   public void stop() {
     stopped = true;
+    CompletableFuture<Void> cf = connectFutureRef.getAndSet(null);
+    if (cf != null && !cf.isDone()) cf.completeExceptionally(new IllegalStateException("Client stopped"));
     if (channel != null) channel.close();
     if (group != null) group.shutdownGracefully();
     cancelHeartbeat();
@@ -98,20 +133,28 @@ public class PluginClient {
        }
      });
 
+    final CompletableFuture<Void> connectionFuture = connectFutureRef.get();
     b.connect(host, port).addListener((ChannelFutureListener) future -> {
       if (future.isSuccess()) {
         channel = future.channel();
         System.out.println("Connected to " + host + ":" + port);
+        // complete the start future if present
+        CompletableFuture<Void> cf = connectFutureRef.getAndSet(null);
+        if (cf != null && !cf.isDone()) cf.complete(null);
         // on connect, attempt to re-register if we have previous registration payload
         onConnected();
       } else {
-        System.err.println("Connect failed: " + future.cause() + ", retry in " + reconnectIntervalMillis + "ms");
+        System.err.println("Connect failed: " + future.cause() + ", retry in " + baseReconnectIntervalMillis + "ms");
         scheduleReconnect();
       }
     });
   }
 
-  private void scheduleReconnect() { if (stopped) return; scheduler.schedule(this::connect, reconnectIntervalMillis, TimeUnit.MILLISECONDS); }
+  private void scheduleReconnect() {
+    if (stopped) return;
+    // simple fixed retry for now; could be replaced by backoff
+    scheduler.schedule(this::connect, baseReconnectIntervalMillis, TimeUnit.MILLISECONDS);
+  }
 
   private String nextRequestId() { return "req-" + idGen.getAndIncrement(); }
 
@@ -194,22 +237,12 @@ public class PluginClient {
   public void setActionsUpdateCallback(ActionsUpdateCallback cb) { this.actionsUpdateCallback = cb; }
 
   private void sendEnvelope(Envelope env) {
+    // If not connected yet, queue the envelope to be sent after connection
     if (channel == null || !channel.isActive()) {
-      String rid = env.requestId;
-      if (rid != null) {
-        CompletableFuture<Object> fut = pending.remove(rid);
-        if (fut != null) fut.completeExceptionally(new IllegalStateException("Not connected"));
-      }
-      if ("register".equals(env.type)) {
-        RegisterCallback rc = registerCallbacks.remove(env.requestId);
-        if (rc != null) rc.onError(new IllegalStateException("Not connected"));
-      }
-      if ("actions".equals(env.type)) {
-        ActionsCallback ac = actionsCallbacks.remove(env.requestId);
-        if (ac != null) ac.onError(new IllegalStateException("Not connected"));
-      }
+      pendingEnvelopes.add(env);
       return;
     }
+
     try {
       String json = mapper.writeValueAsString(env);
       channel.writeAndFlush(json + "\n");
@@ -226,13 +259,23 @@ public class PluginClient {
     }
   }
 
+  private void drainPendingEnvelopes() {
+    Envelope env;
+    while ((env = pendingEnvelopes.poll()) != null) {
+      sendEnvelope(env);
+    }
+  }
+
   private void onConnected() {
     // When connection established, cancel any previous heartbeat and clear saved session (we'll re-register)
     cancelHeartbeat();
     savedSessionId = null;
     savedSessionToken = null;
 
-    // If we had previously registered, attempt to re-register and then resend actions
+    // first, send any queued envelopes (so register can be sent if caller did register before start completed)
+    drainPendingEnvelopes();
+
+    // If we had previously registered payload but not currently registered, attempt to re-register
     if (lastRegisterPayload != null) {
       System.out.println("Attempting automatic re-register...");
       attemptReRegister();
@@ -282,7 +325,7 @@ public class PluginClient {
       public void onError(Throwable t) {
         System.err.println("Auto re-register failed: " + t.getMessage());
         // schedule another attempt
-        scheduler.schedule(PluginClient.this::attemptReRegister, reconnectIntervalMillis, TimeUnit.MILLISECONDS);
+        scheduler.schedule(PluginClient.this::attemptReRegister, baseReconnectIntervalMillis, TimeUnit.MILLISECONDS);
       }
     });
   }
