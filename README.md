@@ -5,7 +5,7 @@
 功能亮点：
 - 使用 Netty 连接主 App（默认 127.0.0.1:39001，可通过构造函数修改）
 - 提供 register、actions（上报）、describe、call 等接口
-- 支持注册与 actions 的回调、actions_update 的推送回调
+- 支持注册与 actions 的回调、actions_update 与 incoming `call` 的回调
 - 使用 Jackson 作为 JSON 序列化/反序列化
 
 快速开始
@@ -40,20 +40,26 @@ java -jar build/libs/ultrabar-plugin-sdk-1.0-SNAPSHOT.jar
 - 上报 actions
 - 查询 describe
 - 调用 call
+- 处理来自主 App 的 incoming `call`（CallHandler）
 
 ```java
 import com.example.plugin.PluginClient;
 import com.example.plugin.callback.RegisterCallback;
 import com.example.plugin.callback.ActionsCallback;
 import com.example.plugin.callback.ActionsUpdateCallback;
+import com.example.plugin.callback.CallHandler;
 import com.example.plugin.model.RegisterPayload;
 import com.example.plugin.model.PluginInfo;
 import com.example.plugin.model.ActionsPayload;
 import com.example.plugin.model.ActionSummary;
+import com.example.plugin.model.CallPayload;
+import com.example.plugin.callback.CallResponder;
 
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorService;
 
 public class MyPluginApp {
   public static void main(String[] args) throws Exception {
@@ -61,12 +67,12 @@ public class MyPluginApp {
     PluginClient client = new PluginClient("127.0.0.1", 39001);
     client.start();
 
-    // 注册回调
+    // 注册回调 - 保存 sessionId/sessionToken
     client.register(createRegisterPayload(), new RegisterCallback() {
       @Override
       public void onSuccess(com.fasterxml.jackson.databind.JsonNode registerResultPayload) {
         System.out.println("Register success: " + registerResultPayload.toPrettyString());
-        // 从 registerResultPayload 中读取 sessionId / sessionToken 并保存
+        // TODO: 从 registerResultPayload 中读取 sessionId / sessionToken 并保存到安全存储
       }
 
       @Override
@@ -121,6 +127,42 @@ public class MyPluginApp {
 
     // client.call(sessionId, sessionToken, "music.play", params).thenAccept(...)
 
+    // --- 处理来自主 App 的 incoming `call` 示例 ---
+    // 推荐做法：在 handler 中不要阻塞，若工作耗时应先 sendAccepted 然后在后台线程完成后 sendSuccess/sendError
+
+    ExecutorService exec = Executors.newFixedThreadPool(4);
+
+    client.setCallHandler(new CallHandler() {
+      @Override
+      public void onCall(CallPayload payload, CallResponder responder) {
+        // 快速校验
+        Map<String,Object> p = payload.params;
+        if (p == null || !p.containsKey("device")) {
+          responder.sendError("MISSING_PARAM", "device is required", false, null);
+          return;
+        }
+
+        // 立即 accepted，异步执行真实任务
+        String taskId = "task-" + java.util.UUID.randomUUID();
+        responder.sendAccepted(null, taskId, "http://127.0.0.1:42101/tasks/" + taskId);
+
+        exec.submit(() -> {
+          try {
+            // 模拟耗时工作
+            Thread.sleep(1000);
+            Map<String,Object> result = new HashMap<>();
+            result.put("taskId", taskId);
+            result.put("status", "ok");
+            responder.sendSuccess(result);
+          } catch (Exception e) {
+            Map<String,Object> details = new HashMap<>();
+            details.put("cause", e.getMessage());
+            responder.sendError("EXEC_FAILED", "执行失败", true, details);
+          }
+        });
+      }
+    });
+
     // 在真实程序中请优雅地停止 client.stop();
   }
 
@@ -139,6 +181,7 @@ public class MyPluginApp {
 4) 注意事项
 - Framing：当前 SDK 使用基于换行的分包（LineBasedFrameDecoder）。服务端必须每条 JSON 用 `\n` 结尾。若你需要更可靠的 framing（长度前缀），我可以在 SDK 中切换为 LengthField 编解码器。
 - 身份与鉴权：register_result 会返回 sessionToken，示例未自动保存 token；生产中建议在注册成功后将 token 存储并在后续 describe/call 中传入（envelope.auth 字段）。
+- CallHandler：当收到主 App 的 `call` 请求时，SDK 会把 payload 转为 `CallPayload` 并在 Netty IO 线程调度 `CallHandler.onCall(payload, responder)`。不要在 handler 中阻塞耗时操作；推荐 sendAccepted 然后在后台线程完成后用 responder 发送最终结果。
 - 可扩展性：当前 SDK 是最小实现，包含重连和 pending 请求映射。若需自动超时、心跳、并发限制或更严格的安全，请提出，我可以继续完善。
 
 ---
