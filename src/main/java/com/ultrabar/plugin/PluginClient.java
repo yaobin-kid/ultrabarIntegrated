@@ -41,11 +41,7 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * PluginClient - Netty-based client for Ultrabar protocol.
  *
- * Behavior:
- * - Configuration-driven: setRegisterConfig/setActionsConfig before startAsync();
- * - SDK auto-registers and auto-sends actions after start and connection established;
- * - updateActions(...) triggers a forced refresh when actions change at runtime;
- * - Single PluginListener receives global events (register/actions failures, actions ack/update, describe results, incoming call).
+ * Refactored ClientHandler.channelRead0 for clarity and maintainability.
  */
 public class PluginClient {
 
@@ -93,19 +89,11 @@ public class PluginClient {
   public PluginClient() { this("127.0.0.1", 39001); }
   public PluginClient(String host, int port) { this.host = host; this.port = port; }
 
-  /**
-   * Configure register/actions that SDK should automatically send after connection.
-   * Call these before startAsync().
-   */
   public void setRegisterConfig(RegisterPayload rp) { this.registerConfig = rp; }
   public void setActionsConfig(ActionsPayload ap) { this.actionsConfig = ap; }
 
-  /**
-   * Update actions at runtime and force a refresh/send of latest actions if already registered.
-   */
   public void updateActions(ActionsPayload ap) {
     this.actionsConfig = ap;
-    // If already registered, send immediately
     if (savedSessionId != null && channel != null && channel.isActive()) {
       sendActionsInternal(ap, new ActionsCallback() {
         @Override
@@ -129,9 +117,6 @@ public class PluginClient {
 
   public void setPluginListener(PluginListener listener) { this.pluginListener = listener; }
 
-  /**
-   * Start connecting asynchronously. SDK will auto-register and send actions when connected.
-   */
   public CompletableFuture<Void> startAsync() {
     stopped = false;
     CompletableFuture<Void> existing = connectFutureRef.get();
@@ -142,7 +127,6 @@ public class PluginClient {
       CompletableFuture<Void> cur = connectFutureRef.get();
       return (cur != null) ? cur : future;
     }
-    // Trigger connect attempts
     connect();
     return future;
   }
@@ -175,15 +159,12 @@ public class PluginClient {
        }
      });
 
-    final CompletableFuture<Void> connectionFuture = connectFutureRef.get();
     b.connect(host, port).addListener((ChannelFutureListener) future -> {
       if (future.isSuccess()) {
         channel = future.channel();
         System.out.println("Connected to " + host + ":" + port);
-        // complete the start future if present
         CompletableFuture<Void> cf = connectFutureRef.getAndSet(null);
         if (cf != null && !cf.isDone()) cf.complete(null);
-        // on connect, attempt to auto-register if configured
         onConnected();
       } else {
         System.err.println("Connect failed: " + future.cause() + ", retry in " + baseReconnectIntervalMillis + "ms");
@@ -199,73 +180,9 @@ public class PluginClient {
 
   private String nextRequestId() { return "req-" + idGen.getAndIncrement(); }
 
-  // --- Public API ---
-  /**
-   * Make an outbound describe request. Returns a future that completes with the payload DescribeResultPayload.
-   */
-  public CompletableFuture<DescribeResultPayload> describe(String sessionId, String authBearer, String actionId) {
-    String reqId = nextRequestId();
-    Envelope env = new Envelope();
-    env.type = "describe";
-    env.requestId = reqId;
-    env.timestamp = Instant.now().toString();
-    env.protocol = new Protocol("ultrabar.plugin", 1);
-    env.sessionId = (sessionId != null) ? sessionId : savedSessionId;
-    env.auth = (authBearer != null) ? authBearer : savedSessionToken;
-    env.payload = new DescribePayload(actionId);
-
-    CompletableFuture<DescribeResultPayload> fut = new CompletableFuture<>();
-    pending.put(reqId, (CompletableFuture<Object>)(CompletableFuture<?>)fut);
-
-    // attach plugin listener callbacks for describe
-    if (pluginListener != null) {
-      fut.thenAccept(resp -> submitCallback(() -> pluginListener.onDescribeSuccess(resp))).exceptionally(ex -> { submitCallback(() -> pluginListener.onDescribeError(ex)); return null; });
-    }
-
-    sendEnvelope(env);
-    return fut;
-  }
-
-  /**
-   * Make an outbound call to the main App. Returns a future that completes when a reply arrives.
-   */
-  public CompletableFuture<Object> call(String sessionId, String authBearer, String action, java.util.Map<String, Object> params) {
-    String reqId = nextRequestId();
-    Envelope env = new Envelope();
-    env.type = "call";
-    env.requestId = reqId;
-    env.timestamp = Instant.now().toString();
-    env.protocol = new Protocol("ultrabar.plugin", 1);
-    env.sessionId = (sessionId != null) ? sessionId : savedSessionId;
-    env.auth = (authBearer != null) ? authBearer : savedSessionToken;
-
-    CallPayload cp = new CallPayload();
-    cp.action = action;
-    cp.params = params;
-    cp.idempotencyKey = reqId;
-    env.payload = cp;
-
-    CompletableFuture<Object> fut = new CompletableFuture<>();
-    pending.put(reqId, fut);
-    sendEnvelope(env);
-    return fut;
-  }
-
-  /**
-   * Register a handler for incoming `call` requests from the server.
-   */
-  public void setCallHandler(CallHandler handler) { this.callHandler = handler; }
-
-  public void setActionsUpdateCallback(ActionsUpdateCallback cb) { this.actionsUpdateCallback = cb; }
-
   // --- Internal send helpers ---
   private void sendEnvelope(Envelope env) {
-    // If not connected yet, queue the envelope to be sent after connection
-    if (channel == null || !channel.isActive()) {
-      pendingEnvelopes.add(env);
-      return;
-    }
-
+    if (channel == null || !channel.isActive()) { pendingEnvelopes.add(env); return; }
     try {
       String json = mapper.writeValueAsString(env);
       channel.writeAndFlush(json + "\n");
@@ -284,287 +201,202 @@ public class PluginClient {
 
   private void drainPendingEnvelopes() {
     Envelope env;
-    while ((env = pendingEnvelopes.poll()) != null) {
-      sendEnvelope(env);
-    }
+    while ((env = pendingEnvelopes.poll()) != null) sendEnvelope(env);
   }
 
   private void onConnected() {
-    // When connection established, cancel any previous heartbeat and clear saved session (we'll re-register)
     cancelHeartbeat();
     savedSessionId = null;
     savedSessionToken = null;
-
-    // first, send any queued envelopes (so describe/call queued before start will be sent)
     drainPendingEnvelopes();
-
-    // If we have a registerConfig configured, attempt register -> then send actions if configured
-    if (registerConfig != null) {
-      attemptAutoRegister();
-    }
+    if (registerConfig != null) attemptAutoRegister();
   }
 
   private void attemptAutoRegister() {
-    RegisterPayload payload = registerConfig;
-    if (payload == null) return;
-
-    // Use internal callback to save session and schedule heartbeat, then send actions if config exists
-    this.sendRegisterInternal(payload, new RegisterCallback() {
-      @Override
-      public void onSuccess(JsonNode registerResultPayload) {
+    RegisterPayload payload = registerConfig; if (payload == null) return;
+    sendRegisterInternal(payload, new RegisterCallback() {
+      @Override public void onSuccess(JsonNode registerResultPayload) {
         try {
           RegisterResultPayload rr = mapper.treeToValue(registerResultPayload, RegisterResultPayload.class);
           if (rr != null) {
-            savedSessionId = rr.sessionId;
-            savedSessionToken = rr.sessionToken;
-            if (rr.heartbeat != null && rr.heartbeat.interval != null) {
-              heartbeatIntervalMillis = rr.heartbeat.interval;
-            }
+            savedSessionId = rr.sessionId; savedSessionToken = rr.sessionToken;
+            if (rr.heartbeat != null && rr.heartbeat.interval != null) heartbeatIntervalMillis = rr.heartbeat.interval;
             scheduleHeartbeat();
             if (pluginListener != null) submitCallback(() -> pluginListener.onRegisterSuccess(rr));
           }
-        } catch (Exception e) {
-          e.printStackTrace();
-        }
-
-        // send actions if configured
+        } catch (Exception e) { e.printStackTrace(); }
         if (actionsConfig != null) {
           sendActionsInternal(actionsConfig, new ActionsCallback() {
-            @Override
-            public void onSuccess(JsonNode ackPayload) {
+            @Override public void onSuccess(JsonNode ackPayload) {
               try {
                 ActionsAckPayload aap = mapper.treeToValue(ackPayload, ActionsAckPayload.class);
-                System.out.println("Auto actions ack: " + aap);
                 if (pluginListener != null) submitCallback(() -> pluginListener.onActionsAck(aap));
                 if (actionsUpdateCallback != null) actionsUpdateCallback.onUpdate(ackPayload);
-              } catch (Exception e) {
-                if (pluginListener != null) submitCallback(() -> pluginListener.onActionsFailed(e));
-              }
+              } catch (Exception e) { if (pluginListener != null) submitCallback(() -> pluginListener.onActionsFailed(e)); }
             }
-
-            @Override
-            public void onError(Throwable t) {
-              System.err.println("Auto actions failed: " + t.getMessage());
-              if (pluginListener != null) submitCallback(() -> pluginListener.onActionsFailed(t));
-            }
+            @Override public void onError(Throwable t) { if (pluginListener != null) submitCallback(() -> pluginListener.onActionsFailed(t)); }
           });
         }
       }
-
-      @Override
-      public void onError(Throwable t) {
-        System.err.println("Auto register failed: " + t.getMessage());
+      @Override public void onError(Throwable t) {
         if (pluginListener != null) submitCallback(() -> pluginListener.onRegisterFailed(t));
-        // schedule another attempt
         scheduler.schedule(PluginClient.this::attemptAutoRegister, baseReconnectIntervalMillis, TimeUnit.MILLISECONDS);
       }
     });
   }
 
-  // Internal register (not exposed). Used by auto-register flow.
   private void sendRegisterInternal(RegisterPayload payload, RegisterCallback callback) {
-    String reqId = nextRequestId();
-    Envelope env = new Envelope();
-    env.type = "register";
-    env.requestId = reqId;
-    env.timestamp = Instant.now().toString();
-    env.protocol = new Protocol("ultrabar.plugin", 1);
-    env.payload = payload;
-
-    registerCallbacks.put(reqId, callback);
-    sendEnvelope(env);
+    String reqId = nextRequestId(); Envelope env = new Envelope(); env.type = "register"; env.requestId = reqId; env.timestamp = Instant.now().toString(); env.protocol = new Protocol("ultrabar.plugin", 1); env.payload = payload; registerCallbacks.put(reqId, callback); sendEnvelope(env);
   }
 
-  // Internal sendActions (not exposed). Used by auto-actions flow.
   private void sendActionsInternal(ActionsPayload payload, ActionsCallback callback) {
-    String reqId = nextRequestId();
-    Envelope env = new Envelope();
-    env.type = "actions";
-    env.requestId = reqId;
-    env.timestamp = Instant.now().toString();
-    env.protocol = new Protocol("ultrabar.plugin", 1);
-    env.payload = payload;
-    actionsCallbacks.put(reqId, callback);
-    sendEnvelope(env);
+    String reqId = nextRequestId(); Envelope env = new Envelope(); env.type = "actions"; env.requestId = reqId; env.timestamp = Instant.now().toString(); env.protocol = new Protocol("ultrabar.plugin", 1); env.payload = payload; actionsCallbacks.put(reqId, callback); sendEnvelope(env);
   }
 
   private void scheduleHeartbeat() {
-    cancelHeartbeat();
-    if (heartbeatIntervalMillis <= 0) return;
+    cancelHeartbeat(); if (heartbeatIntervalMillis <= 0) return;
     heartbeatTask = scheduler.scheduleAtFixedRate(() -> {
       try {
         if (channel == null || !channel.isActive()) return;
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("sessionId", savedSessionId);
-        payload.put("status", "alive");
-        Envelope env = new Envelope();
-        env.type = "heartbeat";
-        env.requestId = nextRequestId();
-        env.timestamp = Instant.now().toString();
-        env.protocol = new Protocol("ultrabar.plugin", 1);
-        env.payload = payload;
-        sendEnvelope(env);
-      } catch (Exception e) {
-        e.printStackTrace();
-      }
+        Map<String, Object> payload = new HashMap<>(); payload.put("sessionId", savedSessionId); payload.put("status", "alive"); Envelope env = new Envelope(); env.type = "heartbeat"; env.requestId = nextRequestId(); env.timestamp = Instant.now().toString(); env.protocol = new Protocol("ultrabar.plugin", 1); env.payload = payload; sendEnvelope(env);
+      } catch (Exception e) { e.printStackTrace(); }
     }, heartbeatIntervalMillis, heartbeatIntervalMillis, TimeUnit.MILLISECONDS);
   }
 
-  private void cancelHeartbeat() {
-    if (heartbeatTask != null && !heartbeatTask.isCancelled()) {
-      heartbeatTask.cancel(true);
-      heartbeatTask = null;
-    }
-  }
+  private void cancelHeartbeat() { if (heartbeatTask != null && !heartbeatTask.isCancelled()) { heartbeatTask.cancel(true); heartbeatTask = null; } }
 
   private class ClientHandler extends SimpleChannelInboundHandler<String> {
-    @Override
-    public void channelInactive(ChannelHandlerContext ctx) {
-      System.err.println("Channel inactive, scheduling reconnect");
-      cancelHeartbeat();
-      savedSessionId = null;
-      savedSessionToken = null;
-      if (!stopped) scheduleReconnect();
-    }
+    @Override public void channelInactive(ChannelHandlerContext ctx) {
+      System.err.println("Channel inactive, scheduling reconnect"); cancelHeartbeat(); savedSessionId = null; savedSessionToken = null; if (!stopped) scheduleReconnect(); }
 
-    @Override
-    protected void channelRead0(ChannelHandlerContext ctx, String msg) {
+    @Override protected void channelRead0(ChannelHandlerContext ctx, String msg) {
       try {
         JsonNode node = mapper.readTree(msg);
         String reqId = node.has("requestId") ? node.get("requestId").asText(null) : null;
         String type = node.has("type") ? node.get("type").asText(null) : null;
         JsonNode payload = node.has("payload") ? node.get("payload") : node;
 
-        // If there's a pending future for this requestId, complete it
-        if (reqId != null && pending.containsKey(reqId)) {
-          CompletableFuture<Object> fut = pending.remove(reqId);
-          if (fut != null) {
-            // try to convert to known result types if needed
-            if ("describe_result".equals(type)) {
-              try {
-                DescribeResultPayload dr = mapper.treeToValue(payload, DescribeResultPayload.class);
-                ((CompletableFuture<DescribeResultPayload>)(CompletableFuture<?>)fut).complete(dr);
-                return;
-              } catch (Exception e) {
-                fut.complete(payload);
-                return;
-              }
-            }
-            fut.complete(payload);
-            return;
-          }
-        }
+        // First attempt: complete any pending request
+        if (reqId != null && tryCompletePending(reqId, type, payload)) return;
 
-        // register_result handling
-        if ("register_result".equals(type) && reqId != null) {
-          RegisterCallback cb = registerCallbacks.remove(reqId);
-          if (cb != null) {
-            RegisterResultPayload rr = mapper.treeToValue(payload, RegisterResultPayload.class);
-            if (Boolean.TRUE.equals(rr.success)) {
-              savedSessionId = rr.sessionId;
-              savedSessionToken = rr.sessionToken;
-              if (rr.heartbeat != null && rr.heartbeat.interval != null) {
-                heartbeatIntervalMillis = rr.heartbeat.interval;
-              }
-              scheduleHeartbeat();
-              cb.onSuccess(payload);
-              if (pluginListener != null) submitCallback(() -> pluginListener.onRegisterSuccess(rr));
-            } else {
-              cb.onError(new RuntimeException("register_result returned success=false"));
-            }
+        // Dispatch by type
+        switch (type) {
+          case "register_result":
+            handleRegisterResult(reqId, payload);
             return;
-          }
+          case "actions_ack":
+            handleActionsAck(reqId, payload);
+            return;
+          case "actions_update":
+            handleActionsUpdate(payload);
+            return;
+          case "describe":
+            handleDescribe(ctx, reqId, payload);
+            return;
+          case "call":
+            handleCall(ctx, reqId, payload);
+            return;
+          default:
+            System.out.println("Received message type=" + type + " requestId=" + reqId + " payload=" + payload.toString());
         }
-
-        // actions_ack handling
-        if ("actions_ack".equals(type) && reqId != null) {
-          ActionsCallback ac = actionsCallbacks.remove(reqId);
-          if (ac != null) {
-            ActionsAckPayload aap = mapper.treeToValue(payload, ActionsAckPayload.class);
-            if (Boolean.TRUE.equals(aap.success)) ac.onSuccess(payload);
-            else ac.onError(new RuntimeException("actions_ack success=false"));
-            // notify global listener
-            if (pluginListener != null) submitCallback(() -> pluginListener.onActionsAck(aap));
-            return;
-          }
-        }
-
-        // actions_update push
-        if ("actions_update".equals(type)) {
-          if (actionsUpdateCallback != null) {
-            actionsUpdateCallback.onUpdate(payload);
-          }
-          try {
-            ActionsPayload ap = mapper.treeToValue(payload, ActionsPayload.class);
-            if (pluginListener != null) submitCallback(() -> pluginListener.onActionsUpdate(ap));
-            return;
-          } catch (Exception ex) {
-            // fallback: ignore mapping error
-          }
-        }
-
-        // incoming describe from server -> dispatch to PluginListener
-        if ("describe".equals(type)) {
-          DescribePayload dp = mapper.treeToValue(payload, DescribePayload.class);
-          DescribeResponder responder = new DescribeResponder(ctx.channel(), reqId, mapper);
-          if (pluginListener != null) {
-            try {
-              submitCallback(() -> pluginListener.onDescribe(dp, responder));
-            } catch (Exception ex) {
-              responder.sendError("HANDLER_EXCEPTION", ex.getMessage(), false, null);
-            }
-            return;
-          } else {
-            responder.sendError("NO_HANDLER", "No PluginListener registered", false, null);
-            return;
-          }
-        }
-
-        // incoming call from server -> dispatch to PluginListener or CallHandler
-        if ("call".equals(type)) {
-          CallPayload cp = mapper.treeToValue(payload, CallPayload.class);
-          CallResponder responder = new CallResponder(ctx.channel(), reqId, mapper);
-          if (pluginListener != null) {
-            try {
-              submitCallback(() -> pluginListener.onCall(cp, responder));
-            } catch (Exception ex) {
-              responder.sendError("HANDLER_EXCEPTION", ex.getMessage(), false, null);
-            }
-            return;
-          }
-          if (callHandler != null) {
-            try {
-              callHandler.onCall(cp, responder);
-            } catch (Exception ex) {
-              responder.sendError("HANDLER_EXCEPTION", ex.getMessage(), false, null);
-            }
-            return;
-          } else {
-            responder.sendError("NO_HANDLER", "No CallHandler registered", false, null);
-            return;
-          }
-        }
-
-        // fallback: log
-        System.out.println("Received message type=" + type + " requestId=" + reqId + " payload=" + payload.toString());
       } catch (Exception ex) {
         ex.printStackTrace();
       }
     }
 
-    @Override
-    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-      cause.printStackTrace();
-      ctx.close();
+    private boolean tryCompletePending(String reqId, String type, JsonNode payload) {
+      if (reqId == null) return false;
+      CompletableFuture<Object> fut = pending.remove(reqId);
+      if (fut == null) return false;
+      if ("describe_result".equals(type)) {
+        try {
+          DescribeResultPayload dr = mapper.treeToValue(payload, DescribeResultPayload.class);
+          @SuppressWarnings("unchecked")
+          CompletableFuture<DescribeResultPayload> df = (CompletableFuture<DescribeResultPayload>)(CompletableFuture<?>)fut;
+          df.complete(dr);
+        } catch (Exception e) {
+          fut.complete(payload);
+        }
+      } else {
+        fut.complete(payload);
+      }
+      return true;
     }
+
+    private void handleRegisterResult(String reqId, JsonNode payload) {
+      if (reqId == null) return;
+      RegisterCallback cb = registerCallbacks.remove(reqId);
+      if (cb == null) return;
+      try {
+        RegisterResultPayload rr = mapper.treeToValue(payload, RegisterResultPayload.class);
+        if (Boolean.TRUE.equals(rr.success)) {
+          savedSessionId = rr.sessionId; savedSessionToken = rr.sessionToken; if (rr.heartbeat != null && rr.heartbeat.interval != null) heartbeatIntervalMillis = rr.heartbeat.interval; scheduleHeartbeat(); cb.onSuccess(payload); if (pluginListener != null) submitCallback(() -> pluginListener.onRegisterSuccess(rr));
+        } else {
+          cb.onError(new RuntimeException("register_result returned success=false"));
+        }
+      } catch (Exception e) { cb.onError(e); }
+    }
+
+    private void handleActionsAck(String reqId, JsonNode payload) {
+      if (reqId == null) return;
+      ActionsCallback ac = actionsCallbacks.remove(reqId);
+      if (ac == null) return;
+      try {
+        ActionsAckPayload aap = mapper.treeToValue(payload, ActionsAckPayload.class);
+        if (Boolean.TRUE.equals(aap.success)) ac.onSuccess(payload); else ac.onError(new RuntimeException("actions_ack success=false"));
+        if (pluginListener != null) submitCallback(() -> pluginListener.onActionsAck(aap));
+      } catch (Exception e) { ac.onError(e); }
+    }
+
+    private void handleActionsUpdate(JsonNode payload) {
+      if (actionsUpdateCallback != null) actionsUpdateCallback.onUpdate(payload);
+      try {
+        ActionsPayload ap = mapper.treeToValue(payload, ActionsPayload.class);
+        if (pluginListener != null) submitCallback(() -> pluginListener.onActionsUpdate(ap));
+      } catch (Exception ex) { /* ignore mapping error */ }
+    }
+
+    private void handleDescribe(ChannelHandlerContext ctx, String reqId, JsonNode payload) {
+      try {
+        DescribePayload dp = mapper.treeToValue(payload, DescribePayload.class);
+        DescribeResponder responder = new DescribeResponder(ctx.channel(), reqId, mapper);
+        if (pluginListener != null) {
+          submitCallback(() -> {
+            try { pluginListener.onDescribe(dp, responder); } catch (Exception ex) { responder.sendError("HANDLER_EXCEPTION", ex.getMessage(), false, null); }
+          });
+        } else {
+          responder.sendError("NO_HANDLER", "No PluginListener registered", false, null);
+        }
+      } catch (Exception e) {
+        // if parsing failed, respond with error so server doesn't hang
+        DescribeResponder responder = new DescribeResponder(ctx.channel(), reqId, mapper);
+        responder.sendError("INVALID_PAYLOAD", e.getMessage(), false, null);
+      }
+    }
+
+    private void handleCall(ChannelHandlerContext ctx, String reqId, JsonNode payload) {
+      try {
+        CallPayload cp = mapper.treeToValue(payload, CallPayload.class);
+        CallResponder responder = new CallResponder(ctx.channel(), reqId, mapper);
+        if (pluginListener != null) {
+          submitCallback(() -> { try { pluginListener.onCall(cp, responder); } catch (Exception ex) { responder.sendError("HANDLER_EXCEPTION", ex.getMessage(), false, null); } });
+          return;
+        }
+        if (callHandler != null) {
+          try { callHandler.onCall(cp, responder); } catch (Exception ex) { responder.sendError("HANDLER_EXCEPTION", ex.getMessage(), false, null); }
+          return;
+        }
+        responder.sendError("NO_HANDLER", "No CallHandler registered", false, null);
+      } catch (Exception e) {
+        CallResponder responder = new CallResponder(ctx.channel(), reqId, mapper);
+        responder.sendError("INVALID_PAYLOAD", e.getMessage(), false, null);
+      }
+    }
+
+    @Override public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) { cause.printStackTrace(); ctx.close(); }
   }
 
   private void submitCallback(Runnable r) {
-    try {
-      callbackExecutor.submit(r);
-    } catch (RejectedExecutionException e) {
-      // fallback to calling directly
-      r.run();
-    }
+    try { callbackExecutor.submit(r); } catch (RejectedExecutionException e) { r.run(); }
   }
 }
