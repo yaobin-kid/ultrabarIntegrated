@@ -1,0 +1,5 @@
+# Enforce UTF-8 for source files and normalize line endings
+*.java text eol=lf working-tree-encoding=UTF-8
+*.md text eol=lf working-tree-encoding=UTF-8
+*.gradle text eol=lf working-tree-encoding=UTF-8
+src/** text eol=lf working-tree-encoding=UTF-8

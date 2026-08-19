@@ -19,69 +19,25 @@ import java.util.concurrent.ExecutorService;
 public class ExampleMain {
   public static void main(String[] args) throws Exception {
     PluginClient client = new PluginClient("127.0.0.1", 39001);
-    client.startAsync().thenRun(() -> System.out.println("Connected (startAsync completed)"));
 
-    ObjectMapper mapper = new ObjectMapper();
-
-    ActionSummary a1 = new ActionSummary();
-    a1.id = "music.play";
-    a1.version = 1;
-    a1.name = "播放音乐";
-    a1.description = "在指定设备播放音乐";
-
-    ActionSummary a2 = new ActionSummary();
-    a2.id = "music.pause";
-    a2.version = 1;
-    a2.name = "暂停";
-    a2.description = "暂停播放";
-
-    ActionsPayload ap = new ActionsPayload(Arrays.asList(a1, a2));
-
-    client.sendActions(ap, new ActionsCallback() {
-      @Override
-      public void onSuccess(com.fasterxml.jackson.databind.JsonNode ackPayload) {
-        System.out.println("Actions ack: " + ackPayload.toPrettyString());
-      }
-
-      @Override
-      public void onError(Throwable t) {
-        System.err.println("Actions error: " + t.getMessage());
-      }
-    });
-
+    // Configure auto-register payload and auto-actions BEFORE start
     RegisterPayload rp = new RegisterPayload();
     rp.plugin = new PluginInfo();
     rp.plugin.id = "com.ultrabar.music";
     rp.plugin.name = "Music";
     rp.plugin.version = "1.2.0";
     rp.plugin.packageName = "com.ultrabar.music";
+    client.setAutoRegisterPayload(rp);
 
-    // Example: wait for register completion using a CompletableFuture wrapper
-    CompletableFuture<com.fasterxml.jackson.databind.JsonNode> regFut = new CompletableFuture<>();
-    client.register(rp, new RegisterCallback() {
-      @Override
-      public void onSuccess(com.fasterxml.jackson.databind.JsonNode registerResultPayload) {
-        System.out.println("Register success: " + registerResultPayload.toPrettyString());
-        regFut.complete(registerResultPayload);
-      }
+    ActionSummary a1 = new ActionSummary();
+    a1.id = "music.play";
+    a1.version = 1;
+    a1.name = "播放音乐";
+    a1.description = "在指定设备播放音乐";
+    ActionsPayload ap = new ActionsPayload(Arrays.asList(a1));
+    client.setAutoActionsPayload(ap);
 
-      @Override
-      public void onError(Throwable t) {
-        System.err.println("Register error: " + t.getMessage());
-        regFut.completeExceptionally(t);
-      }
-    });
-
-    // after register completes, do describe/call or other operations
-    regFut.whenComplete((p, ex) -> {
-      if (ex != null) {
-        System.err.println("Register failed: " + ex.getMessage());
-        return;
-      }
-      System.out.println("Ready to describe or call using saved session token in SDK");
-    });
-
-    // Setup CallHandler example (plugin receives incoming call requests from server)
+    // Set CallHandler to process incoming calls from main App
     ExecutorService exec = Executors.newFixedThreadPool(4);
     client.setCallHandler((payload, responder) -> {
       Map<String,Object> params = payload.params;
@@ -106,7 +62,16 @@ public class ExampleMain {
       });
     });
 
-    // keep running for demo
+    // Start the SDK. It will auto-register and auto-send actions once connected.
+    client.startAsync().thenRun(() -> System.out.println("Connected and SDK started"));
+
+    // Example of making an outbound describe/call after start
+    Thread.sleep(2000);
+    client.describe(null, null, "music.play").thenAccept(resp -> {
+      System.out.println("Describe response: " + resp);
+    }).exceptionally(ex -> { ex.printStackTrace(); return null; });
+
+    // Run for demo then shutdown
     Thread.sleep(30_000);
     client.stop();
     exec.shutdownNow();

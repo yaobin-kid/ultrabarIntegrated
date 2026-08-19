@@ -13,6 +13,7 @@ import com.ultrabar.plugin.model.ActionsPayload;
 import com.ultrabar.plugin.model.ActionsAckPayload;
 import com.ultrabar.plugin.model.CallPayload;
 import com.ultrabar.plugin.model.ResultPayload;
+import com.ultrabar.plugin.model.DescribePayload;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.netty.bootstrap.Bootstrap;
@@ -36,8 +37,14 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * PluginClient - Netty-based client for Ultrabar protocol.
- * Adds heartbeat, automatic re-register/resend actions on reconnect,
- * and a startAsync() that completes when a TCP connection is established.
+ *
+ * Behavior changes:
+ * - SDK auto-registers and auto-sends actions after start() and connection established.
+ * - Users do NOT need to call register() or sendActions(); instead they provide
+ *   RegisterPayload / ActionsPayload via setters or constructor before start().
+ * - PluginClient only exposes startAsync(), stop(), call(), describe(), and callback registration
+ *   for incoming calls (CallHandler) and actions updates.
+ * - All source files are encoded UTF-8 (see .gitattributes).
  */
 public class PluginClient {
 
@@ -57,8 +64,8 @@ public class PluginClient {
   private volatile CallHandler callHandler;
 
   // stored for automatic re-register / resend
-  private volatile RegisterPayload lastRegisterPayload;
-  private volatile ActionsPayload lastActionsPayload;
+  private volatile RegisterPayload autoRegisterPayload;
+  private volatile ActionsPayload autoActionsPayload;
 
   // saved session info from register_result
   private volatile String savedSessionId;
@@ -82,9 +89,14 @@ public class PluginClient {
   public PluginClient(String host, int port) { this.host = host; this.port = port; }
 
   /**
-   * Start connecting asynchronously. Returns a CompletableFuture that completes when a TCP
-   * connection is established. The connectionFuture will complete exceptionally if stop() is
-   * called before connection succeeds.
+   * Configure payloads the SDK should automatically send after connection.
+   * Call these before startAsync().
+   */
+  public void setAutoRegisterPayload(RegisterPayload rp) { this.autoRegisterPayload = rp; }
+  public void setAutoActionsPayload(ActionsPayload ap) { this.autoActionsPayload = ap; }
+
+  /**
+   * Start connecting asynchronously. SDK will auto-register and send actions when connected.
    */
   public CompletableFuture<Void> startAsync() {
     stopped = false;
@@ -100,11 +112,6 @@ public class PluginClient {
     connect();
     return future;
   }
-
-  /**
-   * Convenience start that does not wait. Use startAsync().thenRun(...) if you need to wait for connection.
-   */
-  public void start() { startAsync(); }
 
   public void stop() {
     stopped = true;
@@ -141,7 +148,7 @@ public class PluginClient {
         // complete the start future if present
         CompletableFuture<Void> cf = connectFutureRef.getAndSet(null);
         if (cf != null && !cf.isDone()) cf.complete(null);
-        // on connect, attempt to re-register if we have previous registration payload
+        // on connect, attempt to auto-register if configured
         onConnected();
       } else {
         System.err.println("Connect failed: " + future.cause() + ", retry in " + baseReconnectIntervalMillis + "ms");
@@ -152,44 +159,15 @@ public class PluginClient {
 
   private void scheduleReconnect() {
     if (stopped) return;
-    // simple fixed retry for now; could be replaced by backoff
     scheduler.schedule(this::connect, baseReconnectIntervalMillis, TimeUnit.MILLISECONDS);
   }
 
   private String nextRequestId() { return "req-" + idGen.getAndIncrement(); }
 
   // --- Public API ---
-  public void register(RegisterPayload payload, RegisterCallback callback) {
-    // store last payload for auto re-register
-    this.lastRegisterPayload = payload;
-
-    String reqId = nextRequestId();
-    Envelope env = new Envelope();
-    env.type = "register";
-    env.requestId = reqId;
-    env.timestamp = Instant.now().toString();
-    env.protocol = new Protocol("ultrabar.plugin", 1);
-    env.payload = payload;
-
-    registerCallbacks.put(reqId, callback);
-    sendEnvelope(env);
-  }
-
-  public void sendActions(ActionsPayload payload, ActionsCallback callback) {
-    // store last actions payload for resend
-    this.lastActionsPayload = payload;
-
-    String reqId = nextRequestId();
-    Envelope env = new Envelope();
-    env.type = "actions";
-    env.requestId = reqId;
-    env.timestamp = Instant.now().toString();
-    env.protocol = new Protocol("ultrabar.plugin", 1);
-    env.payload = payload;
-    actionsCallbacks.put(reqId, callback);
-    sendEnvelope(env);
-  }
-
+  /**
+   * Make an outbound describe request. Returns a future that completes with the payload JsonNode.
+   */
   public CompletableFuture<Object> describe(String sessionId, String authBearer, String actionId) {
     String reqId = nextRequestId();
     Envelope env = new Envelope();
@@ -199,7 +177,7 @@ public class PluginClient {
     env.protocol = new Protocol("ultrabar.plugin", 1);
     env.sessionId = (sessionId != null) ? sessionId : savedSessionId;
     env.auth = (authBearer != null) ? authBearer : savedSessionToken;
-    env.payload = new com.ultrabar.plugin.model.DescribePayload(actionId);
+    env.payload = new DescribePayload(actionId);
 
     CompletableFuture<Object> fut = new CompletableFuture<>();
     pending.put(reqId, fut);
@@ -207,6 +185,9 @@ public class PluginClient {
     return fut;
   }
 
+  /**
+   * Make an outbound call to the main App. Returns a future that completes when a reply arrives.
+   */
   public CompletableFuture<Object> call(String sessionId, String authBearer, String action, java.util.Map<String, Object> params) {
     String reqId = nextRequestId();
     Envelope env = new Envelope();
@@ -236,6 +217,7 @@ public class PluginClient {
 
   public void setActionsUpdateCallback(ActionsUpdateCallback cb) { this.actionsUpdateCallback = cb; }
 
+  // --- Internal send helpers ---
   private void sendEnvelope(Envelope env) {
     // If not connected yet, queue the envelope to be sent after connection
     if (channel == null || !channel.isActive()) {
@@ -269,25 +251,25 @@ public class PluginClient {
   private void onConnected() {
     // When connection established, cancel any previous heartbeat and clear saved session (we'll re-register)
     cancelHeartbeat();
+    // do not clear savedSessionId/token here if we want to reuse after reconnect? we clear to ensure fresh register
     savedSessionId = null;
     savedSessionToken = null;
 
-    // first, send any queued envelopes (so register can be sent if caller did register before start completed)
+    // first, send any queued envelopes (so describe/call queued before start will be sent)
     drainPendingEnvelopes();
 
-    // If we had previously registered payload but not currently registered, attempt to re-register
-    if (lastRegisterPayload != null) {
-      System.out.println("Attempting automatic re-register...");
-      attemptReRegister();
+    // If we have an auto register payload configured, attempt register -> then send actions
+    if (autoRegisterPayload != null) {
+      attemptAutoRegister();
     }
   }
 
-  private void attemptReRegister() {
-    RegisterPayload payload = lastRegisterPayload;
+  private void attemptAutoRegister() {
+    RegisterPayload payload = autoRegisterPayload;
     if (payload == null) return;
 
     // Use internal callback to save session and schedule heartbeat, then resend actions
-    this.register(payload, new RegisterCallback() {
+    this.sendRegisterInternal(payload, new RegisterCallback() {
       @Override
       public void onSuccess(JsonNode registerResultPayload) {
         try {
@@ -304,18 +286,17 @@ public class PluginClient {
           e.printStackTrace();
         }
 
-        // resend actions if present
-        if (lastActionsPayload != null) {
-          System.out.println("Resending actions after re-register...");
-          sendActions(lastActionsPayload, new ActionsCallback() {
+        // send actions if configured
+        if (autoActionsPayload != null) {
+          sendActionsInternal(autoActionsPayload, new ActionsCallback() {
             @Override
             public void onSuccess(JsonNode ackPayload) {
-              System.out.println("Actions resent and acked: " + ackPayload.toString());
+              System.out.println("Auto actions ack: " + ackPayload.toString());
             }
 
             @Override
             public void onError(Throwable t) {
-              System.err.println("Resend actions failed: " + t.getMessage());
+              System.err.println("Auto actions failed: " + t.getMessage());
             }
           });
         }
@@ -323,11 +304,38 @@ public class PluginClient {
 
       @Override
       public void onError(Throwable t) {
-        System.err.println("Auto re-register failed: " + t.getMessage());
+        System.err.println("Auto register failed: " + t.getMessage());
         // schedule another attempt
-        scheduler.schedule(PluginClient.this::attemptReRegister, baseReconnectIntervalMillis, TimeUnit.MILLISECONDS);
+        scheduler.schedule(PluginClient.this::attemptAutoRegister, baseReconnectIntervalMillis, TimeUnit.MILLISECONDS);
       }
     });
+  }
+
+  // Internal register (not exposed). Used by auto-register flow.
+  private void sendRegisterInternal(RegisterPayload payload, RegisterCallback callback) {
+    String reqId = nextRequestId();
+    Envelope env = new Envelope();
+    env.type = "register";
+    env.requestId = reqId;
+    env.timestamp = Instant.now().toString();
+    env.protocol = new Protocol("ultrabar.plugin", 1);
+    env.payload = payload;
+
+    registerCallbacks.put(reqId, callback);
+    sendEnvelope(env);
+  }
+
+  // Internal sendActions (not exposed). Used by auto-actions flow.
+  private void sendActionsInternal(ActionsPayload payload, ActionsCallback callback) {
+    String reqId = nextRequestId();
+    Envelope env = new Envelope();
+    env.type = "actions";
+    env.requestId = reqId;
+    env.timestamp = Instant.now().toString();
+    env.protocol = new Protocol("ultrabar.plugin", 1);
+    env.payload = payload;
+    actionsCallbacks.put(reqId, callback);
+    sendEnvelope(env);
   }
 
   private void scheduleHeartbeat() {
@@ -363,7 +371,6 @@ public class PluginClient {
     @Override
     public void channelInactive(ChannelHandlerContext ctx) {
       System.err.println("Channel inactive, scheduling reconnect");
-      // cancel heartbeat and clear saved session (we'll re-register on reconnect)
       cancelHeartbeat();
       savedSessionId = null;
       savedSessionToken = null;
@@ -393,7 +400,6 @@ public class PluginClient {
           if (cb != null) {
             RegisterResultPayload rr = mapper.treeToValue(payload, RegisterResultPayload.class);
             if (Boolean.TRUE.equals(rr.success)) {
-              // save session and schedule heartbeat
               savedSessionId = rr.sessionId;
               savedSessionToken = rr.sessionToken;
               if (rr.heartbeat != null && rr.heartbeat.interval != null) {
@@ -435,12 +441,10 @@ public class PluginClient {
             try {
               callHandler.onCall(cp, responder);
             } catch (Exception ex) {
-              // if handler throws, send error back
               responder.sendError("HANDLER_EXCEPTION", ex.getMessage(), false, null);
             }
             return;
           } else {
-            // No handler registered, reply with error
             CallResponder responder = new CallResponder(ctx.channel(), reqId, mapper);
             responder.sendError("NO_HANDLER", "No CallHandler registered", false, null);
             return;
