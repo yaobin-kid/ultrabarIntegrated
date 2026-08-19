@@ -2,6 +2,8 @@ package com.example.plugin;
 
 import com.example.plugin.callback.ActionsCallback;
 import com.example.plugin.callback.ActionsUpdateCallback;
+import com.example.plugin.callback.CallHandler;
+import com.example.plugin.callback.CallResponder;
 import com.example.plugin.callback.RegisterCallback;
 import com.example.plugin.model.Envelope;
 import com.example.plugin.model.Protocol;
@@ -30,7 +32,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * PluginClient - minimal Netty-based client for Ultrabar protocol.
- * Use model POJOs for payloads.
+ * Use model POJOs for payloads. Now supports incoming `call` dispatch via CallHandler.
  */
 public class PluginClient {
 
@@ -47,6 +49,7 @@ public class PluginClient {
   private final ConcurrentMap<String, RegisterCallback> registerCallbacks = new ConcurrentHashMap<>();
   private final ConcurrentMap<String, ActionsCallback> actionsCallbacks = new ConcurrentHashMap<>();
   private volatile ActionsUpdateCallback actionsUpdateCallback;
+  private volatile CallHandler callHandler;
 
   private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
   private volatile boolean stopped = false;
@@ -160,6 +163,11 @@ public class PluginClient {
     return fut;
   }
 
+  /**
+   * Register a handler for incoming `call` requests from the server.
+   */
+  public void setCallHandler(CallHandler handler) { this.callHandler = handler; }
+
   public void setActionsUpdateCallback(ActionsUpdateCallback cb) { this.actionsUpdateCallback = cb; }
 
   private void sendEnvelope(Envelope env) {
@@ -210,6 +218,7 @@ public class PluginClient {
         String type = node.has("type") ? node.get("type").asText(null) : null;
         JsonNode payload = node.has("payload") ? node.get("payload") : node;
 
+        // If there's a pending future for this requestId, complete it
         if (reqId != null && pending.containsKey(reqId)) {
           CompletableFuture<Object> fut = pending.remove(reqId);
           if (fut != null) {
@@ -218,6 +227,7 @@ public class PluginClient {
           }
         }
 
+        // register_result handling
         if ("register_result".equals(type) && reqId != null) {
           RegisterCallback cb = registerCallbacks.remove(reqId);
           if (cb != null) {
@@ -228,6 +238,7 @@ public class PluginClient {
           }
         }
 
+        // actions_ack handling
         if ("actions_ack".equals(type) && reqId != null) {
           ActionsCallback ac = actionsCallbacks.remove(reqId);
           if (ac != null) {
@@ -238,11 +249,35 @@ public class PluginClient {
           }
         }
 
+        // actions_update push
         if ("actions_update".equals(type)) {
-          if (actionsUpdateCallback != null) actionsUpdateCallback.onUpdate(payload);
-          return;
+          if (actionsUpdateCallback != null) {
+            actionsUpdateCallback.onUpdate(payload);
+            return;
+          }
         }
 
+        // incoming call from server -> dispatch to CallHandler
+        if ("call".equals(type)) {
+          if (callHandler != null) {
+            CallPayload cp = mapper.treeToValue(payload, CallPayload.class);
+            CallResponder responder = new CallResponder(ctx.channel(), reqId, mapper);
+            try {
+              callHandler.onCall(cp, responder);
+            } catch (Exception ex) {
+              // if handler throws, send error back
+              responder.sendError("HANDLER_EXCEPTION", ex.getMessage(), false, null);
+            }
+            return;
+          } else {
+            // No handler registered, reply with error
+            CallResponder responder = new CallResponder(ctx.channel(), reqId, mapper);
+            responder.sendError("NO_HANDLER", "No CallHandler registered", false, null);
+            return;
+          }
+        }
+
+        // fallback: log
         System.out.println("Received message type=" + type + " requestId=" + reqId + " payload=" + payload.toString());
       } catch (Exception ex) {
         ex.printStackTrace();
