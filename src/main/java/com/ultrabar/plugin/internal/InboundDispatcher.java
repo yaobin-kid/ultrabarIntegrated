@@ -1,16 +1,16 @@
 package com.ultrabar.plugin.internal;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ultrabar.plugin.callback.CallResponder;
 import com.ultrabar.plugin.callback.DescribeResponder;
 import com.ultrabar.plugin.callback.OptionsResponder;
 import com.ultrabar.plugin.model.ActionsPayload;
-import com.ultrabar.plugin.model.ActionsAckPayload;
 import com.ultrabar.plugin.model.CallPayload;
 import com.ultrabar.plugin.model.DescribePayload;
+import com.ultrabar.plugin.model.Envelope;
+import com.ultrabar.plugin.model.ErrorCodes;
 import com.ultrabar.plugin.model.GetOptionsPayload;
-import com.ultrabar.plugin.model.RegisterResultPayload;
+import com.ultrabar.plugin.model.MessageType;
 import io.netty.channel.Channel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,106 +21,87 @@ public final class InboundDispatcher {
     private final ObjectMapper mapper;
     private final RequestTable requests;
     private final ListenerNotifier notifier;
+    private final SessionState session;
 
-    public InboundDispatcher(ObjectMapper mapper, RequestTable requests, ListenerNotifier notifier) {
+    public InboundDispatcher(ObjectMapper mapper, RequestTable requests, ListenerNotifier notifier, SessionState session) {
         this.mapper = mapper;
         this.requests = requests;
         this.notifier = notifier;
+        this.session = session;
     }
 
     public void onMessage(Channel channel, String raw) {
+        Envelope envelope;
         try {
-            JsonNode node = mapper.readTree(raw);
-            String type = textOrNull(node, "type");
-            String requestId = textOrNull(node, "requestId");
-            JsonNode payload = node.has("payload") ? node.get("payload") : node;
-            if (type == null) {
-                log.warn("inbound message missing type: {}", raw);
-                return;
-            }
-            dispatch(channel, type, requestId, payload);
+            envelope = mapper.readValue(raw, Envelope.class);
         } catch (Exception e) {
-            log.error("failed to parse inbound message", e);
+            log.error("failed to parse inbound envelope", e);
+            return;
         }
+        if (envelope.getType() == null) {
+            log.warn("inbound envelope missing or unknown type");
+            return;
+        }
+        dispatch(channel, envelope);
     }
 
-    private void dispatch(Channel channel, String type, String requestId, JsonNode payload) {
+    private void dispatch(Channel channel, Envelope envelope) {
+        MessageType type = envelope.getType();
         switch (type) {
-            case "register_result":
-                complete(requestId, payload, RegisterResultPayload.class);
+            case REGISTER_RESULT:
+            case ACTIONS_RESULT:
+            case DESCRIBE_RESULT:
+            case GET_OPTIONS_RESULT:
+            case CALL_RESULT:
+            case HEARTBEAT_ACK:
+                if (!requests.complete(envelope.getRequestId(), envelope.getPayload())) {
+                    log.debug("no pending request for type={} requestId={}", type, envelope.getRequestId());
+                }
                 return;
-            case "actions_ack":
-                complete(requestId, payload, ActionsAckPayload.class);
+            case ACTIONS_UPDATE:
+                notifier.onActionsUpdate(envelope.payloadAs(ActionsPayload.class));
                 return;
-            case "describe_result":
-            case "options_result":
-            case "result":
-            case "heartbeat_ack":
-                requests.complete(requestId, payload);
+            case DESCRIBE:
+                handleDescribe(channel, envelope);
                 return;
-            case "actions_update":
-                handleActionsUpdate(payload);
+            case CALL:
+                handleCall(channel, envelope);
                 return;
-            case "describe":
-                handleDescribe(channel, requestId, payload);
-                return;
-            case "call":
-                handleCall(channel, requestId, payload);
-                return;
-            case "get_options":
-                handleOptions(channel, requestId, payload);
+            case GET_OPTIONS:
+                handleOptions(channel, envelope);
                 return;
             default:
-                log.info("ignored inbound type={} requestId={}", type, requestId);
+                log.info("ignored inbound type={} requestId={}", type, envelope.getRequestId());
         }
     }
 
-    private void complete(String requestId, JsonNode payload, Class<?> expectedType) {
-        if (!requests.complete(requestId, payload)) {
-            log.debug("no pending {} for requestId={}", expectedType.getSimpleName(), requestId);
-        }
-    }
-
-    private void handleActionsUpdate(JsonNode payload) {
+    private void handleDescribe(Channel channel, Envelope envelope) {
+        DescribeResponder responder = new DescribeResponder(
+                channel, envelope.getRequestId(), mapper, session.sessionId(), session.sessionToken());
         try {
-            ActionsPayload update = mapper.treeToValue(payload, ActionsPayload.class);
-            notifier.onActionsUpdate(update);
+            notifier.onDescribe(envelope.payloadAs(DescribePayload.class), responder);
         } catch (Exception e) {
-            log.warn("invalid actions_update payload", e);
+            responder.sendError(ErrorCodes.INVALID_PAYLOAD, e.getMessage(), false, null);
         }
     }
 
-    private void handleDescribe(Channel channel, String requestId, JsonNode payload) {
-        DescribeResponder responder = new DescribeResponder(channel, requestId, mapper);
+    private void handleCall(Channel channel, Envelope envelope) {
+        CallResponder responder = new CallResponder(
+                channel, envelope.getRequestId(), mapper, session.sessionId(), session.sessionToken());
         try {
-            DescribePayload describe = mapper.treeToValue(payload, DescribePayload.class);
-            notifier.onDescribe(describe, responder);
+            notifier.onCall(envelope.payloadAs(CallPayload.class), responder);
         } catch (Exception e) {
-            responder.sendError("INVALID_PAYLOAD", e.getMessage(), false, null);
+            responder.sendError(ErrorCodes.INVALID_PAYLOAD, e.getMessage(), false, null);
         }
     }
 
-    private void handleCall(Channel channel, String requestId, JsonNode payload) {
-        CallResponder responder = new CallResponder(channel, requestId, mapper);
+    private void handleOptions(Channel channel, Envelope envelope) {
+        OptionsResponder responder = new OptionsResponder(
+                channel, envelope.getRequestId(), mapper, session.sessionId(), session.sessionToken());
         try {
-            CallPayload call = mapper.treeToValue(payload, CallPayload.class);
-            notifier.onCall(call, responder);
+            notifier.onOptions(envelope.payloadAs(GetOptionsPayload.class), responder);
         } catch (Exception e) {
-            responder.sendError("INVALID_PAYLOAD", e.getMessage(), false, null);
+            responder.sendError(ErrorCodes.INVALID_PAYLOAD, e.getMessage(), false, null);
         }
-    }
-
-    private void handleOptions(Channel channel, String requestId, JsonNode payload) {
-        OptionsResponder responder = new OptionsResponder(channel, requestId, mapper);
-        try {
-            GetOptionsPayload options = mapper.treeToValue(payload, GetOptionsPayload.class);
-            notifier.onOptions(options, responder);
-        } catch (Exception e) {
-            responder.sendError("INVALID_PAYLOAD", e.getMessage(), false, null);
-        }
-    }
-
-    private static String textOrNull(JsonNode node, String field) {
-        return node.has(field) ? node.get(field).asText(null) : null;
     }
 }

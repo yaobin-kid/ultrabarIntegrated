@@ -13,7 +13,7 @@ public interface PluginListener {
 
     void onActionsFailed(Throwable t);
 
-    void onActionsAck(ActionsAckPayload ack);
+    void onActionsAck(ActionsResultPayload ack);
 
     void onActionsUpdate(ActionsPayload update);
 

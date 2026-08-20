@@ -1,83 +1,62 @@
 package com.ultrabar.plugin.callback;
 
-import com.ultrabar.plugin.model.ErrorInfo;
-import com.ultrabar.plugin.model.ResultPayload;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ultrabar.plugin.model.CallResultPayload;
+import com.ultrabar.plugin.model.Envelope;
+import com.ultrabar.plugin.model.ErrorInfo;
+import com.ultrabar.plugin.model.MessageType;
+import com.ultrabar.plugin.model.TaskInfo;
 import io.netty.channel.Channel;
 
-import java.util.HashMap;
 import java.util.Map;
 
-/**
- * Helper to send result/error back to server for a specific requestId.
- */
 public class CallResponder {
-  private final Channel channel;
-  private final String requestId;
-  private final ObjectMapper mapper;
+    private final Channel channel;
+    private final String requestId;
+    private final ObjectMapper mapper;
+    private final String sessionId;
+    private final String auth;
 
-  public CallResponder(Channel channel, String requestId, ObjectMapper mapper) {
-    this.channel = channel;
-    this.requestId = requestId;
-    this.mapper = mapper;
-  }
-
-  /**
-   * Send a successful result with optional data map.
-   */
-  public void sendSuccess(Map<String, Object> data) {
-    ResultPayload rp = new ResultPayload();
-    rp.success = true;
-    rp.data = data;
-    writeResult(rp);
-  }
-
-  /**
-   * Send an accepted async result with task info (use data map to include taskId/statusUrl if desired).
-   */
-  public void sendAccepted(Map<String, Object> data, String taskId, String statusUrl) {
-    ResultPayload rp = new ResultPayload();
-    rp.success = true;
-    rp.accepted = true;
-    rp.data = data;
-    if (taskId != null || statusUrl != null) {
-      rp.task = new com.ultrabar.plugin.model.TaskInfo();
-      rp.task.taskId = taskId;
-      rp.task.statusUrl = statusUrl;
-      rp.task.status = "pending";
+    public CallResponder(Channel channel, String requestId, ObjectMapper mapper) {
+        this(channel, requestId, mapper, null, null);
     }
-    writeResult(rp);
-  }
 
-  /**
-   * Send an error result.
-   */
-  public void sendError(String code, String message, boolean retryable, Map<String, Object> details) {
-    ResultPayload rp = new ResultPayload();
-    rp.success = false;
-    ErrorInfo ei = new ErrorInfo();
-    ei.code = code;
-    ei.message = message;
-    ei.retryable = retryable;
-    ei.details = details;
-    ei.timestamp = java.time.Instant.now().toString();
-    rp.error = ei;
-    writeResult(rp);
-  }
-
-  private void writeResult(ResultPayload rp) {
-    try {
-      // Build envelope manually to include type/requestId/payload
-      Map<String, Object> env = new HashMap<>();
-      env.put("type", "result");
-      env.put("requestId", requestId);
-      env.put("timestamp", java.time.Instant.now().toString());
-      env.put("payload", rp);
-      String json = mapper.writeValueAsString(env);
-      // Ensure newline framing (server expects \n)
-      channel.writeAndFlush(json + "\n");
-    } catch (Exception e) {
-      e.printStackTrace();
+    public CallResponder(Channel channel, String requestId, ObjectMapper mapper, String sessionId, String auth) {
+        this.channel = channel;
+        this.requestId = requestId;
+        this.mapper = mapper;
+        this.sessionId = sessionId;
+        this.auth = auth;
     }
-  }
+
+    public void sendSuccess(Map<String, Object> data) {
+        CallResultPayload payload = new CallResultPayload();
+        payload.success = true;
+        payload.data = data;
+        write(payload);
+    }
+
+    public void sendAccepted(Map<String, Object> data, String taskId, String statusUrl) {
+        CallResultPayload payload = new CallResultPayload();
+        payload.success = true;
+        payload.accepted = true;
+        payload.data = data;
+        payload.task = TaskInfo.pending(taskId);
+        payload.task.statusUrl = statusUrl;
+        write(payload);
+    }
+
+    public void sendError(String code, String message, boolean retryable, Map<String, Object> details) {
+        CallResultPayload payload = new CallResultPayload();
+        payload.success = false;
+        payload.error = ErrorInfo.of(code, message, retryable, details);
+        write(payload);
+    }
+
+    private void write(CallResultPayload payload) {
+        EnvelopeWriter.write(
+                channel,
+                mapper,
+                Envelope.of(MessageType.CALL_RESULT, requestId, payload).withSession(sessionId, auth));
+    }
 }

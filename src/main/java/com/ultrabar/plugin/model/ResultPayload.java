@@ -5,7 +5,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.Map;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class ResultPayload {
+public class ResultPayload implements Payload {
   public Boolean success;
   public Map<String, Object> data;
   public Boolean accepted;

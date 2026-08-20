@@ -1,7 +1,6 @@
 package com.ultrabar.plugin.internal;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ultrabar.plugin.model.Payload;
 
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -15,12 +14,10 @@ import java.util.concurrent.TimeoutException;
  */
 public final class RequestTable {
     private final ScheduledExecutorService scheduler;
-    private final ObjectMapper mapper;
     private final Map<String, Entry<?>> pending = new ConcurrentHashMap<String, Entry<?>>();
 
-    public RequestTable(ScheduledExecutorService scheduler, ObjectMapper mapper) {
+    public RequestTable(ScheduledExecutorService scheduler) {
         this.scheduler = scheduler;
-        this.mapper = mapper;
     }
 
     public <T> CompletableFuture<T> register(final String requestId, final Class<T> type, long timeoutMs) {
@@ -41,7 +38,7 @@ public final class RequestTable {
         return future;
     }
 
-    public boolean complete(String requestId, JsonNode payload) {
+    public boolean complete(String requestId, Payload payload) {
         if (requestId == null) {
             return false;
         }
@@ -49,7 +46,7 @@ public final class RequestTable {
         if (entry == null) {
             return false;
         }
-        entry.complete(mapper, payload);
+        entry.complete(payload);
         return true;
     }
 
@@ -78,12 +75,9 @@ public final class RequestTable {
             this.future = future;
         }
 
-        void complete(ObjectMapper mapper, JsonNode payload) {
+        void complete(Payload payload) {
             try {
-                T converted = (type == JsonNode.class)
-                        ? type.cast(payload)
-                        : mapper.treeToValue(payload, type);
-                future.complete(converted);
+                future.complete(type.cast(payload));
             } catch (Exception e) {
                 future.completeExceptionally(e);
             }

@@ -3,7 +3,7 @@ package com.ultrabar.plugin.model;
 import java.util.List;
 import java.util.Map;
 
-public class OptionsResult {
+public class OptionsResult implements Payload {
     public Boolean success;
     public Map<String, Object> details;
     public ErrorInfo error;

@@ -34,6 +34,10 @@ public final class SessionState {
         return sessionId;
     }
 
+    String sessionToken() {
+        return sessionToken;
+    }
+
     long heartbeatIntervalMillis() {
         return heartbeatIntervalMillis;
     }

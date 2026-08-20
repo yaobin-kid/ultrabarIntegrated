@@ -1,67 +1,44 @@
 package com.ultrabar.plugin.callback;
 
-import com.ultrabar.plugin.model.DescribeResultPayload;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ultrabar.plugin.model.DescribeResultPayload;
+import com.ultrabar.plugin.model.Envelope;
+import com.ultrabar.plugin.model.ErrorInfo;
+import com.ultrabar.plugin.model.MessageType;
 import io.netty.channel.Channel;
 
-import java.time.Instant;
-import java.util.HashMap;
 import java.util.Map;
 
-/**
- * Helper to send describe result back to server for a specific requestId.
- */
 public class DescribeResponder {
-  private final Channel channel;
-  private final String requestId;
-  private final ObjectMapper mapper;
+    private final Channel channel;
+    private final String requestId;
+    private final ObjectMapper mapper;
+    private final String sessionId;
+    private final String auth;
 
-  public DescribeResponder(Channel channel, String requestId, ObjectMapper mapper) {
-    this.channel = channel;
-    this.requestId = requestId;
-    this.mapper = mapper;
-  }
-
-  /**
-   * Send a successful describe result with typed payload.
-   */
-  public void sendSuccess(DescribeResultPayload payload) {
-    try {
-      Map<String, Object> env = new HashMap<>();
-      env.put("type", "describe_result");
-      env.put("requestId", requestId);
-      env.put("timestamp", Instant.now().toString());
-      env.put("payload", payload);
-      String json = mapper.writeValueAsString(env);
-      channel.writeAndFlush(json + "\n");
-    } catch (Exception e) {
-      e.printStackTrace();
+    public DescribeResponder(Channel channel, String requestId, ObjectMapper mapper) {
+        this(channel, requestId, mapper, null, null);
     }
-  }
 
-  /**
-   * Send an error result for describe.
-   */
-  public void sendError(String code, String message, boolean retryable, Map<String, Object> details) {
-    try {
-      DescribeResultPayload rp = new DescribeResultPayload();
-      rp.success = false;
-      rp.error = new com.ultrabar.plugin.model.ErrorInfo();
-      rp.error.code = code;
-      rp.error.message = message;
-      rp.error.retryable = retryable;
-      rp.error.details = details;
-      rp.error.timestamp = Instant.now().toString();
-
-      Map<String, Object> env = new HashMap<>();
-      env.put("type", "describe_result");
-      env.put("requestId", requestId);
-      env.put("timestamp", Instant.now().toString());
-      env.put("payload", rp);
-      String json = mapper.writeValueAsString(env);
-      channel.writeAndFlush(json + "\n");
-    } catch (Exception e) {
-      e.printStackTrace();
+    public DescribeResponder(Channel channel, String requestId, ObjectMapper mapper, String sessionId, String auth) {
+        this.channel = channel;
+        this.requestId = requestId;
+        this.mapper = mapper;
+        this.sessionId = sessionId;
+        this.auth = auth;
     }
-  }
+
+    public void sendSuccess(DescribeResultPayload payload) {
+        EnvelopeWriter.write(
+                channel,
+                mapper,
+                Envelope.of(MessageType.DESCRIBE_RESULT, requestId, payload).withSession(sessionId, auth));
+    }
+
+    public void sendError(String code, String message, boolean retryable, Map<String, Object> details) {
+        DescribeResultPayload payload = new DescribeResultPayload();
+        payload.success = false;
+        payload.error = ErrorInfo.of(code, message, retryable, details);
+        sendSuccess(payload);
+    }
 }

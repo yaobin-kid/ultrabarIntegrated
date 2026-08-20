@@ -1,10 +1,11 @@
 package com.ultrabar.plugin.internal;
 
 import com.ultrabar.plugin.callback.PluginListener;
-import com.ultrabar.plugin.model.ActionsAckPayload;
+import com.ultrabar.plugin.model.ActionsResultPayload;
 import com.ultrabar.plugin.model.ActionsPayload;
 import com.ultrabar.plugin.model.CallPayload;
 import com.ultrabar.plugin.model.DescribePayload;
+import com.ultrabar.plugin.model.ErrorCodes;
 import com.ultrabar.plugin.model.GetOptionsPayload;
 import com.ultrabar.plugin.model.RegisterResultPayload;
 import com.ultrabar.plugin.callback.CallResponder;
@@ -48,7 +49,7 @@ public final class ListenerNotifier {
         });
     }
 
-    void onActionsAck(final ActionsAckPayload ack) {
+    void onActionsAck(final ActionsResultPayload ack) {
         emit(new ListenerAction() {
             @Override
             public void run(PluginListener l) {
@@ -78,7 +79,7 @@ public final class ListenerNotifier {
     void onDescribe(final DescribePayload payload, final DescribeResponder responder) {
         PluginListener current = listener;
         if (current == null) {
-            responder.sendError("NO_HANDLER", "No PluginListener registered", false, null);
+            responder.sendError(ErrorCodes.NO_HANDLER, "No PluginListener registered", false, null);
             return;
         }
         emitHandled(current, responderGuard(responder), new ListenerAction() {
@@ -92,7 +93,7 @@ public final class ListenerNotifier {
     void onCall(final CallPayload payload, final CallResponder responder) {
         PluginListener current = listener;
         if (current == null) {
-            responder.sendError("NO_HANDLER", "No PluginListener registered", false, null);
+            responder.sendError(ErrorCodes.NO_HANDLER, "No PluginListener registered", false, null);
             return;
         }
         emitHandled(current, new ErrorSink() {
@@ -111,7 +112,7 @@ public final class ListenerNotifier {
     void onOptions(final GetOptionsPayload payload, final OptionsResponder responder) {
         PluginListener current = listener;
         if (current == null) {
-            responder.sendError("NO_HANDLER", "No PluginListener registered", false, null);
+            responder.sendError(ErrorCodes.NO_HANDLER, "No PluginListener registered", false, null);
             return;
         }
         emitHandled(current, new ErrorSink() {
@@ -144,7 +145,7 @@ public final class ListenerNotifier {
                     action.run(current);
                 } catch (Exception e) {
                     log.error("plugin listener failed", e);
-                    errors.sendError("HANDLER_EXCEPTION", e.getMessage());
+                    errors.sendError(ErrorCodes.HANDLER_EXCEPTION, e.getMessage());
                 }
             }
         };

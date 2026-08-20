@@ -6,13 +6,12 @@ import java.util.List;
 import java.util.Map;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class DescribeResultPayload {
-    public Boolean success;
+public class DescribeResultPayload extends ReplyPayload {
     public Map<String, Object> details;
-    public ErrorInfo error;
+    public String actionId;
+    public List<ParameterSpec> parameters;
 
-    public DescribeResultPayload() {
-    }
+    public DescribeResultPayload() {}
 
     public DescribeResultPayload(Boolean success, Map<String, Object> details, ErrorInfo error) {
         this.success = success;
@@ -20,28 +19,22 @@ public class DescribeResultPayload {
         this.error = error;
     }
 
-
-    public String actionId;
-
-    public List<Parameters> parameters;
-
-    public static class Parameters {
-
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class ParameterSpec {
         public String id;
-        public String type;
+        public ParameterType type;
         public String name;
-        public boolean required;
+        public Boolean required;
         public String placeholder;
-        public int maxLength;
-        public Options options;
-        public List<String> dependsOn; //依赖
+        public Integer maxLength;
+        public OptionSpec options;
+        public List<String> dependsOn;
     }
 
-    public static class Options {
-        public String provider; //remote ，static
-        public boolean searchable;
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class OptionSpec {
+        public OptionProvider provider;
+        public Boolean searchable;
         public List<Item> items;
     }
-
-
 }

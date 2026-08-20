@@ -1,10 +1,11 @@
 package com.ultrabar.plugin.internal;
 
+import com.ultrabar.plugin.model.HeartbeatPayload;
+import com.ultrabar.plugin.model.HeartbeatStatus;
+import com.ultrabar.plugin.model.MessageType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -56,10 +57,7 @@ public final class HeartbeatScheduler {
             return;
         }
         try {
-            Map<String, Object> payload = new HashMap<String, Object>();
-            payload.put("sessionId", session.sessionId());
-            payload.put("status", "alive");
-            envelopes.sendOneWay("heartbeat", payload);
+            envelopes.sendOneWay(MessageType.HEARTBEAT, new HeartbeatPayload(session.sessionId(), HeartbeatStatus.ALIVE));
         } catch (Exception e) {
             log.warn("failed to send heartbeat", e);
         }

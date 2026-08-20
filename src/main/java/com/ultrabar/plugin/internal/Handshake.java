@@ -1,7 +1,8 @@
 package com.ultrabar.plugin.internal;
 
-import com.ultrabar.plugin.model.ActionsAckPayload;
+import com.ultrabar.plugin.model.ActionsResultPayload;
 import com.ultrabar.plugin.model.ActionsPayload;
+import com.ultrabar.plugin.model.MessageType;
 import com.ultrabar.plugin.model.RegisterPayload;
 import com.ultrabar.plugin.model.RegisterResultPayload;
 import org.slf4j.Logger;
@@ -89,7 +90,7 @@ public final class Handshake {
         if (payload == null) {
             return;
         }
-        envelopes.request("register", payload, RegisterResultPayload.class).whenComplete(new java.util.function.BiConsumer<RegisterResultPayload, Throwable>() {
+        envelopes.request(MessageType.REGISTER, payload, RegisterResultPayload.class).whenComplete(new java.util.function.BiConsumer<RegisterResultPayload, Throwable>() {
             @Override
             public void accept(RegisterResultPayload result, Throwable error) {
                 onRegisterDone(result, error);
@@ -107,7 +108,7 @@ public final class Handshake {
             scheduleRetry();
             return;
         }
-        if (result == null || !Boolean.TRUE.equals(result.success)) {
+        if (result == null || !result.isSuccess()) {
             RuntimeException failure = new RuntimeException("register_result returned success=false");
             notifier.onRegisterFailed(failure);
             scheduleRetry();
@@ -129,15 +130,15 @@ public final class Handshake {
         if (payload == null) {
             return;
         }
-        envelopes.request("actions", payload, ActionsAckPayload.class).whenComplete(new java.util.function.BiConsumer<ActionsAckPayload, Throwable>() {
+        envelopes.request(MessageType.ACTIONS, payload, ActionsResultPayload.class).whenComplete(new java.util.function.BiConsumer<ActionsResultPayload, Throwable>() {
             @Override
-            public void accept(ActionsAckPayload ack, Throwable error) {
+            public void accept(ActionsResultPayload ack, Throwable error) {
                 onActionsDone(ack, error);
             }
         });
     }
 
-    private void onActionsDone(ActionsAckPayload ack, Throwable error) {
+    private void onActionsDone(ActionsResultPayload ack, Throwable error) {
         if (stopped) {
             return;
         }
@@ -145,8 +146,8 @@ public final class Handshake {
             notifier.onActionsFailed(error);
             return;
         }
-        if (ack == null || !Boolean.TRUE.equals(ack.success)) {
-            notifier.onActionsFailed(new RuntimeException("actions_ack success=false"));
+        if (ack == null || !ack.isSuccess()) {
+            notifier.onActionsFailed(new RuntimeException("actions_result success=false"));
             return;
         }
         notifier.onActionsAck(ack);

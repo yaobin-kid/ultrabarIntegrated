@@ -11,6 +11,7 @@ import com.ultrabar.plugin.internal.ListenerNotifier;
 import com.ultrabar.plugin.internal.RequestTable;
 import com.ultrabar.plugin.internal.SessionState;
 import com.ultrabar.plugin.model.ActionsPayload;
+import com.ultrabar.plugin.model.Json;
 import com.ultrabar.plugin.model.RegisterPayload;
 import io.netty.channel.Channel;
 import org.slf4j.Logger;
@@ -46,14 +47,14 @@ public class PluginClient {
     }
 
     public PluginClient(String host, int port) {
-        ObjectMapper mapper = new ObjectMapper();
+        ObjectMapper mapper = Json.mapper();
         this.scheduler = Executors.newSingleThreadScheduledExecutor(namedFactory("plugin-client-scheduler"));
         this.callbackExecutor = Executors.newCachedThreadPool(namedFactory("plugin-client-callback"));
         this.notifier = new ListenerNotifier(callbackExecutor);
 
         SessionState session = new SessionState();
-        this.requests = new RequestTable(scheduler, mapper);
-        InboundDispatcher dispatcher = new InboundDispatcher(mapper, requests, notifier);
+        this.requests = new RequestTable(scheduler);
+        InboundDispatcher dispatcher = new InboundDispatcher(mapper, requests, notifier, session);
         this.connection = new LineConnection(host, port, mapper, new LineConnection.Listener() {
             @Override
             public void onConnected(Channel channel) {
@@ -72,7 +73,8 @@ public class PluginClient {
             }
         });
 
-        EnvelopeClient envelopes = new EnvelopeClient(connection, requests);
+        EnvelopeClient envelopes = new EnvelopeClient(connection, requests, session);
+        this.envelopes = envelopes;
         this.heartbeat = new HeartbeatScheduler(scheduler, envelopes, session, connection);
         this.handshake = new Handshake(envelopes, session, heartbeat, notifier, connection, scheduler);
     }

@@ -1,67 +1,44 @@
 package com.ultrabar.plugin.callback;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ultrabar.plugin.model.Envelope;
 import com.ultrabar.plugin.model.ErrorInfo;
-import com.ultrabar.plugin.model.OptionsResult;
-import com.ultrabar.plugin.model.ResultPayload;
+import com.ultrabar.plugin.model.GetOptionsResultPayload;
+import com.ultrabar.plugin.model.MessageType;
 import io.netty.channel.Channel;
 
-import java.time.Instant;
-import java.util.HashMap;
 import java.util.Map;
 
 public class OptionsResponder {
     private final Channel channel;
     private final String requestId;
     private final ObjectMapper mapper;
+    private final String sessionId;
+    private final String auth;
 
     public OptionsResponder(Channel channel, String requestId, ObjectMapper mapper) {
+        this(channel, requestId, mapper, null, null);
+    }
+
+    public OptionsResponder(Channel channel, String requestId, ObjectMapper mapper, String sessionId, String auth) {
         this.channel = channel;
         this.requestId = requestId;
         this.mapper = mapper;
+        this.sessionId = sessionId;
+        this.auth = auth;
+    }
+
+    public void sendSuccess(GetOptionsResultPayload payload) {
+        EnvelopeWriter.write(
+                channel,
+                mapper,
+                Envelope.of(MessageType.GET_OPTIONS_RESULT, requestId, payload).withSession(sessionId, auth));
     }
 
     public void sendError(String code, String message, boolean retryable, Map<String, Object> details) {
-        ResultPayload rp = new ResultPayload();
-        rp.success = false;
-        ErrorInfo ei = new ErrorInfo();
-        ei.code = code;
-        ei.message = message;
-        ei.retryable = retryable;
-        ei.details = details;
-        ei.timestamp = java.time.Instant.now().toString();
-        rp.error = ei;
-        writeResult(rp);
+        GetOptionsResultPayload payload = new GetOptionsResultPayload();
+        payload.success = false;
+        payload.error = ErrorInfo.of(code, message, retryable, details);
+        sendSuccess(payload);
     }
-
-    public void sendSuccess(OptionsResult payload) {
-        try {
-            Map<String, Object> env = new HashMap<>();
-            env.put("type", "options_result");
-            env.put("requestId", requestId);
-            env.put("timestamp", Instant.now().toString());
-            env.put("payload", payload);
-            String json = mapper.writeValueAsString(env);
-            channel.writeAndFlush(json + "\n");
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void writeResult(Object rp) {
-        try {
-            // Build envelope manually to include type/requestId/payload
-            Map<String, Object> env = new HashMap<>();
-            env.put("type", "options_result");
-            env.put("requestId", requestId);
-            env.put("timestamp", java.time.Instant.now().toString());
-            env.put("payload", rp);
-            String json = mapper.writeValueAsString(env);
-            // Ensure newline framing (server expects \n)
-            channel.writeAndFlush(json + "\n");
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
 }

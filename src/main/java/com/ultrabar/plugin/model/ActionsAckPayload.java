@@ -3,7 +3,7 @@ package com.ultrabar.plugin.model;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class ActionsAckPayload {
+public class ActionsAckPayload implements Payload {
   public Boolean success;
   public Integer receivedCount;
   public ActionsAckPayload() {}
