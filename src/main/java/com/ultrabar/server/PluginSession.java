@@ -33,6 +33,9 @@ public final class PluginSession {
         this.port = port;
     }
 
+    public long getPort() {
+        return port;
+    }
     public String packageName() {
         return packageName;
     }
