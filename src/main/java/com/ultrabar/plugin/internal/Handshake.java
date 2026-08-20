@@ -108,8 +108,10 @@ public final class Handshake {
             scheduleRetry();
             return;
         }
-        if (result == null || !result.isSuccess()) {
-            RuntimeException failure = new RuntimeException("register_result returned success=false");
+        if (result == null || !result.succeeded()) {
+            RuntimeException failure = new RuntimeException(
+                    "register_result invalid: payload=" + result
+                            + " success=" + (result == null ? "null" : result.success));
             notifier.onRegisterFailed(failure);
             scheduleRetry();
             return;
@@ -146,8 +148,10 @@ public final class Handshake {
             notifier.onActionsFailed(error);
             return;
         }
-        if (ack == null || !ack.isSuccess()) {
-            notifier.onActionsFailed(new RuntimeException("actions_result success=false"));
+        if (ack == null || !ack.succeeded()) {
+            notifier.onActionsFailed(new RuntimeException(
+                    "actions_result invalid: payload=" + ack
+                            + " success=" + (ack == null ? "null" : ack.success)));
             return;
         }
         notifier.onActionsAck(ack);
