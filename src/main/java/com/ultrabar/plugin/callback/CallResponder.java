@@ -41,8 +41,10 @@ public class CallResponder {
         payload.success = true;
         payload.accepted = true;
         payload.data = data;
-        payload.task = TaskInfo.pending(taskId);
-        payload.task.statusUrl = statusUrl;
+        if (taskId != null || statusUrl != null) {
+            payload.task = TaskInfo.pending(taskId);
+            payload.task.statusUrl = statusUrl;
+        }
         write(payload);
     }
 

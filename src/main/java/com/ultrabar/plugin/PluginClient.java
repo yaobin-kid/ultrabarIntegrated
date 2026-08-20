@@ -12,7 +12,9 @@ import com.ultrabar.plugin.internal.RequestTable;
 import com.ultrabar.plugin.internal.SessionState;
 import com.ultrabar.plugin.model.ActionsPayload;
 import com.ultrabar.plugin.model.Json;
+import com.ultrabar.plugin.model.MessageType;
 import com.ultrabar.plugin.model.RegisterPayload;
+import com.ultrabar.plugin.model.TaskUpdatePayload;
 import io.netty.channel.Channel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,6 +37,7 @@ public class PluginClient {
 
     private final LineConnection connection;
     private final RequestTable requests;
+    private final EnvelopeClient envelopes;
     private final Handshake handshake;
     private final HeartbeatScheduler heartbeat;
     private final ListenerNotifier notifier;
@@ -93,6 +96,13 @@ public class PluginClient {
 
     public void setPluginListener(PluginListener listener) {
         notifier.setListener(listener);
+    }
+
+    /**
+     * Push a later status for an accepted call. {@code requestId} is new; correlate with {@code task.taskId}.
+     */
+    public void sendTaskUpdate(TaskUpdatePayload payload) {
+        envelopes.sendOneWay(MessageType.TASK_UPDATE, payload);
     }
 
     public CompletableFuture<Void> startAsync() {

@@ -4,9 +4,23 @@ import com.ultrabar.plugin.callback.CallResponder;
 import com.ultrabar.plugin.callback.DescribeResponder;
 import com.ultrabar.plugin.callback.OptionsResponder;
 import com.ultrabar.plugin.callback.PluginListener;
-import com.ultrabar.plugin.model.*;
+import com.ultrabar.plugin.model.ActionSummary;
+import com.ultrabar.plugin.model.ActionsPayload;
+import com.ultrabar.plugin.model.ActionsResultPayload;
+import com.ultrabar.plugin.model.CallPayload;
+import com.ultrabar.plugin.model.DescribePayload;
+import com.ultrabar.plugin.model.DescribeResultPayload;
+import com.ultrabar.plugin.model.GetOptionsPayload;
+import com.ultrabar.plugin.model.GetOptionsResultPayload;
+import com.ultrabar.plugin.model.Item;
+import com.ultrabar.plugin.model.OptionProvider;
+import com.ultrabar.plugin.model.ParameterType;
+import com.ultrabar.plugin.model.RegisterPayload;
+import com.ultrabar.plugin.model.RegisterResultPayload;
 
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -14,34 +28,29 @@ public class ExampleMain {
     public static void main(String[] args) throws Exception {
         PluginClient client = new PluginClient();
 
-        // Configure register/actions BEFORE start
         RegisterPayload rp = new RegisterPayload();
         rp.id = "com.ultrabar.music";
-        rp.name = "Music 测试";
+        rp.name = "Music";
         rp.version = "1.2.0";
         rp.packageName = "com.ultrabar.music";
         client.setRegisterConfig(rp);
 
         ActionSummary a1 = new ActionSummary();
-        a1.id = "music.play";
-        a1.name = "播放音乐";
-        a1.description = "在指定设备播放音乐";
-
+        a1.actionId = "music.play";
+        a1.name = "play music";
+        a1.description = "play on a device";
 
         ActionSummary a2 = new ActionSummary();
-        a2.id = "music.pause";
-        a2.name = "暂停音乐";
-        a2.description = "暂停指定设备";
-        ActionsPayload ap = new ActionsPayload(Arrays.asList(a1, a2));
+        a2.actionId = "music.pause";
+        a2.name = "pause music";
+        a2.description = "pause a device";
+        client.setActionsConfig(new ActionsPayload(Arrays.asList(a1, a2)));
 
-        client.setActionsConfig(ap);
-
-        // Executor for handling incoming calls / describe processing
         ExecutorService exec = Executors.newFixedThreadPool(4);
 
         client.setPluginListener(new PluginListener() {
             @Override
-            public void onRegisterSuccess(com.ultrabar.plugin.model.RegisterResultPayload payload) {
+            public void onRegisterSuccess(RegisterResultPayload payload) {
                 System.out.println("Register success: session=" + payload.sessionId);
             }
 
@@ -56,13 +65,14 @@ public class ExampleMain {
             }
 
             @Override
-            public void onActionsAck(ActionsAckPayload ack) {
-                System.out.println("Actions ack: success=" + ack.success + " received=" + ack.receivedCount);
+            public void onActionsAck(ActionsResultPayload ack) {
+                System.out.println("Actions result: success=" + ack.success + " received=" + ack.receivedCount);
             }
 
             @Override
             public void onActionsUpdate(ActionsPayload update) {
-                System.out.println("Actions update pushed: count=" + (update != null && update.actions != null ? update.actions.size() : 0));
+                int count = (update != null && update.actions != null) ? update.actions.size() : 0;
+                System.out.println("Actions update pushed: count=" + count);
             }
 
             @Override
@@ -77,64 +87,60 @@ public class ExampleMain {
 
             @Override
             public void onDescribe(DescribePayload payload, DescribeResponder responder) {
-                // Incoming describe from server: process and respond
-                System.out.println("onDescribe........");
-                DescribeResultPayload describeResultPayload = new DescribeResultPayload(true, null, null);
-                describeResultPayload.actionId = payload.actionId;
+                DescribeResultPayload result = new DescribeResultPayload(true, null, null);
+                result.actionId = payload.actionId;
 
+                DescribeResultPayload.ParameterSpec device = new DescribeResultPayload.ParameterSpec();
+                device.id = "deviceId";
+                device.name = "device";
+                device.required = true;
+                device.type = ParameterType.SELECT;
+                device.placeholder = "select a device";
 
-                DescribeResultPayload.Parameters p1 = new DescribeResultPayload.Parameters();
-                p1.id = "deviceId";
-                p1.name = "播放设备";
-                p1.required = true;
-                p1.type = "select";
-                p1.placeholder = "请选择播放设备";
+                DescribeResultPayload.OptionSpec options = new DescribeResultPayload.OptionSpec();
+                options.provider = OptionProvider.REMOTE;
+                options.searchable = true;
+                device.options = options;
 
-                DescribeResultPayload.Options op = new DescribeResultPayload.Options();
-                op.provider = "remote";
-                op.searchable = true;
-                p1.options = op;
-
-                describeResultPayload.parameters = Arrays.asList(p1);
-
-                responder.sendSuccess(describeResultPayload);
-
+                result.parameters = Arrays.asList(device);
+                responder.sendSuccess(result);
             }
 
             @Override
             public void onCall(CallPayload payload, CallResponder responder) {
-                // Incoming call: validate and process
-
-                System.out.println("onCall........");
-
+                Map<String, Object> data = new HashMap<String, Object>();
+                data.put("actionId", payload.actionId);
+                data.put("status", "ok");
+                responder.sendSuccess(data);
             }
 
             @Override
             public void onOptions(GetOptionsPayload payload, OptionsResponder responder) {
-                System.out.println("onOptions........");
-                OptionsResult result = new OptionsResult();
+                GetOptionsResultPayload result = new GetOptionsResultPayload();
                 result.success = true;
-                result.hashMore=false;
-                result.nextCursor  = null;
+                result.hasMore = false;
+                result.nextCursor = null;
+
                 Item item = new Item();
                 item.value = "sp00-1";
-                item.label = "客厅sony电视";
-
+                item.label = "sony tv";
 
                 Item item2 = new Item();
-                item2.value = "sp00-1";
-                item2.label = "客厅sony功放";
+                item2.value = "sp00-2";
+                item2.label = "sony amp";
 
-
-                result.items = Arrays.asList(item,item2);
-
+                result.items = Arrays.asList(item, item2);
                 responder.sendSuccess(result);
             }
         });
 
-        client.startAsync().thenRun(() -> System.out.println("Client started and will auto-register/send actions"));
+        client.startAsync().thenRun(new Runnable() {
+            @Override
+            public void run() {
+                System.out.println("Client started and will auto-register/send actions");
+            }
+        });
 
-        // Keep running for demo then shutdown
         Thread.sleep(30_000);
         client.stop();
         exec.shutdownNow();
