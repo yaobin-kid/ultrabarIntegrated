@@ -19,14 +19,18 @@ public final class PluginSession {
     private volatile Channel channel;
     private volatile List<ActionSummary> actions = Collections.emptyList();
     private volatile long revision;
+
     private volatile long lastSeenMillis = System.currentTimeMillis();
 
-    PluginSession(String packageName, String sessionId, String sessionToken, RegisterPayload plugin, Channel channel) {
+    private final long port;
+
+    PluginSession(String packageName, String sessionId, String sessionToken, RegisterPayload plugin, Channel channel,long port) {
         this.packageName = packageName;
         this.sessionId = sessionId;
         this.sessionToken = sessionToken;
         this.plugin = plugin;
         this.channel = channel;
+        this.port = port;
     }
 
     public String packageName() {

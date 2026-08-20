@@ -2,29 +2,9 @@ package com.ultrabar.server;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ultrabar.plugin.internal.RequestTable;
-import com.ultrabar.plugin.model.ActionsPayload;
-import com.ultrabar.plugin.model.ActionsResultPayload;
-import com.ultrabar.plugin.model.CallPayload;
-import com.ultrabar.plugin.model.CallResultPayload;
-import com.ultrabar.plugin.model.Envelope;
-import com.ultrabar.plugin.model.ErrorCodes;
-import com.ultrabar.plugin.model.ErrorInfo;
-import com.ultrabar.plugin.model.Heartbeat;
-import com.ultrabar.plugin.model.HeartbeatAckPayload;
-import com.ultrabar.plugin.model.Json;
-import com.ultrabar.plugin.model.MessageType;
-import com.ultrabar.plugin.model.Payload;
-import com.ultrabar.plugin.model.RegisterPayload;
-import com.ultrabar.plugin.model.RegisterResultPayload;
-import com.ultrabar.plugin.model.RequestIds;
-import com.ultrabar.plugin.model.TaskUpdatePayload;
+import com.ultrabar.plugin.model.*;
 import io.netty.bootstrap.ServerBootstrap;
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.ChannelOption;
-import io.netty.channel.ChannelPipeline;
-import io.netty.channel.EventLoopGroup;
+import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
@@ -36,9 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -63,7 +41,8 @@ public class PluginServer {
 
     private final int heartbeatIntervalMs;
     private final int heartbeatTimeoutMs;
-    private volatile PluginServerListener listener = new PluginServerListener() {};
+    private volatile PluginServerListener listener = new PluginServerListener() {
+    };
     private volatile PluginRegisterHandler registerHandler = new DefaultRegisterHandler();
 
     private EventLoopGroup bossGroup;
@@ -86,7 +65,8 @@ public class PluginServer {
     }
 
     public void setListener(PluginServerListener listener) {
-        this.listener = listener == null ? new PluginServerListener() {} : listener;
+        this.listener = listener == null ? new PluginServerListener() {
+        } : listener;
     }
 
     public void setRegisterHandler(PluginRegisterHandler registerHandler) {
@@ -159,21 +139,7 @@ public class PluginServer {
      * If more than one plugin owns the same actionId, use
      * {@link #call(String, String, Map)} with packageName.
      */
-    public CompletableFuture<CallResultPayload> call(String actionId, Map<String, Object> params) {
-        List<PluginSession> owners = sessions.findByActionId(actionId);
-        if (owners.isEmpty()) {
-            return failedFuture(new IllegalStateException("no session registered actionId=" + actionId));
-        }
-        if (owners.size() > 1) {
-            List<String> packages = new ArrayList<String>();
-            for (int i = 0; i < owners.size(); i++) {
-                packages.add(owners.get(i).packageName());
-            }
-            return failedFuture(new IllegalStateException(
-                    "actionId=" + actionId + " is registered by multiple packages " + packages));
-        }
-        return call(owners.get(0).packageName(), actionId, params);
-    }
+
 
     public CompletableFuture<CallResultPayload> call(String packageName, String actionId, Map<String, Object> params) {
         PluginSession session = sessions.byPackage(packageName);
@@ -286,14 +252,13 @@ public class PluginServer {
                 result.sessionId,
                 result.sessionToken,
                 payload,
-                channel);
+                channel, result.configServer.port);
         PluginSession replaced = sessions.put(session);
         if (replaced != null) {
             log.info("replaced session for packageName={}", session.packageName());
         }
         write(channel, Envelope.of(MessageType.REGISTER_RESULT, envelope.getRequestId(), result));
-        log.info("registered packageName={} pluginId={} sessionId={}",
-                session.packageName(), payload.id, session.sessionId());
+        log.info("registered packageName={} sessionId={}", session.packageName(), session.sessionId());
         listener.onRegistered(session);
     }
 
