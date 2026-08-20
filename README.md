@@ -9,7 +9,7 @@
 
 Android 上一般只集成 **PluginClient**，连到 PC / 主 App 上的 PluginServer。
 
-## 构建
+## 源码构建
 
 ```bash
 git clone https://github.com/yaobin-kid/ultrabarIntegrated.git
@@ -18,6 +18,17 @@ cd ultrabarIntegrated
 ```
 
 产物：`build/libs/ultrabar-plugin-sdk-1.0-SNAPSHOT.jar`（**不含** Netty / Jackson / slf4j，宿主项目需要自行声明依赖）。
+
+
+## android studio 引入
+```groovy
+repositories {
+    maven { url 'https://jitpack.io' }
+}
+```
+```groovy
+implementation 'com.github.yaobin-kid:ultrabarIntegrated:1.0.2'
+```
 
 本仓库自带的依赖版本：
 
