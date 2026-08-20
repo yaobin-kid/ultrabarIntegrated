@@ -140,6 +140,7 @@ public class TestServer {
                 register.heartbeat = new Heartbeat();
                 register.heartbeat.interval = 5000;
                 register.heartbeat.timeout = 15000;
+                
                 write(ctx, mapper, Envelope.of(MessageType.REGISTER_RESULT, envelope.getRequestId(), register));
 
                 scheduler.schedule(new Runnable() {
