@@ -3,7 +3,7 @@ plugins {
     id 'maven-publish' // 1. 必须引入 maven-publish 插件
 }
 
-group 'com.ultrabar'
+group 'com.github.yaobin-kid.ultrabar-plugin-sdk'
 version '1.0-SNAPSHOT'
 
 java {
