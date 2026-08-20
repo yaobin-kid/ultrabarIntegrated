@@ -9,6 +9,5 @@ public class RegisterResultPayload {
   public String sessionToken;
   public ConfigServer configServer;
   public Heartbeat heartbeat;
-  public Protocol protocol;
   public RegisterResultPayload() {}
 }

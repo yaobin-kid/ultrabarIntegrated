@@ -2,38 +2,42 @@ package com.ultrabar.plugin;
 
 import com.ultrabar.plugin.callback.CallResponder;
 import com.ultrabar.plugin.callback.DescribeResponder;
+import com.ultrabar.plugin.callback.OptionsResponder;
 import com.ultrabar.plugin.callback.PluginListener;
 import com.ultrabar.plugin.model.*;
 
 import java.util.Arrays;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 public class ExampleMain {
     public static void main(String[] args) throws Exception {
-        PluginClient client = new PluginClient("127.0.0.1", 39001);
+        PluginClient client = new PluginClient();
 
         // Configure register/actions BEFORE start
         RegisterPayload rp = new RegisterPayload();
-        rp.plugin = new PluginInfo();
-        rp.plugin.id = "com.ultrabar.music";
-        rp.plugin.name = "Music 测试";
-        rp.plugin.version = "1.2.0";
-        rp.plugin.packageName = "com.ultrabar.music";
+        rp.id = "com.ultrabar.music";
+        rp.name = "Music 测试";
+        rp.version = "1.2.0";
+        rp.packageName = "com.ultrabar.music";
         client.setRegisterConfig(rp);
 
         ActionSummary a1 = new ActionSummary();
         a1.id = "music.play";
-        a1.version = 1;
         a1.name = "播放音乐";
         a1.description = "在指定设备播放音乐";
-        ActionsPayload ap = new ActionsPayload(Arrays.asList(a1));
+
+
+        ActionSummary a2 = new ActionSummary();
+        a2.id = "music.pause";
+        a2.name = "暂停音乐";
+        a2.description = "暂停指定设备";
+        ActionsPayload ap = new ActionsPayload(Arrays.asList(a1, a2));
+
         client.setActionsConfig(ap);
 
         // Executor for handling incoming calls / describe processing
         ExecutorService exec = Executors.newFixedThreadPool(4);
-        AtomicBoolean httpStarted = new AtomicBoolean(false);
 
         client.setPluginListener(new PluginListener() {
             @Override
@@ -74,6 +78,26 @@ public class ExampleMain {
             @Override
             public void onDescribe(DescribePayload payload, DescribeResponder responder) {
                 // Incoming describe from server: process and respond
+                System.out.println("onDescribe........");
+                DescribeResultPayload describeResultPayload = new DescribeResultPayload(true, null, null);
+                describeResultPayload.actionId = payload.actionId;
+
+
+                DescribeResultPayload.Parameters p1 = new DescribeResultPayload.Parameters();
+                p1.id = "deviceId";
+                p1.name = "播放设备";
+                p1.required = true;
+                p1.type = "select";
+                p1.placeholder = "请选择播放设备";
+
+                DescribeResultPayload.Options op = new DescribeResultPayload.Options();
+                op.provider = "remote";
+                op.searchable = true;
+                p1.options = op;
+
+                describeResultPayload.parameters = Arrays.asList(p1);
+
+                responder.sendSuccess(describeResultPayload);
 
             }
 
@@ -81,6 +105,30 @@ public class ExampleMain {
             public void onCall(CallPayload payload, CallResponder responder) {
                 // Incoming call: validate and process
 
+                System.out.println("onCall........");
+
+            }
+
+            @Override
+            public void onOptions(GetOptionsPayload payload, OptionsResponder responder) {
+                System.out.println("onOptions........");
+                OptionsResult result = new OptionsResult();
+                result.success = true;
+                result.hashMore=false;
+                result.nextCursor  = null;
+                Item item = new Item();
+                item.value = "sp00-1";
+                item.label = "客厅sony电视";
+
+
+                Item item2 = new Item();
+                item2.value = "sp00-1";
+                item2.label = "客厅sony功放";
+
+
+                result.items = Arrays.asList(item,item2);
+
+                responder.sendSuccess(result);
             }
         });
 
