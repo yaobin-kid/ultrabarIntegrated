@@ -1,22 +1,10 @@
-package com.ultrabar.plugin;
+package com.ultrabar.plugin.model;
 
+import com.ultrabar.plugin.PluginClient;
 import com.ultrabar.plugin.callback.CallResponder;
 import com.ultrabar.plugin.callback.DescribeResponder;
 import com.ultrabar.plugin.callback.OptionsResponder;
 import com.ultrabar.plugin.callback.PluginListener;
-import com.ultrabar.plugin.model.ActionSummary;
-import com.ultrabar.plugin.model.ActionsPayload;
-import com.ultrabar.plugin.model.ActionsResultPayload;
-import com.ultrabar.plugin.model.CallPayload;
-import com.ultrabar.plugin.model.DescribePayload;
-import com.ultrabar.plugin.model.DescribeResultPayload;
-import com.ultrabar.plugin.model.GetOptionsPayload;
-import com.ultrabar.plugin.model.GetOptionsResultPayload;
-import com.ultrabar.plugin.model.Item;
-import com.ultrabar.plugin.model.OptionProvider;
-import com.ultrabar.plugin.model.ParameterType;
-import com.ultrabar.plugin.model.RegisterPayload;
-import com.ultrabar.plugin.model.RegisterResultPayload;
 
 import java.util.Arrays;
 import java.util.HashMap;

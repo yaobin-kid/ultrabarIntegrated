@@ -1,10 +1,11 @@
-package com.ultrabar.server;
+package com.ultrabar.plugin.model;
 
+import com.ultrabar.server.PluginRegisterHandler;
+import com.ultrabar.server.PluginServer;
+import com.ultrabar.server.PluginServerListener;
+import com.ultrabar.server.PluginSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.ultrabar.plugin.model.RegisterPayload;
-import com.ultrabar.plugin.model.RegisterResultPayload;
 
 /**
  * Starts the plugin protocol server (default 127.0.0.1:39001).
