@@ -1,18 +1,7 @@
 package com.ultrabar.plugin.testserver;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ultrabar.plugin.model.ActionsPayload;
-import com.ultrabar.plugin.model.ActionsResultPayload;
-import com.ultrabar.plugin.model.CallPayload;
-import com.ultrabar.plugin.model.DescribePayload;
-import com.ultrabar.plugin.model.Envelope;
-import com.ultrabar.plugin.model.GetOptionsPayload;
-import com.ultrabar.plugin.model.Heartbeat;
-import com.ultrabar.plugin.model.HeartbeatAckPayload;
-import com.ultrabar.plugin.model.Json;
-import com.ultrabar.plugin.model.MessageType;
-import com.ultrabar.plugin.model.RegisterResultPayload;
-import com.ultrabar.plugin.model.RequestIds;
+import com.ultrabar.plugin.model.*;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -83,6 +72,7 @@ public class TestServer {
 
                                 @Override
                                 protected void channelRead0(ChannelHandlerContext ctx, String msg) throws Exception {
+                                    System.out.println("接受到客户端发送消息:"+msg);
                                     Envelope envelope = mapper.readValue(msg, Envelope.class);
                                     System.out.println("[server] recv type=" + envelope.getType()
                                             + " reqId=" + envelope.getRequestId());
@@ -140,7 +130,10 @@ public class TestServer {
                 register.heartbeat = new Heartbeat();
                 register.heartbeat.interval = 5000;
                 register.heartbeat.timeout = 15000;
-                
+                ConfigServer configServer = new ConfigServer();
+                configServer.port = 81231;
+                register.configServer =configServer;
+
                 write(ctx, mapper, Envelope.of(MessageType.REGISTER_RESULT, envelope.getRequestId(), register));
 
                 scheduler.schedule(new Runnable() {

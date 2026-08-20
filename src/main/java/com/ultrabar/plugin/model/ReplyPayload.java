@@ -10,6 +10,14 @@ public abstract class ReplyPayload implements Payload {
 
     @JsonIgnore
     public boolean isSuccess() {
+        return getSuccess();
+    }
+
+    public Boolean getSuccess() {
         return Boolean.TRUE.equals(success);
+    }
+
+    public void setSuccess(Boolean success) {
+        this.success = success;
     }
 }

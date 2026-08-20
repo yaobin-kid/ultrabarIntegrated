@@ -218,6 +218,7 @@ public final class LineConnection {
 
         @Override
         protected void channelRead0(ChannelHandlerContext ctx, String msg) {
+            System.out.println("接受到服务端发送消息:"+msg);
             listener.onMessage(ctx.channel(), msg);
         }
 
