@@ -17,11 +17,6 @@ public interface PluginListener {
 
     void onActionsUpdate(ActionsPayload update);
 
-    // outbound describe completion (SDK-initiated describe) - typed result
-    void onDescribeSuccess(DescribeResultPayload result);
-
-    void onDescribeError(Throwable t);
-
     // incoming describe from server -> plugin should respond via responder (similar to call)
     void onDescribe(DescribePayload payload, DescribeResponder responder);
 
