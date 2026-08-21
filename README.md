@@ -52,8 +52,223 @@ implementation "org.slf4j:slf4j-simple:2.0.7"
 > Android **不要**使用 `netty-all`，见下文。
 
 ## PluginClient（插件）
+1.测端app开始需要自己创建一个服务在AndroidManifest xml 里注册 参考代码如下
+```xml
+   <service
+            android:name=".service.BackgroundService"
+            android:enabled="true"
+            android:exported="true"
+            android:permission="com.ultrabar.plugin.SERVER_REGISER_PERMISSION">
+            <meta-data  android:name="ultrabar.plugin"   android:value="com.test.music" />
 
-连上后会自动 `register`，成功后再自动上报 `actions`。业务全部写在 `PluginListener`。
+```
+ 
+> 必须设置meta-data属性 取值为applicationId
+
+> 必须设置 android:permission="com.ultrabar.plugin.SERVER_REGISER_PERMISSION"
+
+> ultrabar 系统回定时扫描应用服务并完成启动流程 
+
+2.在服务内部完成PluginClient 的初始化 参考代码
+```java
+
+public class BackgroundService extends Service {
+    public static final String TAG = "BackgroundService";
+    private static final String CHANNEL_ID = "BackgroundServiceChannel";
+
+    public BackgroundService() {
+    }
+
+    private void createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(
+                    CHANNEL_ID,
+                    "Background Service",
+                    NotificationManager.IMPORTANCE_LOW
+            );
+            NotificationManager manager = getSystemService(NotificationManager.class);
+            if (manager != null) {
+                manager.createNotificationChannel(channel);
+            }
+        }
+    }
+
+    @SuppressLint("ForegroundServiceType")
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        AudioPlayerManager.getInstance().init(this);
+        createNotificationChannel();
+        Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle("常驻后台服务")
+                .setContentText("正在运行...")
+                .setSmallIcon(android.R.drawable.ic_menu_info_details)
+                .build();
+
+        // 关键：启动后几秒内必须调用此方法，向系统“交差”
+        startForeground(1001, notification);
+
+
+        test();
+    }
+
+    public void test() {
+        PluginClient c = new PluginClient();
+        RegisterPayload rp = new RegisterPayload();
+        rp.name = "TestMusic";
+        rp.packageName = "com.test.music";
+
+
+        ActionsPayload ap = new ActionsPayload();
+
+        ActionSummary play = new ActionSummary();
+        play.actionId = "music.play";
+        play.name = "播放";
+        play.description = "执行设备的播放";
+
+
+        ActionSummary pause = new ActionSummary();
+        pause.actionId = "music.pause";
+        pause.name = "暂停";
+        pause.description = "执行设备的暂停动作";
+
+
+        ap.actions = Arrays.asList(play, pause);
+        c.setRegisterConfig(rp);
+        c.setActionsConfig(ap);
+
+        c.setPluginListener(new PluginListener() {
+            @Override
+            public void onRegisterSuccess(RegisterResultPayload result) {
+                Log.d(TAG, "注册端口号:" + result.configServer.port);
+                //start http server
+                RawHttpServer server = new RawHttpServer(result.configServer.port);
+                server.startServer();
+            }
+
+            @Override
+            public void onRegisterFailed(Throwable throwable) {
+
+            }
+
+            @Override
+            public void onActionsFailed(Throwable throwable) {
+
+            }
+
+            @Override
+            public void onActionsAck(ActionsResultPayload result) {
+                Log.d(TAG, "动作注册成功了");
+            }
+
+            @Override
+
+            public void onActionsUpdate(ActionsPayload actionsPayload) {
+
+            }
+
+
+            @Override
+            public void onDescribe(DescribePayload describe, DescribeResponder describeResponder) {
+                Log.d(TAG, "接受到数据查询方法:" + describe.actionId);
+                DescribeResultPayload resultPayload = new DescribeResultPayload();
+                resultPayload.actionId = describe.actionId;
+                resultPayload.success = true;
+                resultPayload.parameters = new ArrayList<>();
+
+
+                DescribeResultPayload.ParameterSpec spec1 = new DescribeResultPayload.ParameterSpec();
+                spec1.id = "deviceId";
+                spec1.name = "设备";
+                spec1.placeholder = "请选择设备";
+                spec1.required = true;
+                spec1.type = ParameterType.SELECT;
+                spec1.options = new DescribeResultPayload.OptionSpec();
+                spec1.options.searchable = false;
+                spec1.options.provider = OptionProvider.STATIC;
+                spec1.options.items = new ArrayList<>();
+                spec1.options.items.add(new Label("客厅播放器", "test01"));
+                spec1.options.items.add(new Label("卧室播放器", "test02"));
+
+
+                DescribeResultPayload.ParameterSpec spec2 = new DescribeResultPayload.ParameterSpec();
+                spec2.id = "title";
+                spec2.name = "歌曲名称";
+                spec2.placeholder = "输入歌曲名称";
+                spec2.required = true;
+                spec2.type = ParameterType.TEXT;
+                spec2.options = new DescribeResultPayload.OptionSpec();
+                spec2.options.searchable = false;
+                spec2.options.provider = OptionProvider.STATIC;
+
+
+                DescribeResultPayload.ParameterSpec spec3 = new DescribeResultPayload.ParameterSpec();
+                spec3.id = "in";
+                spec3.name = "设备";
+                spec3.placeholder = "输入源";
+                spec3.required = true;
+                spec3.type = ParameterType.SELECT;
+                spec3.options = new DescribeResultPayload.OptionSpec();
+                spec3.options.searchable = false;
+                spec3.options.provider = OptionProvider.REMOTE;
+                spec3.dependsOn = new ArrayList<>();
+                spec3.dependsOn.add("deviceId");
+
+                if ("music.play".equals(describe.actionId)) {
+                    resultPayload.parameters.add(spec1);
+                    resultPayload.parameters.add(spec2);
+                    resultPayload.parameters.add(spec3);
+                }
+
+                describeResponder.sendSuccess(resultPayload);
+            }
+
+            @Override
+            public void onCall(CallPayload call, CallResponder callResponder) {
+                if ("music.play".equals(call.actionId)) {
+                    AudioPlayerManager.getInstance().play();
+                    Intent intent = new Intent(MyApp.context, TestActivity.class);
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); // 必须！
+                    startActivity(intent);
+                } else if ("music.pause".equals(call.actionId)) {
+                    AudioPlayerManager.getInstance().pause();
+                }
+                callResponder.sendSuccess(null);
+            }
+
+            @Override
+            public void onOptions(GetOptionsPayload request, OptionsResponder optionsResponder) {
+                if ("music.play".equals(request.actionId)) {
+                    if ("in".equals(request.describeId)) {
+                        GetOptionsResultPayload result = new GetOptionsResultPayload();
+                        result.hasMore = false;
+                        result.nextCursor = "0";
+                        result.items = new ArrayList<>();
+                        result.items.add(new Label("qq音乐", "qq"));
+                        result.items.add(new Label("网易音乐", "163"));
+                        optionsResponder.sendSuccess(result);
+                    }
+                }
+            }
+        });
+
+        c.startAsync();
+
+    }
+
+    @Nullable
+    @Override
+    public IBinder onBind(Intent intent) {
+
+
+        return null;
+    }
+
+}
+```
+
+
+#### PluginClient 特别说明 
 
 ```java
     PluginClient client = new PluginClient();
