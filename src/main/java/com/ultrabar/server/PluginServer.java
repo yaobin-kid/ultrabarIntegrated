@@ -48,17 +48,19 @@ public class PluginServer {
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
     private Channel bindChannel;
+    private final String ip;
 
     public PluginServer() {
-        this(39001);
+        this("127.0.0.1", 39001);
     }
 
-    public PluginServer(int port) {
-        this(port, 5000, 15000);
+    public PluginServer(String ip, int port) {
+        this(ip, port, 5000, 15000);
     }
 
-    public PluginServer(int port, int heartbeatIntervalMs, int heartbeatTimeoutMs) {
+    public PluginServer(String ip, int port, int heartbeatIntervalMs, int heartbeatTimeoutMs) {
         this.port = port;
+        this.ip = ip;
         this.heartbeatIntervalMs = heartbeatIntervalMs;
         this.heartbeatTimeoutMs = heartbeatTimeoutMs;
         this.mapper = Json.mapper();
@@ -94,7 +96,7 @@ public class PluginServer {
                         pipeline.addLast(new ServerChannelHandler(server, mapper));
                     }
                 });
-        ChannelFuture future = bootstrap.bind(port).sync();
+        ChannelFuture future = bootstrap.bind(ip, port).sync();
         bindChannel = future.channel();
         scheduler.scheduleAtFixedRate(new Runnable() {
             @Override

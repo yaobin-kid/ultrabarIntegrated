@@ -22,9 +22,9 @@ public final class PluginSession {
 
     private volatile long lastSeenMillis = System.currentTimeMillis();
 
-    private final long port;
+    private final int port;
 
-    PluginSession(String packageName, String sessionId, String sessionToken, RegisterPayload plugin, Channel channel,long port) {
+    PluginSession(String packageName, String sessionId, String sessionToken, RegisterPayload plugin, Channel channel,int port) {
         this.packageName = packageName;
         this.sessionId = sessionId;
         this.sessionToken = sessionToken;
@@ -33,7 +33,7 @@ public final class PluginSession {
         this.port = port;
     }
 
-    public long getPort() {
+    public long port() {
         return port;
     }
     public String packageName() {
