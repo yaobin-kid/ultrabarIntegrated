@@ -147,13 +147,11 @@ public class PluginServer {
      */
 
     public CompletableFuture<CallResultPayload> call(String packageName, String actionId, Map<String, Object> params) {
-        PluginSession session = getSession(packageName);
-        if (session == null || session.channel() == null || !session.channel().isActive()) {
-            return failedFuture(new IllegalStateException("no active session for packageName=" + packageName));
-        }
-        if (!session.hasAction(actionId)) {
-            return failedFuture(new IllegalStateException(
-                    "package " + packageName + " has no actionId=" + actionId));
+        PluginSession session;
+        try {
+            session = getValidSessionOrThrow(packageName, actionId);
+        } catch (IllegalStateException e) {
+            return failedFuture(e);
         }
         CallPayload payload = new CallPayload();
         payload.actionId = actionId;
@@ -163,14 +161,25 @@ public class PluginServer {
     }
 
 
-    public CompletableFuture<DescribeResultPayload> getDescribe(String packageName, String actionId) {
+    // 提取出的公共获取 Session 方法
+    private PluginSession getValidSessionOrThrow(String packageName, String actionId) {
         PluginSession session = getSession(packageName);
         if (session == null || session.channel() == null || !session.channel().isActive()) {
-            return failedFuture(new IllegalStateException("no active session for packageName=" + packageName));
+            throw new IllegalStateException("no active session for packageName=" + packageName);
         }
         if (!session.hasAction(actionId)) {
-            return failedFuture(new IllegalStateException(
-                    "package " + packageName + " has no actionId=" + actionId));
+            throw new IllegalStateException("package " + packageName + " has no actionId=" + actionId);
+        }
+        return session;
+    }
+
+
+    public CompletableFuture<DescribeResultPayload> getDescribe(String packageName, String actionId) {
+        PluginSession session;
+        try {
+            session = getValidSessionOrThrow(packageName, actionId);
+        } catch (IllegalStateException e) {
+            return failedFuture(e);
         }
         DescribePayload payload = new DescribePayload(actionId);
         payload.actionId = actionId;
@@ -183,13 +192,11 @@ public class PluginServer {
                                                                  String searchText,
                                                                  int cursor, int limit,
                                                                  Map<String, Object> params) {
-        PluginSession session = getSession(packageName);
-        if (session == null || session.channel() == null || !session.channel().isActive()) {
-            return failedFuture(new IllegalStateException("no active session for packageName=" + packageName));
-        }
-        if (!session.hasAction(actionId)) {
-            return failedFuture(new IllegalStateException(
-                    "package " + packageName + " has no actionId=" + actionId));
+        PluginSession session;
+        try {
+            session = getValidSessionOrThrow(packageName, actionId);
+        } catch (IllegalStateException e) {
+            return failedFuture(e);
         }
         GetOptionsPayload payload = new GetOptionsPayload();
         payload.params = params;
