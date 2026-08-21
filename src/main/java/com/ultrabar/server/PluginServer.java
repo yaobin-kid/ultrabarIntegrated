@@ -300,6 +300,7 @@ public class PluginServer {
         }
         fillRegisterDefaults(result);
         PluginSession session = new PluginSession(
+                payload.name.trim(),
                 payload.packageName.trim(),
                 result.sessionId,
                 result.sessionToken,

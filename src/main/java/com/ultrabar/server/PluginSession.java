@@ -17,6 +17,7 @@ public final class PluginSession {
     private final String sessionToken;
     private final RegisterPayload plugin;
     private volatile Channel channel;
+    private final String name;
     private volatile List<ActionSummary> actions = Collections.emptyList();
     private volatile long revision;
 
@@ -24,7 +25,9 @@ public final class PluginSession {
 
     private final int port;
 
-    PluginSession(String packageName, String sessionId, String sessionToken, RegisterPayload plugin, Channel channel,int port) {
+
+    PluginSession(String name, String packageName, String sessionId, String sessionToken, RegisterPayload plugin, Channel channel, int port) {
+        this.name = name;
         this.packageName = packageName;
         this.sessionId = sessionId;
         this.sessionToken = sessionToken;
@@ -33,9 +36,14 @@ public final class PluginSession {
         this.port = port;
     }
 
+    private String name() {
+        return name;
+    }
+
     public long port() {
         return port;
     }
+
     public String packageName() {
         return packageName;
     }
