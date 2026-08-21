@@ -8,7 +8,7 @@ import java.util.Map;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class GetOptionsResultPayload extends ReplyPayload {
     public Map<String, Object> details;
-    public List<Item> items;
+    public List<Label> items;
     public Boolean hasMore;
     public String nextCursor;
 

@@ -35,6 +35,6 @@ public class DescribeResultPayload extends ReplyPayload {
     public static class OptionSpec {
         public OptionProvider provider;
         public Boolean searchable;
-        public List<Item> items;
+        public List<Label> items;
     }
 }

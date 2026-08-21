@@ -63,15 +63,6 @@ public class ExampleMain {
                 System.out.println("Actions update pushed: count=" + count);
             }
 
-            @Override
-            public void onDescribeSuccess(DescribeResultPayload result) {
-                System.out.println("Outbound describe completed: success=" + result.success);
-            }
-
-            @Override
-            public void onDescribeError(Throwable t) {
-                System.err.println("Outbound describe error: " + t.getMessage());
-            }
 
             @Override
             public void onDescribe(DescribePayload payload, DescribeResponder responder) {
@@ -109,11 +100,11 @@ public class ExampleMain {
                 result.hasMore = false;
                 result.nextCursor = null;
 
-                Item item = new Item();
+                Label item = new Label();
                 item.value = "sp00-1";
                 item.label = "sony tv";
 
-                Item item2 = new Item();
+                Label item2 = new Label();
                 item2.value = "sp00-2";
                 item2.label = "sony amp";
 
