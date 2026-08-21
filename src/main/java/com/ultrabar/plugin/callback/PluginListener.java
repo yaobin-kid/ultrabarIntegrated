@@ -7,6 +7,10 @@ import com.ultrabar.plugin.model.*;
  * Implement this to receive register/actions/describe failures and incoming calls.
  */
 public interface PluginListener {
+    /**
+     * 注册成功回调
+     * @param payload
+     */
     void onRegisterSuccess(RegisterResultPayload payload);
 
     void onRegisterFailed(Throwable t);
