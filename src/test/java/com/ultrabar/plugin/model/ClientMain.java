@@ -12,14 +12,12 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-public class ExampleMain {
+public class ClientMain {
     public static void main(String[] args) throws Exception {
         PluginClient client = new PluginClient();
 
         RegisterPayload rp = new RegisterPayload();
-        rp.id = "com.ultrabar.music";
         rp.name = "Music";
-        rp.version = "1.2.0";
         rp.packageName = "com.ultrabar.music";
         client.setRegisterConfig(rp);
 
@@ -66,6 +64,7 @@ public class ExampleMain {
 
             @Override
             public void onDescribe(DescribePayload payload, DescribeResponder responder) {
+                System.out.println("接受到动作查询");
                 DescribeResultPayload result = new DescribeResultPayload(true, null, null);
                 result.actionId = payload.actionId;
 

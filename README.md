@@ -195,7 +195,7 @@ server.call("com.ultrabar.music", "music.play", params);
 仓库里的示例（在 `src/test/java`）：
 
 - 服务端：`com.ultrabar.plugin.model.ServerMain`
-- 插件：`com.ultrabar.plugin.model.ExampleMain`
+- 插件：`com.ultrabar.plugin.model.ClientMain`
 
 ## 集成到 Android（PluginClient）
 

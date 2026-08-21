@@ -18,16 +18,11 @@ public final class ServerMain {
     private static final Logger log = LoggerFactory.getLogger(ServerMain.class);
 
     public static void main(String[] args) throws Exception {
-        int port = 39001;
-        if (args.length >= 1) {
-            port = Integer.parseInt(args[0]);
-        }
-        final PluginServer server = new PluginServer(port);
+        final PluginServer server = new PluginServer();
         server.setRegisterHandler(new PluginRegisterHandler() {
             @Override
             public RegisterResultPayload handleRegister(RegisterPayload request) {
-                log.info("register request packageName={} name={} version={}",
-                        request.packageName, request.name, request.version);
+                log.info("register request packageName={} name={}", request.packageName, request.name);
                 RegisterResultPayload result = new RegisterResultPayload();
                 result.success = true;
                 return result;
@@ -36,14 +31,23 @@ public final class ServerMain {
         server.setListener(new PluginServerListener() {
             @Override
             public void onRegistered(PluginSession session) {
-                log.info("plugin online packageName={} name={}",  session.packageName(), session.plugin().name);
+                log.info("plugin online packageName={} name={}", session.packageName(), session.plugin().name);
             }
 
             @Override
             public void onActionsUpdated(PluginSession session) {
-                log.info("plugin actions packageName={} count={}",
-                        session.packageName(), session.actions().size());
+                log.info("plugin actions packageName={} count={}", session.packageName(), session.actions().size());
+
+                System.out.println("动作注册成功");
+
+
+                server.getDescribe("com.ultrabar.music", "music.play")
+                        .thenAccept(c -> {
+                            System.out.println("接受到订阅数据:" + c.parameters);
+
+                        });
             }
+
 
             @Override
             public void onUnregistered(PluginSession session) {
@@ -51,7 +55,7 @@ public final class ServerMain {
             }
         });
 
-        
+
         server.start();
         Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
             @Override

@@ -54,6 +54,10 @@ public class PluginServer {
         this("127.0.0.1", 39001);
     }
 
+    public PluginServer(int port) {
+        this("127.0.0.1", port);
+    }
+
     public PluginServer(String ip, int port) {
         this(ip, port, 5000, 15000);
     }
@@ -142,9 +146,8 @@ public class PluginServer {
      * {@link #call(String, String, Map)} with packageName.
      */
 
-
     public CompletableFuture<CallResultPayload> call(String packageName, String actionId, Map<String, Object> params) {
-        PluginSession session = sessions.byPackage(packageName);
+        PluginSession session = getSession(packageName);
         if (session == null || session.channel() == null || !session.channel().isActive()) {
             return failedFuture(new IllegalStateException("no active session for packageName=" + packageName));
         }
@@ -158,6 +161,22 @@ public class PluginServer {
         payload.idempotencyKey = RequestIds.next();
         return request(session, MessageType.CALL, payload, CallResultPayload.class);
     }
+
+
+    public CompletableFuture<DescribeResultPayload> getDescribe(String packageName, String actionId) {
+        PluginSession session = getSession(packageName);
+        if (session == null || session.channel() == null || !session.channel().isActive()) {
+            return failedFuture(new IllegalStateException("no active session for packageName=" + packageName));
+        }
+        if (!session.hasAction(actionId)) {
+            return failedFuture(new IllegalStateException(
+                    "package " + packageName + " has no actionId=" + actionId));
+        }
+        DescribePayload payload = new DescribePayload(actionId);
+        payload.actionId = actionId;
+        return request(session, MessageType.DESCRIBE, payload, DescribeResultPayload.class);
+    }
+
 
     void onMessage(Channel channel, Envelope envelope) {
         if (envelope == null || envelope.getType() == null) {
