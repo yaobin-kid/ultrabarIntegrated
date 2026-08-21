@@ -7,11 +7,12 @@ import java.util.Map;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class GetOptionsPayload implements Payload {
     public String actionId;
-    public String parameterId;
+    public String describeId;
     public String searchText;
     public Map<String, Object> params;
-    public String cursor;
-    public Integer limit;
+    public Integer cursor;
+    public Integer limit = 100;
 
-    public GetOptionsPayload() {}
+    public GetOptionsPayload() {
+    }
 }

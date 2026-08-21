@@ -15,11 +15,10 @@ import java.util.concurrent.Executors;
 public class ClientMain {
     public static void main(String[] args) throws Exception {
         PluginClient client = new PluginClient();
-
         RegisterPayload rp = new RegisterPayload();
         rp.name = "Music";
         rp.packageName = "com.ultrabar.music";
-        client.setRegisterConfig(rp);
+
 
         ActionSummary a1 = new ActionSummary();
         a1.actionId = "music.play";
@@ -31,7 +30,7 @@ public class ClientMain {
         a2.name = "pause music";
         a2.description = "pause a device";
         client.setActionsConfig(new ActionsPayload(Arrays.asList(a1, a2)));
-
+        client.setRegisterConfig(rp);
         ExecutorService exec = Executors.newFixedThreadPool(4);
 
         client.setPluginListener(new PluginListener() {
@@ -64,7 +63,11 @@ public class ClientMain {
 
             @Override
             public void onDescribe(DescribePayload payload, DescribeResponder responder) {
-                System.out.println("接受到动作查询");
+                try {
+                    System.out.println("接受到动作查询:" + Json.mapper().writeValueAsString(payload));
+                } catch (Exception e) {
+                    e.getMessage();
+                }
                 DescribeResultPayload result = new DescribeResultPayload(true, null, null);
                 result.actionId = payload.actionId;
 

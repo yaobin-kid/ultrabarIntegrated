@@ -7,6 +7,8 @@ import com.ultrabar.server.PluginSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.UUID;
+
 /**
  * Starts the plugin protocol server (default 127.0.0.1:39001).
  * <p>
@@ -25,6 +27,10 @@ public final class ServerMain {
                 log.info("register request packageName={} name={}", request.packageName, request.name);
                 RegisterResultPayload result = new RegisterResultPayload();
                 result.success = true;
+                result.configServer = new ConfigServer();
+                result.configServer.port = 100;
+                result.sessionToken = UUID.randomUUID().toString();
+
                 return result;
             }
         });
@@ -41,11 +47,26 @@ public final class ServerMain {
                 System.out.println("动作注册成功");
 
 
-                server.getDescribe("com.ultrabar.music", "music.play")
+              /*  server.getDescribe("com.ultrabar.music", "music.play")
                         .thenAccept(c -> {
-                            System.out.println("接受到订阅数据:" + c.parameters);
+                            try {
+                                System.out.println("接受到订阅数据:" + Json.mapper().writeValueAsString(c.parameters));
+                            } catch (Exception e) {
+                                e.getMessage();
+                            }
 
                         });
+*/
+
+               /* server.getOptions("com.ultrabar.music", "music.play",
+                                "deviceId", null, 0, 100, null)
+                        .thenAccept(c -> {
+                            try {
+                                System.out.println("getOptions:" + Json.mapper().writeValueAsString(c));
+                            } catch (Exception e) {
+                                e.getMessage();
+                            }
+                        });*/
             }
 
 

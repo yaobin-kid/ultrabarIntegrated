@@ -177,6 +177,30 @@ public class PluginServer {
         return request(session, MessageType.DESCRIBE, payload, DescribeResultPayload.class);
     }
 
+    public CompletableFuture<GetOptionsResultPayload> getOptions(String packageName,
+                                                                 String actionId,
+                                                                 String describeId,
+                                                                 String searchText,
+                                                                 int cursor, int limit,
+                                                                 Map<String, Object> params) {
+        PluginSession session = getSession(packageName);
+        if (session == null || session.channel() == null || !session.channel().isActive()) {
+            return failedFuture(new IllegalStateException("no active session for packageName=" + packageName));
+        }
+        if (!session.hasAction(actionId)) {
+            return failedFuture(new IllegalStateException(
+                    "package " + packageName + " has no actionId=" + actionId));
+        }
+        GetOptionsPayload payload = new GetOptionsPayload();
+        payload.params = params;
+        payload.cursor = cursor;
+        payload.limit = limit;
+        payload.describeId = describeId;
+        payload.searchText = searchText;
+        payload.actionId = actionId;
+        return request(session, MessageType.GET_OPTIONS, payload, GetOptionsResultPayload.class);
+    }
+
 
     void onMessage(Channel channel, Envelope envelope) {
         if (envelope == null || envelope.getType() == null) {
