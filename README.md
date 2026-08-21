@@ -20,7 +20,7 @@ cd ultrabarIntegrated
 产物：`build/libs/ultrabar-plugin-sdk-1.0-SNAPSHOT.jar`（**不含** Netty / Jackson / slf4j，宿主项目需要自行声明依赖）。
 
 
-## android studio 引入
+## gradle 引入
 ```groovy
 repositories {
     maven { url 'https://jitpack.io' }
@@ -36,6 +36,17 @@ implementation 'com.github.yaobin-kid:ultrabarIntegrated:1.0.2'
 implementation "io.netty:netty-all:4.1.94.Final"
 implementation "com.fasterxml.jackson.core:jackson-databind:2.15.2"
 implementation "org.slf4j:slf4j-simple:2.0.7"
+```
+```groovy
+  packagingOptions {
+        exclude 'META-INF/INDEX.LIST'
+        exclude 'META-INF/io.netty.versions.properties'
+        exclude 'META-INF/gfprobe-provider.xml'
+        exclude 'META-INF/javamail.default.address.map'
+        exclude 'META-INF/NOTICE.md'
+        exclude 'META-INF/javamail.charset.map'
+        exclude 'META-INF/hk2-locator/default'
+    }
 ```
 
 > Android **不要**使用 `netty-all`，见下文。
