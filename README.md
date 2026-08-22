@@ -25,7 +25,8 @@ repositories {
 必要依赖：
 
 ```groovy
-implementation 'com.github.yaobin-kid:ultrabarIntegrated:1.0.11'
+implementation 'com.github.yaobin-kid:ultrabarIntegrated:.1.0.12' //sdk ver
+
 implementation "io.netty:netty-all:4.1.94.Final"
 implementation "com.fasterxml.jackson.core:jackson-databind:2.15.2"
 implementation "org.slf4j:slf4j-simple:2.0.7"
@@ -50,9 +51,13 @@ implementation "org.slf4j:slf4j-simple:2.0.7"
             <meta-data  android:name="ultrabar.plugin"   android:value="com.test.music" />
 
 ```
-> 必须设置 meta-data属性 取值为 applicationId
+### 必须的设置
 
-> 必须设置 android:permission="com.ultrabar.plugin.SERVER_REGISER_PERMISSION"
+>  `meta-data` 属性 取值为 `applicationId`
+
+> `android:exported="true"`
+
+> android:permission="com.ultrabar.plugin.SERVER_REGISER_PERMISSION"
 
 ## 3.权限
 `AndroidManifest.xml `：
@@ -60,7 +65,10 @@ implementation "org.slf4j:slf4j-simple:2.0.7"
 <uses-permission android:name="android.permission.INTERNET" />
 ```
 
-## 4. PluginClient 初始化 
+## 4. BackgroundService 服务参考代码
+> 需在服务里完成 `PluginClient` 的启动工作 `start()` 部分。
+> 
+> 声明的BackgroundService 系统回自动扫描并完成启动工作
 ```java
 
 public class BackgroundService extends Service {
@@ -100,10 +108,10 @@ public class BackgroundService extends Service {
         startForeground(1001, notification);
 
 
-        test();
+        start();
     }
 
-    public void test() {
+    public void start() {
         PluginClient c = new PluginClient();
         RegisterPayload rp = new RegisterPayload();
         rp.name = "TestMusic";

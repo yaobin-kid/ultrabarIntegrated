@@ -1,6 +1,10 @@
 # Ultrabar Plugin SDK
 
+### [English](README.md) | [简体中文](README_zh.md) | [日本語](README_ja.md)
+
+
 基于 Netty 的 Ultrabar 插件协议 SDK（协议 version = 2）。传输是 **一行一条 UTF-8 JSON**（`\n` 分帧），默认地址 `127.0.0.1:39001`。
+
 
 | 角色 | 类 | 用途 |
 |---|---|---|
@@ -9,30 +13,20 @@
 
 Android 上一般只集成 **PluginClient**，连到 PC / 主 App 上的 PluginServer。
 
-## 源码构建
 
-```bash
-git clone https://github.com/yaobin-kid/ultrabarIntegrated.git
-cd ultrabarIntegrated
-./gradlew jar
-```
-
-产物：`build/libs/ultrabar-plugin-sdk-1.0-SNAPSHOT.jar`（**不含** Netty / Jackson / slf4j，宿主项目需要自行声明依赖）。
-
-
-## gradle 引入
+## 1.gradle 引入
 ```groovy
 repositories {
     maven { url 'https://jitpack.io' }
 }
 ```
-```groovy
-implementation 'com.github.yaobin-kid:ultrabarIntegrated:1.0.2'
-```
 
-本仓库自带的依赖版本：
+
+必要依赖：
 
 ```groovy
+implementation 'com.github.yaobin-kid:ultrabarIntegrated:.1.0.12' //sdk ver
+
 implementation "io.netty:netty-all:4.1.94.Final"
 implementation "com.fasterxml.jackson.core:jackson-databind:2.15.2"
 implementation "org.slf4j:slf4j-simple:2.0.7"
@@ -41,18 +35,13 @@ implementation "org.slf4j:slf4j-simple:2.0.7"
   packagingOptions {
         exclude 'META-INF/INDEX.LIST'
         exclude 'META-INF/io.netty.versions.properties'
-        exclude 'META-INF/gfprobe-provider.xml'
-        exclude 'META-INF/javamail.default.address.map'
-        exclude 'META-INF/NOTICE.md'
-        exclude 'META-INF/javamail.charset.map'
-        exclude 'META-INF/hk2-locator/default'
     }
 ```
 
-> Android **不要**使用 `netty-all`，见下文。
+>  **不要**使用 `netty-all`
 
-## PluginClient（插件）
-1.测端app开始需要自己创建一个服务在AndroidManifest xml 里注册 参考代码如下
+## 2.服务
+`AndroidManifest.xml `：
 ```xml
    <service
             android:name=".service.BackgroundService"
@@ -62,14 +51,24 @@ implementation "org.slf4j:slf4j-simple:2.0.7"
             <meta-data  android:name="ultrabar.plugin"   android:value="com.test.music" />
 
 ```
- 
-> 必须设置meta-data属性 取值为applicationId
+### 必须的设置
 
-> 必须设置 android:permission="com.ultrabar.plugin.SERVER_REGISER_PERMISSION"
+>  `meta-data` 属性 取值为 `applicationId`
 
-> ultrabar 系统回定时扫描应用服务并完成启动流程 
+> `android:exported="true"`
 
-2.在服务内部完成PluginClient 的初始化 参考代码
+> android:permission="com.ultrabar.plugin.SERVER_REGISER_PERMISSION"
+
+## 3.权限
+`AndroidManifest.xml `：
+```xml
+<uses-permission android:name="android.permission.INTERNET" />
+```
+
+## 4. BackgroundService 服务参考代码
+> 需在服务里完成 `PluginClient` 的启动工作 `start()` 部分。
+>
+> 声明的BackgroundService 系统回自动扫描并完成启动工作
 ```java
 
 public class BackgroundService extends Service {
@@ -109,10 +108,10 @@ public class BackgroundService extends Service {
         startForeground(1001, notification);
 
 
-        test();
+        start();
     }
 
-    public void test() {
+    public void start() {
         PluginClient c = new PluginClient();
         RegisterPayload rp = new RegisterPayload();
         rp.name = "TestMusic";
@@ -268,7 +267,9 @@ public class BackgroundService extends Service {
 ```
 
 
-#### PluginClient 特别说明 
+
+
+## PluginClient 详细说明
 
 ```java
     PluginClient client = new PluginClient();
@@ -560,6 +561,9 @@ public class BackgroundService extends Service {
 
 动作列表变化时调用 `client.updateActions(new ActionsPayload(...))`。
 
+
+
+
 ## PluginServer（主 App）
 
 会话按注册时的 `packageName` 唯一；同一 `packageName` 再次注册会顶掉旧连接。只有注册回调返回 `success == true` 才会创建 `PluginSession`。
@@ -614,72 +618,9 @@ server.call("com.ultrabar.music", "music.play", params);
 // server.stop();
 ```
 
-## 本地联调
+## 其他
 
-先起服务端再起插件。消息均为一行 JSON，以 `\n` 结束。
-
-仓库里的示例（在 `src/test/java`）：
-
-- 服务端：`com.ultrabar.plugin.model.ServerMain`
-- 插件：`com.ultrabar.plugin.model.ClientMain`
-
-## 集成到 Android（PluginClient）
-
-手机端只放 **PluginClient**。jar 本身没有打进第三方库，Android 模块需要同时引入 SDK jar 和运行时依赖。
-
-**不要使用 `netty-all`**（体积大，含 Linux native epoll，不适合 APK）。
-
-### 1. 拷贝 jar
-
-把 `build/libs/ultrabar-plugin-sdk-1.0-SNAPSHOT.jar` 放到 Android 工程例如 `app/libs/`。
-
-### 2. `app/build.gradle`
-
-```groovy
-android {
-    defaultConfig {
-        minSdk 26   // 低于 26 需开启 coreLibraryDesugaring（本 SDK 使用 java.time）
-    }
-}
-
-dependencies {
-    implementation files("libs/ultrabar-plugin-sdk-1.0-SNAPSHOT.jar")
-
-    implementation "io.netty:netty-buffer:4.1.94.Final"
-    implementation "io.netty:netty-codec:4.1.94.Final"
-    implementation "io.netty:netty-handler:4.1.94.Final"
-    implementation "io.netty:netty-transport:4.1.94.Final"
-    implementation "com.fasterxml.jackson.core:jackson-databind:2.15.2"
-    implementation "org.slf4j:slf4j-api:2.0.7"
-}
-```
-
-不要把 `slf4j-simple` 打进 App；用 `slf4j-api` 再接 Android 日志实现即可。
-
-`minSdk < 26` 时：
-
-```groovy
-compileOptions {
-    coreLibraryDesugaringEnabled true
-    sourceCompatibility JavaVersion.VERSION_1_8
-    targetCompatibility JavaVersion.VERSION_1_8
-}
-dependencies {
-    coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:2.1.4"
-}
-```
-
-### 3. 权限
-
-`AndroidManifest.xml`：
-
-```xml
-<uses-permission android:name="android.permission.INTERNET" />
-```
-
-真机调试时，`PluginClient` 的 host 填电脑局域网 IP，不要用 `127.0.0.1`。
-
-### 4. R8 / ProGuard
+###  R8 / ProGuard
 
 模型是 public 字段 + Jackson，Release 必须 keep：
 
@@ -689,20 +630,7 @@ dependencies {
 -keep class com.ultrabar.plugin.PluginClient { *; }
 ```
 
-### 5. 线程
 
-`PluginListener` 回调不在 Android 主线程。更新 UI 请切回 main：
-
-```java
-new Handler(Looper.getMainLooper()).post(new Runnable() {
-    @Override
-    public void run() {
-        // update views
-    }
-});
-```
-
-进程退出或离开页面时调用 `client.stop()`。
 
 ## 协议要点
 
@@ -710,4 +638,3 @@ new Handler(Looper.getMainLooper()).post(new Runnable() {
 - `requestId` 为 UUID，一次 RPC 用一次。
 - 动作 ID 字段统一为 `actionId`。
 - 成对消息：`register` / `register_result`，`actions` / `actions_result`，`describe` / `describe_result`，`get_options` / `get_options_result`，`call` / `call_result`，`heartbeat` / `heartbeat_ack`。
-- 异步执行可用 `sendAccepted`，再用 `sendTaskUpdate` 推 `task_update`。
