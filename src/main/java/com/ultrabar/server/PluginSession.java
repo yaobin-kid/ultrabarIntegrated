@@ -36,7 +36,7 @@ public final class PluginSession {
         this.port = port;
     }
 
-    private String name() {
+    public String name() {
         return name;
     }
 
