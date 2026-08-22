@@ -6,12 +6,12 @@
 基于 Netty 的 Ultrabar 插件协议 SDK（协议 version = 2）。传输是 **一行一条 UTF-8 JSON**（`\n` 分帧）
 
 
-| 角色         | 类 | 用途 |
-|------------|---|---|
-| 插件侧        | `com.ultrabar.plugin.PluginClient` | 注册、上报 actions、处理 describe / get_options / call |
-| 主侧(LineOS) | `com.ultrabar.server.PluginServer` | 按 `packageName` 管理会话、保存动作、向插件发起 call |
+| 角色          | 类 | 用途 |
+|-------------|---|---|
+| 插件侧端        | `com.ultrabar.plugin.PluginClient` | 注册、上报 actions、处理 describe / get_options / call |
+| 主侧(LineOS)端 | `com.ultrabar.server.PluginServer` | 按 `packageName` 管理会话、保存动作、向插件发起 call |
 
-三方开发者只集成 **PluginClient**, LineOS 将定期扫描应用 AndroidManifest.xml 数据，获取服务并启动（已启动将跳过）
+三方开发者属于`插件侧端角色`，只集成 **PluginClient** 按步骤操作即可。` LineOS 将定期扫描 AndroidManifest.xml 数据，获取服务并启动（已启动将跳过）`
 
 
 ## 1.gradle 引入
