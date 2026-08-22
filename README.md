@@ -37,9 +37,10 @@ implementation "org.slf4j:slf4j-simple:2.0.7"
     }
 ```
 
-> Android **不要**使用 `netty-all`，见下文。
+>  **不要**使用 `netty-all`
 
-## 2.AndroidManifest.xml 必要的服务
+## 2.服务
+`AndroidManifest.xml `：
 ```xml
    <service
             android:name=".service.BackgroundService"
@@ -53,8 +54,13 @@ implementation "org.slf4j:slf4j-simple:2.0.7"
 
 > 必须设置 android:permission="com.ultrabar.plugin.SERVER_REGISER_PERMISSION"
 
+## 3.权限
+`AndroidManifest.xml `：
+```xml
+<uses-permission android:name="android.permission.INTERNET" />
+```
 
-## 3. PluginClient 初始化 
+## 4. PluginClient 初始化 
 ```java
 
 public class BackgroundService extends Service {
@@ -604,72 +610,9 @@ server.call("com.ultrabar.music", "music.play", params);
 // server.stop();
 ```
 
-## 本地联调
-
-先起服务端再起插件。消息均为一行 JSON，以 `\n` 结束。
-
-仓库里的示例（在 `src/test/java`）：
-
-- 服务端：`com.ultrabar.plugin.model.ServerMain`
-- 插件：`com.ultrabar.plugin.model.ClientMain`
-
-## 集成到 Android（PluginClient）
-
-手机端只放 **PluginClient**。jar 本身没有打进第三方库，Android 模块需要同时引入 SDK jar 和运行时依赖。
-
-**不要使用 `netty-all`**（体积大，含 Linux native epoll，不适合 APK）。
-
-### 1. 拷贝 jar
-
-把 `build/libs/ultrabar-plugin-sdk-1.0-SNAPSHOT.jar` 放到 Android 工程例如 `app/libs/`。
-
-### 2. `app/build.gradle`
-
-```groovy
-android {
-    defaultConfig {
-        minSdk 26   // 低于 26 需开启 coreLibraryDesugaring（本 SDK 使用 java.time）
-    }
-}
-
-dependencies {
-    implementation files("libs/ultrabar-plugin-sdk-1.0-SNAPSHOT.jar")
-
-    implementation "io.netty:netty-buffer:4.1.94.Final"
-    implementation "io.netty:netty-codec:4.1.94.Final"
-    implementation "io.netty:netty-handler:4.1.94.Final"
-    implementation "io.netty:netty-transport:4.1.94.Final"
-    implementation "com.fasterxml.jackson.core:jackson-databind:2.15.2"
-    implementation "org.slf4j:slf4j-api:2.0.7"
-}
-```
-
-不要把 `slf4j-simple` 打进 App；用 `slf4j-api` 再接 Android 日志实现即可。
-
-`minSdk < 26` 时：
-
-```groovy
-compileOptions {
-    coreLibraryDesugaringEnabled true
-    sourceCompatibility JavaVersion.VERSION_1_8
-    targetCompatibility JavaVersion.VERSION_1_8
-}
-dependencies {
-    coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:2.1.4"
-}
-```
-
-### 3. 权限
-
-`AndroidManifest.xml`：
-
-```xml
-<uses-permission android:name="android.permission.INTERNET" />
-```
-
-真机调试时，`PluginClient` 的 host 填电脑局域网 IP，不要用 `127.0.0.1`。
-
-### 4. R8 / ProGuard
+## 其他
+ 
+###  R8 / ProGuard
 
 模型是 public 字段 + Jackson，Release 必须 keep：
 
@@ -678,21 +621,8 @@ dependencies {
 -keep class com.ultrabar.plugin.callback.** { *; }
 -keep class com.ultrabar.plugin.PluginClient { *; }
 ```
-
-### 5. 线程
-
-`PluginListener` 回调不在 Android 主线程。更新 UI 请切回 main：
-
-```java
-new Handler(Looper.getMainLooper()).post(new Runnable() {
-    @Override
-    public void run() {
-        // update views
-    }
-});
-```
-
-进程退出或离开页面时调用 `client.stop()`。
+ 
+ 
 
 ## 协议要点
 
@@ -700,4 +630,3 @@ new Handler(Looper.getMainLooper()).post(new Runnable() {
 - `requestId` 为 UUID，一次 RPC 用一次。
 - 动作 ID 字段统一为 `actionId`。
 - 成对消息：`register` / `register_result`，`actions` / `actions_result`，`describe` / `describe_result`，`get_options` / `get_options_result`，`call` / `call_result`，`heartbeat` / `heartbeat_ack`。
-- 异步执行可用 `sendAccepted`，再用 `sendTaskUpdate` 推 `task_update`。
