@@ -23,7 +23,7 @@ repositories {
 必要な依存：
 
 ```groovy
-implementation 'com.github.yaobin-kid:ultrabarIntegrated:.1.0.12' // sdk ver
+implementation 'com.github.yaobin-kid:ultrabarIntegrated:1.0.12' // sdk ver
 
 implementation "io.netty:netty-all:4.1.94.Final"
 implementation "com.fasterxml.jackson.core:jackson-databind:2.15.2"
