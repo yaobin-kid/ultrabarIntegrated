@@ -53,10 +53,8 @@ implementation "org.slf4j:slf4j-simple:2.0.7"
 ```
 ### 必须的设置
 
->  `meta-data` 属性 取值为 `applicationId`
-
-> `android:exported="true"`
-
+> `meta-data` 属性 取值为 `applicationId` <br>
+> `android:exported="true"` <br>
 > android:permission="com.ultrabar.plugin.SERVER_REGISER_PERMISSION"
 
 ## 3.权限
@@ -68,7 +66,7 @@ implementation "org.slf4j:slf4j-simple:2.0.7"
 ## 4. BackgroundService 服务参考代码
 > 需在服务里完成 `PluginClient` 的启动工作 `start()` 部分。
 > 
-> 声明的BackgroundService 系统回自动扫描并完成启动工作
+> 声明的 `BackgroundService` 系统自动扫描并完成启动工作（以启则跳过）。 开发阶段为验证流程开发者可自启
 ```java
 
 public class BackgroundService extends Service {
