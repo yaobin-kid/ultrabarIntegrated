@@ -14,19 +14,18 @@
 Android 上一般只集成 **PluginClient**，连到 PC / 主 App 上的 PluginServer。
 
 
-## gradle 引入
+## 1.gradle 引入
 ```groovy
 repositories {
     maven { url 'https://jitpack.io' }
 }
 ```
-```groovy
-implementation 'com.github.yaobin-kid:ultrabarIntegrated:tag'
-```
+ 
 
-本仓库自带的依赖版本：
+必要依赖：
 
 ```groovy
+implementation 'com.github.yaobin-kid:ultrabarIntegrated:1.0.11'
 implementation "io.netty:netty-all:4.1.94.Final"
 implementation "com.fasterxml.jackson.core:jackson-databind:2.15.2"
 implementation "org.slf4j:slf4j-simple:2.0.7"
@@ -40,8 +39,7 @@ implementation "org.slf4j:slf4j-simple:2.0.7"
 
 > Android **不要**使用 `netty-all`，见下文。
 
-## PluginClient（插件）
-1.测端app 创建一个服务在AndroidManifest xml 里注册 参考代码如下:
+## 2.AndroidManifest.xml 必要的服务
 ```xml
    <service
             android:name=".service.BackgroundService"
@@ -51,14 +49,12 @@ implementation "org.slf4j:slf4j-simple:2.0.7"
             <meta-data  android:name="ultrabar.plugin"   android:value="com.test.music" />
 
 ```
- 
-> 必须设置meta-data属性 取值为 applicationId
+> 必须设置 meta-data属性 取值为 applicationId
 
 > 必须设置 android:permission="com.ultrabar.plugin.SERVER_REGISER_PERMISSION"
 
-> ultrabar 系统定时扫描应用服务并完成启动流程 
 
-2.在服务内部完成PluginClient 的初始化 参考代码
+## 3. PluginClient 初始化 
 ```java
 
 public class BackgroundService extends Service {
@@ -259,7 +255,7 @@ public class BackgroundService extends Service {
 
 
 
-> #### PluginClient 详细说明
+## PluginClient 详细说明
 
 ```java
     PluginClient client = new PluginClient();
