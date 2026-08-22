@@ -3,15 +3,15 @@
 ### [English](README.md) | [简体中文](README_zh.md) | [日本語](README_ja.md)
 
 
-基于 Netty 的 Ultrabar 插件协议 SDK（协议 version = 2）。传输是 **一行一条 UTF-8 JSON**（`\n` 分帧），默认地址 `127.0.0.1:39001`。
+基于 Netty 的 Ultrabar 插件协议 SDK（协议 version = 2）。传输是 **一行一条 UTF-8 JSON**（`\n` 分帧）
 
 
-| 角色 | 类 | 用途 |
-|---|---|---|
-| 插件侧 | `com.ultrabar.plugin.PluginClient` | 注册、上报 actions、处理 describe / get_options / call |
-| 主 App 侧 | `com.ultrabar.server.PluginServer` | 按 `packageName` 管理会话、保存动作、向插件发起 call |
+| 角色         | 类 | 用途 |
+|------------|---|---|
+| 插件侧        | `com.ultrabar.plugin.PluginClient` | 注册、上报 actions、处理 describe / get_options / call |
+| 主侧(LineOS) | `com.ultrabar.server.PluginServer` | 按 `packageName` 管理会话、保存动作、向插件发起 call |
 
-Android 上一般只集成 **PluginClient**，连到 PC / 主 App 上的 PluginServer。
+三方开发者只集成 **PluginClient**, LineOS 将定期扫描应用 AndroidManifest.xml 数据，获取服务并启动（已启动将跳过）
 
 
 ## 1.gradle 引入
