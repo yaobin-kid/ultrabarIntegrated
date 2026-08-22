@@ -1,6 +1,10 @@
 # Ultrabar Plugin SDK
 
+### [English](README.md) | [简体中文](README_zh.md) | [日本語](README_ja.md)
+
+
 基于 Netty 的 Ultrabar 插件协议 SDK（协议 version = 2）。传输是 **一行一条 UTF-8 JSON**（`\n` 分帧），默认地址 `127.0.0.1:39001`。
+
 
 | 角色 | 类 | 用途 |
 |---|---|---|
@@ -8,16 +12,6 @@
 | 主 App 侧 | `com.ultrabar.server.PluginServer` | 按 `packageName` 管理会话、保存动作、向插件发起 call |
 
 Android 上一般只集成 **PluginClient**，连到 PC / 主 App 上的 PluginServer。
-
-## 源码构建
-
-```bash
-git clone https://github.com/yaobin-kid/ultrabarIntegrated.git
-cd ultrabarIntegrated
-./gradlew jar
-```
-
-产物：`build/libs/ultrabar-plugin-sdk-1.0-SNAPSHOT.jar`（**不含** Netty / Jackson / slf4j，宿主项目需要自行声明依赖）。
 
 
 ## gradle 引入
@@ -27,7 +21,7 @@ repositories {
 }
 ```
 ```groovy
-implementation 'com.github.yaobin-kid:ultrabarIntegrated:1.0.2'
+implementation 'com.github.yaobin-kid:ultrabarIntegrated:tag'
 ```
 
 本仓库自带的依赖版本：
@@ -41,18 +35,13 @@ implementation "org.slf4j:slf4j-simple:2.0.7"
   packagingOptions {
         exclude 'META-INF/INDEX.LIST'
         exclude 'META-INF/io.netty.versions.properties'
-        exclude 'META-INF/gfprobe-provider.xml'
-        exclude 'META-INF/javamail.default.address.map'
-        exclude 'META-INF/NOTICE.md'
-        exclude 'META-INF/javamail.charset.map'
-        exclude 'META-INF/hk2-locator/default'
     }
 ```
 
 > Android **不要**使用 `netty-all`，见下文。
 
 ## PluginClient（插件）
-1.测端app开始需要自己创建一个服务在AndroidManifest xml 里注册 参考代码如下
+1.测端app 创建一个服务在AndroidManifest xml 里注册 参考代码如下:
 ```xml
    <service
             android:name=".service.BackgroundService"
@@ -63,11 +52,11 @@ implementation "org.slf4j:slf4j-simple:2.0.7"
 
 ```
  
-> 必须设置meta-data属性 取值为applicationId
+> 必须设置meta-data属性 取值为 applicationId
 
 > 必须设置 android:permission="com.ultrabar.plugin.SERVER_REGISER_PERMISSION"
 
-> ultrabar 系统回定时扫描应用服务并完成启动流程 
+> ultrabar 系统定时扫描应用服务并完成启动流程 
 
 2.在服务内部完成PluginClient 的初始化 参考代码
 ```java
@@ -268,7 +257,9 @@ public class BackgroundService extends Service {
 ```
 
 
-#### PluginClient 特别说明 
+
+
+> #### PluginClient 详细说明
 
 ```java
     PluginClient client = new PluginClient();
@@ -559,6 +550,9 @@ public class BackgroundService extends Service {
 ```
 
 动作列表变化时调用 `client.updateActions(new ActionsPayload(...))`。
+
+
+
 
 ## PluginServer（主 App）
 
