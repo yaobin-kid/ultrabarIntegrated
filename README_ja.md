@@ -3,29 +3,27 @@
 ### [English](README.md) | [简体中文](README_zh.md) | [日本語](README_ja.md)
 
 
-基于 Netty 的 Ultrabar 插件协议 SDK（协议 version = 2）。传输是 **一行一条 UTF-8 JSON**（`\n` 分帧）
+Nettyを基盤としたUltrabarプラグインプロトコルSDK（プロトコル version = 2）。通信はUTF-8の1行1件のJSON（`\n`でフレーム）です。
+
+| 役割 | クラス | 用途 |
+|------|-------|------|
+| プラグイン側 | `com.ultrabar.plugin.PluginClient` | 登録、アクションの報告、describe / get_options / call の処理 |
+| ホスト側（LineOS） | `com.ultrabar.server.PluginServer` | `packageName`ごとにセッション管理、アクションの保存、プラグインへのcallの発行 |
+
+サードパーティ開発者はプラグイン側の役割となり、**PluginClient** を組み込んで手順に従えば動作します。LineOSは定期的に AndroidManifest.xml をスキャンしてサービスを検出し起動します（既に起動済みならスキップ）。
 
 
-| 角色          | 类 | 用途 |
-|-------------|---|---|
-| 插件侧端        | `com.ultrabar.plugin.PluginClient` | 注册、上报 actions、处理 describe / get_options / call |
-| 主侧(LineOS)端 | `com.ultrabar.server.PluginServer` | 按 `packageName` 管理会话、保存动作、向插件发起 call |
-
-三方开发者属于`插件侧端角色`，只集成 **PluginClient** 按步骤操作即可。` LineOS 将定期扫描 AndroidManifest.xml 数据，获取服务并启动（已启动将跳过）`
-
-
-## 1.gradle 引入
+## 1. Gradle の導入
 ```groovy
 repositories {
     maven { url 'https://jitpack.io' }
 }
 ```
-
-
-必要依赖：
+ 
+必要な依存：
 
 ```groovy
-implementation 'com.github.yaobin-kid:ultrabarIntegrated:.1.0.12' //sdk ver
+implementation 'com.github.yaobin-kid:ultrabarIntegrated:.1.0.12' // sdk ver
 
 implementation "io.netty:netty-all:4.1.94.Final"
 implementation "com.fasterxml.jackson.core:jackson-databind:2.15.2"
@@ -38,10 +36,11 @@ implementation "org.slf4j:slf4j-simple:2.0.7"
     }
 ```
 
->  **不要**使用 `netty-all`
+> `netty-all` は使用しないでください
 
-## 2.服务
-`AndroidManifest.xml `：
+
+## 2. サービス設定
+`AndroidManifest.xml`：
 ```xml
    <service
             android:name=".service.BackgroundService"
@@ -49,24 +48,23 @@ implementation "org.slf4j:slf4j-simple:2.0.7"
             android:exported="true"
             android:permission="com.ultrabar.plugin.SERVER_REGISER_PERMISSION">
             <meta-data  android:name="ultrabar.plugin"   android:value="com.test.music" />
-
 ```
-### 必须的设置
+### 必須設定
 
-> `meta-data` 属性 取值为 `applicationId` <br>
-> `android:exported="true"` <br>
-> android:permission="com.ultrabar.plugin.SERVER_REGISER_PERMISSION"
+> `meta-data` の値は `applicationId` を指定してください。<br>
+> `android:exported="true"` を設定してください。<br>
+> `android:permission="com.ultrabar.plugin.SERVER_REGISER_PERMISSION"` を設定してください。
 
-## 3.权限
-`AndroidManifest.xml `：
+## 3. パーミッション
+`AndroidManifest.xml`：
 ```xml
 <uses-permission android:name="android.permission.INTERNET" />
 ```
 
-## 4. BackgroundService 服务参考代码
-> 需在服务里完成 `PluginClient` 的启动工作 `start()` 部分。
+## 4. BackgroundService の参考実装
+> サービス内で `PluginClient` を起動する処理（`start()` 部分）を実装してください。
 >
-> 声明的 `BackgroundService` 系统自动扫描并完成启动工作（以启则跳过）。 开发阶段为验证流程开发者可自启
+> 宣言した `BackgroundService` はシステムによって自動的に検出・起動されます（既に起動済みならスキップ）。開発中は動作確認のために手動で起動して構いません。
 ```java
 
 public class BackgroundService extends Service {
@@ -97,12 +95,12 @@ public class BackgroundService extends Service {
         AudioPlayerManager.getInstance().init(this);
         createNotificationChannel();
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle("常驻后台服务")
-                .setContentText("正在运行...")
+                .setContentTitle("常駐バックグラウンドサービス")
+                .setContentText("実行中...")
                 .setSmallIcon(android.R.drawable.ic_menu_info_details)
                 .build();
 
-        // 关键：启动后几秒内必须调用此方法，向系统“交差”
+        // 重要: 起動後数秒以内にこのメソッドを呼び出してシステムに報告する必要があります
         startForeground(1001, notification);
 
 
@@ -120,14 +118,14 @@ public class BackgroundService extends Service {
 
         ActionSummary play = new ActionSummary();
         play.actionId = "music.play";
-        play.name = "播放";
-        play.description = "执行设备的播放";
+        play.name = "再生";
+        play.description = "デバイスで再生を実行します";
 
 
         ActionSummary pause = new ActionSummary();
         pause.actionId = "music.pause";
-        pause.name = "暂停";
-        pause.description = "执行设备的暂停动作";
+        pause.name = "一時停止";
+        pause.description = "デバイスの一時停止を実行します";
 
 
         ap.actions = Arrays.asList(play, pause);
@@ -137,8 +135,8 @@ public class BackgroundService extends Service {
         c.setPluginListener(new PluginListener() {
             @Override
             public void onRegisterSuccess(RegisterResultPayload result) {
-                Log.d(TAG, "注册端口号:" + result.configServer.port);
-                //start http server
+                Log.d(TAG, "登録ポート番号:" + result.configServer.port);
+                // HTTP サーバーを起動
                 RawHttpServer server = new RawHttpServer(result.configServer.port);
                 server.startServer();
             }
@@ -155,7 +153,7 @@ public class BackgroundService extends Service {
 
             @Override
             public void onActionsAck(ActionsResultPayload result) {
-                Log.d(TAG, "动作注册成功了");
+                Log.d(TAG, "アクションの登録に成功しました");
             }
 
             @Override
@@ -167,7 +165,7 @@ public class BackgroundService extends Service {
 
             @Override
             public void onDescribe(DescribePayload describe, DescribeResponder describeResponder) {
-                Log.d(TAG, "接受到数据查询方法:" + describe.actionId);
+                Log.d(TAG, "Describe リクエストを受信: " + describe.actionId);
                 DescribeResultPayload resultPayload = new DescribeResultPayload();
                 resultPayload.actionId = describe.actionId;
                 resultPayload.success = true;
@@ -176,22 +174,22 @@ public class BackgroundService extends Service {
 
                 DescribeResultPayload.ParameterSpec spec1 = new DescribeResultPayload.ParameterSpec();
                 spec1.id = "deviceId";
-                spec1.name = "设备";
-                spec1.placeholder = "请选择设备";
+                spec1.name = "デバイス";
+                spec1.placeholder = "デバイスを選択してください";
                 spec1.required = true;
                 spec1.type = ParameterType.SELECT;
                 spec1.options = new DescribeResultPayload.OptionSpec();
                 spec1.options.searchable = false;
                 spec1.options.provider = OptionProvider.STATIC;
                 spec1.options.items = new ArrayList<>();
-                spec1.options.items.add(new Label("客厅播放器", "test01"));
-                spec1.options.items.add(new Label("卧室播放器", "test02"));
+                spec1.options.items.add(new Label("リビングプレーヤー", "test01"));
+                spec1.options.items.add(new Label("ベッドルームプレーヤー", "test02"));
 
 
                 DescribeResultPayload.ParameterSpec spec2 = new DescribeResultPayload.ParameterSpec();
                 spec2.id = "title";
-                spec2.name = "歌曲名称";
-                spec2.placeholder = "输入歌曲名称";
+                spec2.name = "曲名";
+                spec2.placeholder = "曲名を入力してください";
                 spec2.required = true;
                 spec2.type = ParameterType.TEXT;
                 spec2.options = new DescribeResultPayload.OptionSpec();
@@ -201,8 +199,8 @@ public class BackgroundService extends Service {
 
                 DescribeResultPayload.ParameterSpec spec3 = new DescribeResultPayload.ParameterSpec();
                 spec3.id = "in";
-                spec3.name = "设备";
-                spec3.placeholder = "输入源";
+                spec3.name = "入力ソース";
+                spec3.placeholder = "入力ソースを入力してください";
                 spec3.required = true;
                 spec3.type = ParameterType.SELECT;
                 spec3.options = new DescribeResultPayload.OptionSpec();
@@ -225,7 +223,7 @@ public class BackgroundService extends Service {
                 if ("music.play".equals(call.actionId)) {
                     AudioPlayerManager.getInstance().play();
                     Intent intent = new Intent(MyApp.context, TestActivity.class);
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); // 必须！
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); // 必須！
                     startActivity(intent);
                 } else if ("music.pause".equals(call.actionId)) {
                     AudioPlayerManager.getInstance().pause();
@@ -241,8 +239,8 @@ public class BackgroundService extends Service {
                         result.hasMore = false;
                         result.nextCursor = "0";
                         result.items = new ArrayList<>();
-                        result.items.add(new Label("qq音乐", "qq"));
-                        result.items.add(new Label("网易音乐", "163"));
+                        result.items.add(new Label("QQ Music", "qq"));
+                        result.items.add(new Label("NetEase Music", "163"));
                         optionsResponder.sendSuccess(result);
                     }
                 }
@@ -266,18 +264,17 @@ public class BackgroundService extends Service {
 
 
 
-
-## PluginClient 详细说明
+## PluginClient の詳細
 
 ```java
     PluginClient client = new PluginClient();
-    //配置注册信息
+    // 登録情報を設定
     RegisterPayload rp = new RegisterPayload();
-    rp.name = "Music"; //应用名称
-    rp.packageName = "com.ultrabar.music"; //建议包名
+    rp.name = "Music"; // アプリ名
+    rp.packageName = "com.ultrabar.music"; // 推奨パッケージ名
 
 
-    //支持的动作
+    // サポートするアクション
     ActionSummary play = new ActionSummary();
     play.actionId = "music.play";
     play.name = "play music";
@@ -304,49 +301,46 @@ public class BackgroundService extends Service {
         @Override
         public void onRegisterSuccess(RegisterResultPayload payload) {
             // ============================================================
-            // 注册成功
+            // 登録成功
             //
-            // SDK 与主 App 完成注册后，会通过 payload 返回当前会话信息。
+            // SDK とホストアプリが登録を完了すると、payload にセッション情報が返されます。
             //
-            // configServer.port：
-            //     主 App 分配给当前插件的 HTTP 调试服务端口。
+            // configServer.port:
+            //     ホストアプリがこのプラグインに割り当てた HTTP デバッグサーバーのポートです。
             //
-            // 第三方 App 需要在该端口启动自己的 HTTP Server，
-            // 用于提供插件调试页面。
+            // サードパーティのアプリはこのポートで HTTP サーバーを起動し、プラグインデバッグページを提供する必要があります。
             //
-            // 当主 App 打开插件调试页面时，会携带 sessionToken。
+            // ホストアプリがプラグインデバッグページを開くと、sessionToken が付与されます。
             //
-            // sessionToken：
-            //     当前插件调试会话的身份凭证。
+            // sessionToken:
+            //     現在のプラグインデバッグセッションの認証トークンです。
             //
-            // 注意：
-            //     sessionToken 仅负责传递给第三方 App，
-            //     第三方 App 必须自行校验 Token 的合法性，
-            //     不要默认认为收到的 Token 一定可信。
+            // 注意:
+            //     sessionToken はホストからサードパーティアプリへ渡されますが、
+            //     サードパーティ側で有効性を検証する必要があります。受け取ったトークンをそのまま信用しないでください。
             //
-            // HTTP Server 建议在这里启动，并绑定到 payload.configServer.port。
+            // HTTP サーバーはここで起動し、payload.configServer.port にバインドすることを推奨します。
             // ============================================================
-    
-    
+
             int httpPort = payload.configServer.port;
             String sessionToken = payload.sessionToken;
-    
+
             System.out.println("Register success: session=" + payload.sessionId+",port="+httpPort+",sessionToken=+sessionToken");
         }
     
         @Override
         public void onRegisterFailed(Throwable t) {
-            // 注册失败。
+            // 登録失敗。
             //
-            // 注册失败后表示当前插件暂时无法与主 App 正常通信，
-            // 此时不要启动依赖主 App 的 HTTP / Action 服务。
+            // 登録に失敗した場合、プラグインはホストアプリと正常に通信できません。
+            // この場合、ホストに依存する HTTP / Action サービスは起動しないでください。
             //
-            // 可以根据实际业务进行：
-            // 1. 记录错误日志
-            // 2. 提示用户
-            // 3. 等待 SDK 自动重连
-            // 4. 必要时重新初始化 Plugin Client
-    
+            // 実施可能な対処:
+            // 1. エラーログを記録
+            // 2. ユーザーへ通知
+            // 3. SDK の自動再接続を待機
+            // 4. 必要に応じて PluginClient を再初期化
+
             System.err.println("Register failed: " + t.getMessage());
         }
     
@@ -358,20 +352,18 @@ public class BackgroundService extends Service {
         @Override
         public void onActionsAck(ActionsResultPayload ack) {
             // ============================================================
-            // Action 配置处理结果
+            // アクション設定の処理結果
             //
-            // 当第三方 App 向主 App 发送 Action 配置后，
-            // 主 App 会返回处理结果。
+            // サードパーティアプリがアクション設定をホストに送信すると、ホストは処理結果を返します。
             //
-            // success：
-            //     主 App 是否成功接收/处理
+            // success:
+            //     ホストが正常に受信/処理したかどうか
             //
-            // receivedCount：
-            //     主 App 实际接收到的 Action 数量
+            // receivedCount:
+            //     ホストが実際に受領したアクション数
             //
-            // 注意：
-            //     这是“Action 配置同步”的 ACK，
-            //     不是 onCall() 的 Action 执行结果。
+            // 注意:
+            //     これはアクション設定同期のACKであり、onCall() の実行結果ではありません。
             // ============================================================
     
             System.out.println("Actions result: success=" + ack.success + " received=" + ack.receivedCount);
@@ -388,27 +380,24 @@ public class BackgroundService extends Service {
         public void onDescribe(DescribePayload payload, DescribeResponder responder) {
     
             // ============================================================
-            // Action 参数描述
+            // アクションのパラメータ記述
             //
-            // 主 App 在调用某个 Action 之前，会先通过 actionId 获取该 Action
-            // 的参数定义。
+            // ホストアプリはアクションを呼び出す前に、actionId を使ってそのアクションのパラメータ定義を取得します。
             //
-            // 这里需要告诉主 App：
-            //   1. 这个 Action 需要哪些参数
-            //   2. 参数的 id / 名称 / 类型
-            //   3. 参数是否必填
-            //   4. 如果参数需要选择，选项由哪里提供
+            // ここではホストに対して以下を伝える必要があります:
+            //   1. このアクションが必要とするパラメータ
+            //   2. 各パラメータの id / 名称 / 型
+            //   3. パラメータが必須かどうか
+            //   4. 選択式パラメータの場合、オプションがどこから来るか
             //
-            // 参数定义中的 id 非常重要：
-            // 后续 onCall() 收到的 payload.params 会使用这里定义的 id
-            // 作为参数 Key。
+            // 定義内のパラメータ id は重要です：
+            // 後続の onCall() で受け取る payload.params はこれらの id をキーにします。
             // ============================================================
-    
     
             DescribeResultPayload result = new DescribeResultPayload();
             result.actionId = payload.actionId;
             result.success = true;
-            if ("music.play".equals(payload.actionId)) { //获取播放动作的参数
+            if ("music.play".equals(payload.actionId)) { // 再生アクションのパラメータ定義
                 DescribeResultPayload.ParameterSpec device = new DescribeResultPayload.ParameterSpec();
                 device.id = "deviceId";
                 device.name = "device";
@@ -420,7 +409,7 @@ public class BackgroundService extends Service {
                 options.searchable = true;
                 device.options = options;
                 result.parameters = Arrays.asList(device);
-            } else if ("music.pause".equals(payload.actionId)) { //pause 静态参数测试
+            } else if ("music.pause".equals(payload.actionId)) { // pause の静的パラメータ例
                 DescribeResultPayload.ParameterSpec device = new DescribeResultPayload.ParameterSpec();
                 device.id = "deviceId2";
                 device.name = "device";
@@ -437,7 +426,6 @@ public class BackgroundService extends Service {
                 result.parameters = Arrays.asList(device);
             }
     
-    
             responder.sendSuccess(result);
         }
     
@@ -445,22 +433,22 @@ public class BackgroundService extends Service {
         @Override
         public void onOptions(GetOptionsPayload payload, OptionsResponder responder) {
             // ============================================================
-            // 动态参数选项
+            // 動的パラメータオプション
             //
-            // 当 onDescribe() 中将参数的 OptionProvider 设置为 REMOTE 后，
-            // 主 App 会在需要展示该参数选项时调用这里。
+            // onDescribe() でパラメータの OptionProvider を REMOTE に設定した場合、
+            // ホストアプリはそのパラメータのオプションを表示する際にここを呼び出します。
             //
-            // payload.actionId  -> 当前 Action
-            // payload.describeId -> 当前参数的 id
+            // payload.actionId  -> 現在のアクション
+            // payload.describeId -> 現在のパラメータ id
             //
-            // 例如：
+            // 例:
             //   actionId  = music.play
             //   describeId = deviceId
             //
-            // 表示主 App 正在请求：
-            //   "请告诉我 music.play 的 deviceId 参数有哪些可选设备"
+            // ホストが要求しているのは:
+            //   "music.play の deviceId パラメータの選択肢を教えてください"
             //
-            // 如果选项数量较多，可以通过 hasMore / nextCursor 实现分页。
+            // オプション数が多い場合は hasMore / nextCursor でページネーションできます。
             // ============================================================
     
             GetOptionsResultPayload result = new GetOptionsResultPayload();
@@ -468,9 +456,9 @@ public class BackgroundService extends Service {
             result.hasMore = false;
             result.nextCursor = null;
     
-            if ("music.play".equals(payload.actionId)) { //动作id
+            if ("music.play".equals(payload.actionId)) { // アクション id
     
-                if ("deviceId".equals(payload.describeId)) { //参数id
+                if ("deviceId".equals(payload.describeId)) { // パラメータ id
                     Label item = new Label();
                     item.value = "sp00-1";
                     item.label = "sony tv";
@@ -490,48 +478,40 @@ public class BackgroundService extends Service {
         public void onCall(CallPayload payload, CallResponder responder) {
     
             // ============================================================
-            // Action 执行, 解析出动作并执行最终返回 数据
+            // アクションの実行と最終結果の返却
             //
-            // 当用户在主 App 中配置好 Action 并执行后，
-            // 主 App 会调用这里。
+            // ユーザーがホストアプリ上でアクションを実行すると、ホストがここを呼び出します。
             //
             // payload.actionId
-            //     -> 要执行的 Action
+            //     -> 実行するアクション
             //
             // payload.params
-            //     -> 用户在 onDescribe() 定义的参数
+            //     -> onDescribe() で定義したパラメータ
             //
-            // 注意：
-            // params 的 Key 必须与 onDescribe() 中
-            // ParameterSpec.id 保持一致。
+            // 注意:
+            // params のキーは onDescribe() 内で定義した ParameterSpec.id と一致する必要があります。
             //
-            // 例如 onDescribe()：
-            //
+            // 例えば onDescribe() で:
             //     device.id = "deviceId";
-            //
-            // 那么这里必须通过：
-            //
+            // としている場合、ここでは:
             //     params.get("deviceId");
-            //
-            // 获取用户选择的设备。
+            // でユーザーが選択したデバイスを取得します。
             // ============================================================
-    
     
             String actionId = payload.actionId;
             Map<String, Object> params = payload.params;
             if ("music.play".equals(actionId)) {
-                // onDescribe DescribeResultPayload.ParameterSpec.id
+                // onDescribe で定義した ParameterSpec.id
                 String deviceId = (String) params.get("deviceId");
-                //todo 完成指定设备的播放操作
-    
+                // TODO: 指定されたデバイスで再生を実行
     
             } else if ("music.pause".equals(actionId)) {
-                //onDescribe DescribeResultPayload.ParameterSpec.id
+                // onDescribe で定義した ParameterSpec.id
                 String deviceId2 = (String) params.get("deviceId2");
-                //todo 完成指定设备的暂停操作
+                // TODO: 指定されたデバイスで一時停止を実行
     
             } else if ("music.stop".equals(actionId)) {
-                //todo 停止所有设备
+                // TODO: 全デバイスを停止
             }
     
             Map<String, Object> data = new HashMap<String, Object>();
@@ -557,14 +537,13 @@ public class BackgroundService extends Service {
 
 ```
 
-动作列表变化时调用 `client.updateActions(new ActionsPayload(...))`。
+アクションリストが変わった場合は `client.updateActions(new ActionsPayload(...))` を呼び出してください。
 
 
 
+## PluginServer（ホストアプリ）
 
-## PluginServer（主 App）
-
-会话按注册时的 `packageName` 唯一；同一 `packageName` 再次注册会顶掉旧连接。只有注册回调返回 `success == true` 才会创建 `PluginSession`。
+セッションは登録時の `packageName` によって一意です。同一 `packageName` で再登録すると旧接続は切断されます。登録コールバックが `success == true` を返した場合にのみ `PluginSession` が作成されます。
 
 ```java
 final PluginServer server = new PluginServer(39001);
@@ -582,7 +561,7 @@ server.setRegisterHandler(new PluginRegisterHandler() {
         result.configServer = new ConfigServer();
         result.configServer.host = "127.0.0.1";
         result.configServer.port = 8123;
-        // sessionId / sessionToken / heartbeat 不填时服务端会补默认值
+        // sessionId / sessionToken / heartbeat が未設定の場合、サーバー側でデフォルト値を補います
         return result;
     }
 });
@@ -600,39 +579,39 @@ server.setListener(new PluginServerListener() {
 
 server.start();
 
-// 查询会话
+// セッションの取得
 PluginSession session = server.getSession("com.ultrabar.music");
 
-// 调用插件动作（需该会话已上报对应 actionId）
+// プラグインアクションの呼び出し（対象セッションが該当 actionId を報告している必要があります）
 Map<String, Object> params = new HashMap<String, Object>();
 params.put("deviceId", "sp00-1");
 server.call("music.play", params)
         .thenAccept(result -> { /* CallResultPayload */ })
         .exceptionally(err -> { err.printStackTrace(); return null; });
 
-// 多个插件可能有同名 actionId 时带上 packageName
+// 同名の actionId を持つプラグインが複数ある場合は packageName を指定してください
 server.call("com.ultrabar.music", "music.play", params);
 
 // server.stop();
 ```
 
-## 其他
+## その他
+ 
+### R8 / ProGuard
 
-###  R8 / ProGuard
-
-模型是 public 字段 + Jackson，Release 必须 keep：
+モデルは public フィールド + Jackson を使用しています。リリースビルドでは以下を keep してください：
 
 ```
 -keep class com.ultrabar.plugin.model.** { *; }
 -keep class com.ultrabar.plugin.callback.** { *; }
 -keep class com.ultrabar.plugin.PluginClient { *; }
 ```
+ 
+ 
 
+## プロトコルの要点
 
-
-## 协议要点
-
-- 信封：`type`、`requestId`、`timestamp`、`protocol`、`payload`；注册成功后客户端会带 `sessionId`、`auth`。
-- `requestId` 为 UUID，一次 RPC 用一次。
-- 动作 ID 字段统一为 `actionId`。
-- 成对消息：`register` / `register_result`，`actions` / `actions_result`，`describe` / `describe_result`，`get_options` / `get_options_result`，`call` / `call_result`，`heartbeat` / `heartbeat_ack`。
+- エンベロープ：`type`、`requestId`、`timestamp`、`protocol`、`payload`；登録成功後、クライアントは `sessionId`、`auth` を送ります。
+- `requestId` は UUID で、RPC ごとに一度だけ使用します。
+- アクション ID フィールドは `actionId` に統一されています。
+- 対応するメッセージペア：`register` / `register_result`，`actions` / `actions_result`，`describe` / `describe_result`，`get_options` / `get_options_result`，`call` / `call_result`，`heartbeat` / `heartbe[...]`
