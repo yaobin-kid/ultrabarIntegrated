@@ -20,6 +20,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -103,6 +104,15 @@ public class PluginClient {
      */
     public void sendTaskUpdate(TaskUpdatePayload payload) {
         envelopes.sendOneWay(MessageType.TASK_UPDATE, payload);
+    }
+
+    /**
+     * 触发动作
+     * @param actionId
+     * @param params
+     */
+    public void triggerAction(String actionId, Map<String,Object> params){
+
     }
 
     public CompletableFuture<Void> startAsync() {

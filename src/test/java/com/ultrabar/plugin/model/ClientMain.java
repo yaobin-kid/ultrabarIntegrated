@@ -292,8 +292,8 @@ public class ClientMain {
             }
 
             @Override
-            public void onTopicUpdate(Topic topic, Object object) {
-
+            public void onTopicUpdate(TopicPayload payload) {
+                System.out.println("接受到topic 更新数据:"+payload.topic+",data="+payload.data);
             }
         });
 
@@ -303,6 +303,8 @@ public class ClientMain {
                 System.out.println("Client started and will auto-register/send actions");
             }
         });
+
+
 
         Thread.sleep(30_000);
         client.stop();

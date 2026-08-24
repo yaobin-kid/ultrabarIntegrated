@@ -2,11 +2,10 @@ package com.ultrabar.server;
 
 import com.ultrabar.plugin.model.ActionSummary;
 import com.ultrabar.plugin.model.RegisterPayload;
+import com.ultrabar.plugin.model.Topic;
 import io.netty.channel.Channel;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 /**
  * One connected plugin, unique by {@code packageName}.
@@ -19,6 +18,7 @@ public final class PluginSession {
     private volatile Channel channel;
     private final String name;
     private volatile List<ActionSummary> actions = Collections.emptyList();
+    private volatile Set<Topic> topics;
     private volatile long revision;
 
     private volatile long lastSeenMillis = System.currentTimeMillis();
@@ -110,6 +110,16 @@ public final class PluginSession {
         } else {
             this.revision++;
         }
+        touch();
+    }
+
+    void updateTopic(Set<Topic> topics) {
+        if (topics == null) {
+            this.topics = Collections.emptySet();
+        } else {
+            this.topics = Collections.unmodifiableSet(new HashSet<>(topics));
+        }
+
         touch();
     }
 }

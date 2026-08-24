@@ -14,6 +14,9 @@ public enum MessageType {
     DESCRIBE("describe", DescribePayload.class),
     DESCRIBE_RESULT("describe_result", DescribeResultPayload.class),
     CALL("call", CallPayload.class),
+    TOPIC("topic", TopicPayload.class),
+    TOPIC_RESULT("topic_result", TopicResultPayload.class),
+
     CALL_RESULT("call_result", CallResultPayload.class),
     GET_OPTIONS("get_options", GetOptionsPayload.class),
     GET_OPTIONS_RESULT("get_options_result", GetOptionsResultPayload.class),

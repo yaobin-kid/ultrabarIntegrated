@@ -4,13 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ultrabar.plugin.callback.CallResponder;
 import com.ultrabar.plugin.callback.DescribeResponder;
 import com.ultrabar.plugin.callback.OptionsResponder;
-import com.ultrabar.plugin.model.ActionsPayload;
-import com.ultrabar.plugin.model.CallPayload;
-import com.ultrabar.plugin.model.DescribePayload;
-import com.ultrabar.plugin.model.Envelope;
-import com.ultrabar.plugin.model.ErrorCodes;
-import com.ultrabar.plugin.model.GetOptionsPayload;
-import com.ultrabar.plugin.model.MessageType;
+import com.ultrabar.plugin.callback.TopicResponder;
+import com.ultrabar.plugin.model.*;
 import io.netty.channel.Channel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -67,6 +62,9 @@ public final class InboundDispatcher {
             case CALL:
                 handleCall(channel, envelope);
                 return;
+            case TOPIC:
+                handleTopic(channel, envelope);
+                return;
             case GET_OPTIONS:
                 handleOptions(channel, envelope);
                 return;
@@ -95,9 +93,19 @@ public final class InboundDispatcher {
         }
     }
 
+    private void handleTopic(Channel channel, Envelope envelope) {
+        TopicResponder responder = new TopicResponder(channel, envelope.getRequestId(), mapper, session.sessionId(), session.sessionToken());
+        try {
+            TopicPayload topicPayload = envelope.payloadAs(TopicPayload.class);
+            notifier.onTopicUpdate(topicPayload);
+            responder.sendSuccess(new TopicResultPayload(topicPayload.topic));
+        } catch (Exception e) {
+            responder.sendError(ErrorCodes.INVALID_PAYLOAD, e.getMessage(), false, null);
+        }
+    }
+
     private void handleOptions(Channel channel, Envelope envelope) {
-        OptionsResponder responder = new OptionsResponder(
-                channel, envelope.getRequestId(), mapper, session.sessionId(), session.sessionToken());
+        OptionsResponder responder = new OptionsResponder( channel, envelope.getRequestId(), mapper, session.sessionId(), session.sessionToken());
         try {
             notifier.onOptions(envelope.payloadAs(GetOptionsPayload.class), responder);
         } catch (Exception e) {

@@ -9,7 +9,7 @@ import java.util.Set;
 public class ActionsPayload implements Payload {
     public Long revision;
     public List<ActionSummary> actions;
-    public Set<Topic> topic;
+    public Set<Topic> topic;  //订阅一部分系统数据
 
 
     public ActionsPayload() {

@@ -1,13 +1,7 @@
 package com.ultrabar.plugin.internal;
 
 import com.ultrabar.plugin.callback.PluginListener;
-import com.ultrabar.plugin.model.ActionsResultPayload;
-import com.ultrabar.plugin.model.ActionsPayload;
-import com.ultrabar.plugin.model.CallPayload;
-import com.ultrabar.plugin.model.DescribePayload;
-import com.ultrabar.plugin.model.ErrorCodes;
-import com.ultrabar.plugin.model.GetOptionsPayload;
-import com.ultrabar.plugin.model.RegisterResultPayload;
+import com.ultrabar.plugin.model.*;
 import com.ultrabar.plugin.callback.CallResponder;
 import com.ultrabar.plugin.callback.DescribeResponder;
 import com.ultrabar.plugin.callback.OptionsResponder;
@@ -109,6 +103,14 @@ public final class ListenerNotifier {
         });
     }
 
+    void onTopicUpdate(final TopicPayload update) {
+        emit(new ListenerAction() {
+            @Override
+            public void run(PluginListener l) {
+                l.onTopicUpdate(update);
+            }
+        });
+    }
     void onOptions(final GetOptionsPayload payload, final OptionsResponder responder) {
         PluginListener current = listener;
         if (current == null) {

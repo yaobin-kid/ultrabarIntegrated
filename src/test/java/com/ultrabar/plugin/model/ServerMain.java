@@ -34,6 +34,8 @@ public final class ServerMain {
                 return result;
             }
         });
+
+
         server.setListener(new PluginServerListener() {
             @Override
             public void onRegistered(PluginSession session) {
@@ -45,6 +47,11 @@ public final class ServerMain {
                 log.info("plugin actions packageName={} count={}", session.packageName(), session.actions().size());
 
                 System.out.println("动作注册成功");
+
+                server.publish(session.packageName(), Topic.CPU, "112")
+                        .thenAccept(c -> {
+                            System.out.println("发布状态:" + c.success);
+                        });
 
 
               /*  server.getDescribe("com.ultrabar.music", "music.play")

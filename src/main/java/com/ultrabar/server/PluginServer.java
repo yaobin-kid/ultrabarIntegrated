@@ -161,12 +161,30 @@ public class PluginServer {
     }
 
 
-    // 提取出的公共获取 Session 方法
-    private PluginSession getValidSessionOrThrow(String packageName, String actionId) {
+    public CompletableFuture<TopicResultPayload> publish(String packageName, Topic topic, Object data) {
+        PluginSession session;
+        try {
+            session = getValidSession(packageName);
+        } catch (IllegalStateException e) {
+            return failedFuture(e);
+        }
+        TopicPayload payload = new TopicPayload();
+        payload.topic = topic;
+        payload.data = data;
+        return request(session, MessageType.TOPIC, payload, TopicResultPayload.class);
+    }
+
+    private PluginSession getValidSession(String packageName) {
         PluginSession session = getSession(packageName);
         if (session == null || session.channel() == null || !session.channel().isActive()) {
             throw new IllegalStateException("no active session for packageName=" + packageName);
         }
+        return session;
+    }
+
+    // 提取出的公共获取 Session 方法
+    private PluginSession getValidSessionOrThrow(String packageName, String actionId) {
+        PluginSession session = getValidSession(packageName);
         if (!session.hasAction(actionId)) {
             throw new IllegalStateException("package " + packageName + " has no actionId=" + actionId);
         }
@@ -235,6 +253,7 @@ public class PluginServer {
             case CALL_RESULT:
             case DESCRIBE_RESULT:
             case GET_OPTIONS_RESULT:
+            case TOPIC_RESULT:
             case HEARTBEAT_ACK:
                 pending.complete(envelope.getRequestId(), envelope.getPayload());
                 return;
@@ -359,6 +378,7 @@ public class PluginServer {
             return;
         }
         ActionsPayload payload = envelope.payloadAs(ActionsPayload.class);
+        session.updateTopic(payload == null ? null : payload.topic);
         session.updateActions(payload == null ? null : payload.actions, payload == null ? null : payload.revision);
         ActionsResultPayload result = new ActionsResultPayload();
         result.success = true;

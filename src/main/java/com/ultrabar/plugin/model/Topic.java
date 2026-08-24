@@ -11,7 +11,6 @@ public enum Topic {
         this.topic = topic;
     }
     // 核心：加上这个注解
-    @JsonValue
     public String getTopic() {
         return topic;
     }
