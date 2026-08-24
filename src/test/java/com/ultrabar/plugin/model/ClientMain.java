@@ -6,10 +6,7 @@ import com.ultrabar.plugin.callback.DescribeResponder;
 import com.ultrabar.plugin.callback.OptionsResponder;
 import com.ultrabar.plugin.callback.PluginListener;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -22,7 +19,7 @@ public class ClientMain {
         RegisterPayload rp = new RegisterPayload();
         rp.name = "Music";
         rp.packageName = "com.ultrabar.music";
-
+        rp.appType = AppType.APP;
 
         //支持的动作
         ActionSummary play = new ActionSummary();
@@ -41,8 +38,12 @@ public class ClientMain {
         stop.name = "stop all play";
         stop.description = "stop all device  play";
 
+        ActionsPayload ap = new ActionsPayload(Arrays.asList(play, pause, stop));
+        ap.topic = new HashSet<>();
+        ap.topic.add(Topic.CPU);
 
-        client.setActionsConfig(new ActionsPayload(Arrays.asList(play, pause, stop)));
+        client.setActionsConfig(ap);
+
         client.setRegisterConfig(rp);
 
 
@@ -79,7 +80,7 @@ public class ClientMain {
                 int httpPort = payload.configServer.port;
                 String sessionToken = payload.sessionToken;
 
-                System.out.println("Register success: session=" + payload.sessionId+",port="+httpPort+",sessionToken=+sessionToken");
+                System.out.println("Register success: session=" + payload.sessionId + ",port=" + httpPort + ",sessionToken=+sessionToken");
             }
 
             @Override
@@ -288,6 +289,11 @@ public class ClientMain {
 
 
                 responder.sendSuccess(data);
+            }
+
+            @Override
+            public void onTopicUpdate(Topic topic, Object object) {
+
             }
         });
 

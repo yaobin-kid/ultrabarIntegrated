@@ -32,6 +32,7 @@ final class ServerChannelHandler extends SimpleChannelInboundHandler<String> {
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, String msg) {
         try {
+            System.out.println("消息:"+msg);
             Envelope envelope = mapper.readValue(msg, Envelope.class);
             server.onMessage(ctx.channel(), envelope);
         } catch (Exception e) {

@@ -27,5 +27,8 @@ public interface PluginListener {
     // incoming call from server -> plugin should respond via responder
     void onCall(CallPayload payload, CallResponder responder);
 
+    // server publishes data -> Plugin receives
+    void onTopicUpdate(Topic topic,Object object);
+
     void onOptions(GetOptionsPayload payload, OptionsResponder responder);
 }
