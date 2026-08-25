@@ -150,9 +150,13 @@ public class PluginServer {
         PluginSession session;
         try {
             session = getValidSessionOrThrow(packageName, actionId);
+            if (!session.hasFeatures(actionId, Features.SERVER_CALL)) {
+                throw new IllegalStateException("package " + packageName + " has no actionId=" + actionId + ",cannot support server call");
+            }
         } catch (IllegalStateException e) {
             return failedFuture(e);
         }
+
         CallPayload payload = new CallPayload();
         payload.actionId = actionId;
         payload.params = params;

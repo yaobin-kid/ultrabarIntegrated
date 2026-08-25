@@ -2,30 +2,15 @@ package com.ultrabar.plugin;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ultrabar.plugin.callback.PluginListener;
-import com.ultrabar.plugin.internal.EnvelopeClient;
-import com.ultrabar.plugin.internal.Handshake;
-import com.ultrabar.plugin.internal.HeartbeatScheduler;
-import com.ultrabar.plugin.internal.InboundDispatcher;
-import com.ultrabar.plugin.internal.LineConnection;
-import com.ultrabar.plugin.internal.ListenerNotifier;
-import com.ultrabar.plugin.internal.RequestTable;
-import com.ultrabar.plugin.internal.SessionState;
-import com.ultrabar.plugin.model.ActionsPayload;
-import com.ultrabar.plugin.model.Json;
-import com.ultrabar.plugin.model.MessageType;
-import com.ultrabar.plugin.model.RegisterPayload;
-import com.ultrabar.plugin.model.TaskUpdatePayload;
+import com.ultrabar.plugin.internal.*;
+import com.ultrabar.plugin.model.*;
 import io.netty.channel.Channel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -107,13 +92,18 @@ public class PluginClient {
     }
 
     /**
-     * 触发动作
+     * 上报属性
+     *
      * @param actionId
      * @param params
      */
-    public void triggerAction(String actionId, Map<String,Object> params){
-
+    public void reportData(String actionId, Map<String, Object> params) {
+        ReportPayload report = new ReportPayload();
+        report.actionId = actionId;
+        report.params = params;
+        envelopes.sendOneWay(MessageType.REPORT, report);
     }
+
 
     public CompletableFuture<Void> startAsync() {
         if (stopped) {

@@ -297,12 +297,16 @@ public class ClientMain {
             }
         });
 
+
+
         client.startAsync().thenRun(new Runnable() {
             @Override
             public void run() {
                 System.out.println("Client started and will auto-register/send actions");
             }
         });
+
+
 
 
 

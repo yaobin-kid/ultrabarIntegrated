@@ -22,7 +22,13 @@ public enum MessageType {
     GET_OPTIONS_RESULT("get_options_result", GetOptionsResultPayload.class),
     HEARTBEAT("heartbeat", HeartbeatPayload.class),
     HEARTBEAT_ACK("heartbeat_ack", HeartbeatAckPayload.class),
+
+    REPORT("report", ReportPayload.class),
+    REPORT_RESULT("report_result", ReportResultPayload.class),
+
+
     TASK_UPDATE("task_update", TaskUpdatePayload.class);
+
 
     private final String wireName;
     private final Class<? extends Payload> payloadType;

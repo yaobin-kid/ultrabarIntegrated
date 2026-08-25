@@ -1,6 +1,7 @@
 package com.ultrabar.server;
 
 import com.ultrabar.plugin.model.ActionSummary;
+import com.ultrabar.plugin.model.Features;
 import com.ultrabar.plugin.model.RegisterPayload;
 import com.ultrabar.plugin.model.Topic;
 import io.netty.channel.Channel;
@@ -77,9 +78,7 @@ public final class PluginSession {
     }
 
     public boolean hasAction(String actionId) {
-        if (actionId == null) {
-            return false;
-        }
+        if (actionId == null) return false;
         List<ActionSummary> current = actions;
         for (int i = 0; i < current.size(); i++) {
             ActionSummary action = current.get(i);
@@ -89,6 +88,22 @@ public final class PluginSession {
         }
         return false;
     }
+
+
+    public boolean hasFeatures(String actionId, Features... features) {
+        if (actionId == null) return false;
+        List<ActionSummary> current = actions;
+        for (int i = 0; i < current.size(); i++) {
+            ActionSummary action = current.get(i);
+            if (action != null && actionId.equals(action.actionId)) {
+                if (action.supportsAll(features)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
 
     void touch() {
         lastSeenMillis = System.currentTimeMillis();
