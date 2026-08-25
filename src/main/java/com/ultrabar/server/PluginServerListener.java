@@ -16,7 +16,9 @@ public interface PluginServerListener {
     }
 
 
-    default void onEvent(PluginSession session) {
+    default void onUpdate(PluginSession session) {
 
     }
+
+
 }

@@ -19,7 +19,6 @@ public class ClientMain {
         RegisterPayload rp = new RegisterPayload();
         rp.name = "Music";
         rp.packageName = "com.ultrabar.music";
-        rp.appType = AppType.APP;
 
         //支持的动作
         ActionSummary play = new ActionSummary();
@@ -45,6 +44,7 @@ public class ClientMain {
         client.setActionsConfig(ap);
 
         client.setRegisterConfig(rp);
+
 
 
         ExecutorService exec = Executors.newFixedThreadPool(4);

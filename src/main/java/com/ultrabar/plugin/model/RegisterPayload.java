@@ -7,7 +7,6 @@ public class RegisterPayload implements Payload {
 
     public String name;
     public String packageName;
-    public AppType appType; //应用类型
 
 
     public RegisterPayload() {
