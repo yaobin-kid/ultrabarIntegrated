@@ -49,6 +49,7 @@ public final class InboundDispatcher {
             case GET_OPTIONS_RESULT:
             case CALL_RESULT:
             case HEARTBEAT_ACK:
+            case REPORT_RESULT:
                 if (!requests.complete(envelope.getRequestId(), envelope.getPayload())) {
                     log.debug("no pending request for type={} requestId={}", type, envelope.getRequestId());
                 }

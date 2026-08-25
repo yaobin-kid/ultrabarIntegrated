@@ -76,6 +76,14 @@ public final class ServerMain {
                         });*/
             }
 
+            @Override
+            public void onReport(PluginSession session, ReportPayload payload) {
+                try {
+                    System.out.println("接受到上报数据了:" + Json.mapper().writeValueAsString(payload));
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
 
             @Override
             public void onUnregistered(PluginSession session) {

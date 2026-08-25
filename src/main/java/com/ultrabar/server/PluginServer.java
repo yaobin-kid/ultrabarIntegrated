@@ -264,6 +264,10 @@ public class PluginServer {
             case TASK_UPDATE:
                 handleTaskUpdate(channel, envelope);
                 return;
+            case REPORT:
+                handleReport(channel, envelope);
+                return;
+
             default:
                 log.info("ignored plugin message type={} from {}", envelope.getType(), channel.remoteAddress());
         }
@@ -414,6 +418,27 @@ public class PluginServer {
         }
         session.touch();
         listener.onTaskUpdate(session, envelope.payloadAs(TaskUpdatePayload.class));
+    }
+
+    private void handleReport(Channel channel, Envelope envelope) {
+        PluginSession session = sessions.resolve(channel, envelope.getSessionId());
+        if (session == null) {
+            log.warn("handleReport without session from {}", channel.remoteAddress());
+            return;
+        }
+        session.touch();
+        ReportPayload report = envelope.payloadAs(ReportPayload.class);
+        ReportResultPayload ack = new ReportResultPayload();
+        if (!session.hasFeatures(report.actionId, Features.CLIENT_REPORT)) {
+            ack = new ReportResultPayload();
+            ack.success = false;
+            ack.error = ErrorInfo.of(ErrorCodes.NO_SUPPORT_FETURES, "actionId:" + report.actionId + " no support report", false, null);
+        } else {
+            listener.onReport(session, envelope.payloadAs(ReportPayload.class));
+            ack.success = true;
+        }
+        write(channel, Envelope.of(MessageType.REPORT_RESULT, envelope.getRequestId(), ack).withSession(session.sessionId(), session.sessionToken()));
+
     }
 
     private PluginSession requireSession(Channel channel, Envelope envelope, MessageType replyType) {

@@ -10,6 +10,7 @@ public final class ErrorCodes {
     public static final String UNKNOWN_ACTION = "UNKNOWN_ACTION";
     public static final String AMBIGUOUS_ACTION = "AMBIGUOUS_ACTION";
     public static final String AUTH_FAILED = "AUTH_FAILED";
+    public static final String NO_SUPPORT_FETURES = "NO_SUPPORT_FETURES";
 
     private ErrorCodes() {}
 }

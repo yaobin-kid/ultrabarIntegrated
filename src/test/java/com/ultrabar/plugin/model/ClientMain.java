@@ -46,7 +46,6 @@ public class ClientMain {
         client.setRegisterConfig(rp);
 
 
-
         ExecutorService exec = Executors.newFixedThreadPool(4);
 
         client.setPluginListener(new PluginListener() {
@@ -81,6 +80,18 @@ public class ClientMain {
                 String sessionToken = payload.sessionToken;
 
                 System.out.println("Register success: session=" + payload.sessionId + ",port=" + httpPort + ",sessionToken=+sessionToken");
+
+                //上报数据到服务端
+                Map<String, Object> value = new HashMap<>();
+                value.put("name", "1112");
+                value.put("age", 12);
+                client.reportData("test", value).thenAccept(c -> {
+                    try {
+                        System.out.println("数据上报成功:" + Json.mapper().writeValueAsString(c));
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                });
             }
 
             @Override
@@ -97,6 +108,8 @@ public class ClientMain {
                 // 4. 必要时重新初始化 Plugin Client
 
                 System.err.println("Register failed: " + t.getMessage());
+
+
             }
 
             @Override
@@ -293,10 +306,9 @@ public class ClientMain {
 
             @Override
             public void onTopicUpdate(TopicPayload payload) {
-                System.out.println("接受到topic 更新数据:"+payload.topic+",data="+payload.data);
+                System.out.println("接受到topic 更新数据:" + payload.topic + ",data=" + payload.data);
             }
         });
-
 
 
         client.startAsync().thenRun(new Runnable() {
@@ -305,6 +317,8 @@ public class ClientMain {
                 System.out.println("Client started and will auto-register/send actions");
             }
         });
+
+
 
 
 

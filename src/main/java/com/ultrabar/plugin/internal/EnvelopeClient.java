@@ -20,7 +20,7 @@ public final class EnvelopeClient {
         this.session = session;
     }
 
-    <T> CompletableFuture<T> request(MessageType type, Payload payload, Class<T> responseType) {
+    public <T> CompletableFuture<T> request(MessageType type, Payload payload, Class<T> responseType) {
         String requestId = RequestIds.next();
         CompletableFuture<T> future = requests.register(requestId, responseType, REQUEST_TIMEOUT_MS);
         try {

@@ -97,11 +97,11 @@ public class PluginClient {
      * @param actionId
      * @param params
      */
-    public void reportData(String actionId, Map<String, Object> params) {
+    public CompletableFuture<ReportResultPayload> reportData(String actionId, Map<String, Object> params) {
         ReportPayload report = new ReportPayload();
         report.actionId = actionId;
         report.params = params;
-        envelopes.sendOneWay(MessageType.REPORT, report);
+        return envelopes.request(MessageType.REPORT, report, ReportResultPayload.class);
     }
 
 
