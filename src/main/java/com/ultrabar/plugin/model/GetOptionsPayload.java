@@ -10,7 +10,7 @@ public class GetOptionsPayload implements Payload {
     public String describeId;
     public String searchText;
     public Map<String, Object> params;
-    public Integer cursor;
+    public String cursor;
     public Integer limit = 100;
 
     public GetOptionsPayload() {

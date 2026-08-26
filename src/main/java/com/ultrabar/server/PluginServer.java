@@ -212,7 +212,7 @@ public class PluginServer {
                                                                  String actionId,
                                                                  String describeId,
                                                                  String searchText,
-                                                                 int cursor, int limit,
+                                                                 String cursor, int limit,
                                                                  Map<String, Object> params) {
         PluginSession session;
         try {
