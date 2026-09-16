@@ -48,6 +48,7 @@ implementation "org.slf4j:slf4j-simple:2.0.7"
             android:exported="true"
             android:permission="com.ultrabar.plugin.SERVER_REGISER_PERMISSION">
             <meta-data  android:name="ultrabar.plugin"   android:value="com.test.music" />
+   </service>
 ```
 ### 必須設定
 
