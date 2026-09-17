@@ -2,16 +2,37 @@ package com.ultrabar.plugin;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ultrabar.plugin.callback.PluginListener;
-import com.ultrabar.plugin.internal.*;
-import com.ultrabar.plugin.model.*;
-import io.netty.channel.Channel;
+import com.ultrabar.plugin.internal.EnvelopeClient;
+import com.ultrabar.plugin.internal.Handshake;
+import com.ultrabar.plugin.internal.HeartbeatScheduler;
+import com.ultrabar.plugin.internal.InboundDispatcher;
+import com.ultrabar.plugin.internal.LineConnection;
+import com.ultrabar.plugin.internal.ListenerNotifier;
+import com.ultrabar.plugin.internal.RequestTable;
+import com.ultrabar.plugin.internal.SessionState;
+import com.ultrabar.plugin.model.ActionsPayload;
+import com.ultrabar.plugin.model.EventPayload;
+import com.ultrabar.plugin.model.EventResultPayload;
+import com.ultrabar.plugin.model.Json;
+import com.ultrabar.plugin.model.MessageType;
+import com.ultrabar.plugin.model.RegisterPayload;
+import com.ultrabar.plugin.model.ReportPayload;
+import com.ultrabar.plugin.model.ReportResultPayload;
+import com.ultrabar.plugin.model.TaskUpdatePayload;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.concurrent.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import io.netty.channel.Channel;
 
 /**
  * Plugin-side client for the Ultrabar line-delimited JSON protocol.
@@ -104,6 +125,13 @@ public class PluginClient {
         return envelopes.request(MessageType.REPORT, report, ReportResultPayload.class);
     }
 
+    public CompletableFuture<EventResultPayload> sendEvent(String eventId, Map<String, Object> params) {
+        EventPayload event = new EventPayload();
+        event.eventId = eventId;
+        event.params = params;
+        event.timestamp = System.currentTimeMillis();
+        return envelopes.request(MessageType.EVENT, event, EventResultPayload.class);
+    }
 
     public CompletableFuture<Void> startAsync() {
         if (stopped) {
@@ -136,4 +164,5 @@ public class PluginClient {
             }
         };
     }
+
 }

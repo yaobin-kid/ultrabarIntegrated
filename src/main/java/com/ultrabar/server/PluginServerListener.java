@@ -1,5 +1,6 @@
 package com.ultrabar.server;
 
+import com.ultrabar.plugin.model.EventPayload;
 import com.ultrabar.plugin.model.ReportPayload;
 import com.ultrabar.plugin.model.TaskUpdatePayload;
 
@@ -21,5 +22,8 @@ public interface PluginServerListener {
 
     }
 
+    default void onEventReceived(PluginSession session, EventPayload event) {
+
+    }
 
 }

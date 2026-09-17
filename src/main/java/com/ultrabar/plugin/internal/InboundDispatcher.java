@@ -5,10 +5,20 @@ import com.ultrabar.plugin.callback.CallResponder;
 import com.ultrabar.plugin.callback.DescribeResponder;
 import com.ultrabar.plugin.callback.OptionsResponder;
 import com.ultrabar.plugin.callback.TopicResponder;
-import com.ultrabar.plugin.model.*;
-import io.netty.channel.Channel;
+import com.ultrabar.plugin.model.ActionsPayload;
+import com.ultrabar.plugin.model.CallPayload;
+import com.ultrabar.plugin.model.DescribePayload;
+import com.ultrabar.plugin.model.Envelope;
+import com.ultrabar.plugin.model.ErrorCodes;
+import com.ultrabar.plugin.model.GetOptionsPayload;
+import com.ultrabar.plugin.model.MessageType;
+import com.ultrabar.plugin.model.TopicPayload;
+import com.ultrabar.plugin.model.TopicResultPayload;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import io.netty.channel.Channel;
 
 public final class InboundDispatcher {
     private static final Logger log = LoggerFactory.getLogger(InboundDispatcher.class);
@@ -50,6 +60,7 @@ public final class InboundDispatcher {
             case CALL_RESULT:
             case HEARTBEAT_ACK:
             case REPORT_RESULT:
+            case EVENT_RESULT:
                 if (!requests.complete(envelope.getRequestId(), envelope.getPayload())) {
                     log.debug("no pending request for type={} requestId={}", type, envelope.getRequestId());
                 }
@@ -106,7 +117,7 @@ public final class InboundDispatcher {
     }
 
     private void handleOptions(Channel channel, Envelope envelope) {
-        OptionsResponder responder = new OptionsResponder( channel, envelope.getRequestId(), mapper, session.sessionId(), session.sessionToken());
+        OptionsResponder responder = new OptionsResponder(channel, envelope.getRequestId(), mapper, session.sessionId(), session.sessionToken());
         try {
             notifier.onOptions(envelope.payloadAs(GetOptionsPayload.class), responder);
         } catch (Exception e) {

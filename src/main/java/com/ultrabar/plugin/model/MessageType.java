@@ -24,8 +24,10 @@ public enum MessageType {
     HEARTBEAT_ACK("heartbeat_ack", HeartbeatAckPayload.class),
 
     REPORT("report", ReportPayload.class),
-    REPORT_RESULT("report_result", ReportResultPayload.class),
 
+    REPORT_RESULT("report_result", ReportResultPayload.class),
+    EVENT("event", EventPayload.class),
+    EVENT_RESULT("event_result", EventResultPayload.class),
 
     TASK_UPDATE("task_update", TaskUpdatePayload.class);
 

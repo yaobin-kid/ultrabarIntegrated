@@ -2,16 +2,35 @@ package com.ultrabar.server;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ultrabar.plugin.internal.RequestTable;
-import com.ultrabar.plugin.model.*;
-import io.netty.bootstrap.ServerBootstrap;
-import io.netty.channel.*;
-import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.channel.socket.SocketChannel;
-import io.netty.channel.socket.nio.NioServerSocketChannel;
-import io.netty.handler.codec.LineBasedFrameDecoder;
-import io.netty.handler.codec.string.StringDecoder;
-import io.netty.handler.codec.string.StringEncoder;
-import io.netty.util.concurrent.DefaultThreadFactory;
+import com.ultrabar.plugin.model.ActionsPayload;
+import com.ultrabar.plugin.model.ActionsResultPayload;
+import com.ultrabar.plugin.model.CallPayload;
+import com.ultrabar.plugin.model.CallResultPayload;
+import com.ultrabar.plugin.model.DescribePayload;
+import com.ultrabar.plugin.model.DescribeResultPayload;
+import com.ultrabar.plugin.model.Envelope;
+import com.ultrabar.plugin.model.ErrorCodes;
+import com.ultrabar.plugin.model.ErrorInfo;
+import com.ultrabar.plugin.model.EventPayload;
+import com.ultrabar.plugin.model.EventResultPayload;
+import com.ultrabar.plugin.model.Features;
+import com.ultrabar.plugin.model.GetOptionsPayload;
+import com.ultrabar.plugin.model.GetOptionsResultPayload;
+import com.ultrabar.plugin.model.Heartbeat;
+import com.ultrabar.plugin.model.HeartbeatAckPayload;
+import com.ultrabar.plugin.model.Json;
+import com.ultrabar.plugin.model.MessageType;
+import com.ultrabar.plugin.model.Payload;
+import com.ultrabar.plugin.model.RegisterPayload;
+import com.ultrabar.plugin.model.RegisterResultPayload;
+import com.ultrabar.plugin.model.ReportPayload;
+import com.ultrabar.plugin.model.ReportResultPayload;
+import com.ultrabar.plugin.model.RequestIds;
+import com.ultrabar.plugin.model.TaskUpdatePayload;
+import com.ultrabar.plugin.model.Topic;
+import com.ultrabar.plugin.model.TopicPayload;
+import com.ultrabar.plugin.model.TopicResultPayload;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,6 +42,21 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+
+import io.netty.bootstrap.ServerBootstrap;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelOption;
+import io.netty.channel.ChannelPipeline;
+import io.netty.channel.EventLoopGroup;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.SocketChannel;
+import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.handler.codec.LineBasedFrameDecoder;
+import io.netty.handler.codec.string.StringDecoder;
+import io.netty.handler.codec.string.StringEncoder;
+import io.netty.util.concurrent.DefaultThreadFactory;
 
 /**
  * Ultrabar plugin protocol server. Sessions are unique by {@code packageName}.
@@ -267,6 +301,9 @@ public class PluginServer {
             case REPORT:
                 handleReport(channel, envelope);
                 return;
+            case EVENT:
+                handleEvent(channel, envelope);
+                return;
 
             default:
                 log.info("ignored plugin message type={} from {}", envelope.getType(), channel.remoteAddress());
@@ -434,11 +471,30 @@ public class PluginServer {
             ack.success = false;
             ack.error = ErrorInfo.of(ErrorCodes.NO_SUPPORT_FETURES, "actionId:" + report.actionId + " no support report", false, null);
         } else {
-            listener.onReport(session, envelope.payloadAs(ReportPayload.class));
+            listener.onReport(session, report);
             ack.success = true;
         }
         write(channel, Envelope.of(MessageType.REPORT_RESULT, envelope.getRequestId(), ack).withSession(session.sessionId(), session.sessionToken()));
+    }
 
+    private void handleEvent(Channel channel, Envelope envelope) {
+        PluginSession session = sessions.resolve(channel, envelope.getSessionId());
+        if (session == null) {
+            log.warn("handleReport without session from {}", channel.remoteAddress());
+            return;
+        }
+        session.touch();
+        EventPayload event = envelope.payloadAs(EventPayload.class);
+        EventResultPayload ack = new EventResultPayload();
+        if (!session.hasFeatures(event.eventId, Features.EVENT_REPORT)) {
+            ack = new EventResultPayload();
+            ack.success = false;
+            ack.error = ErrorInfo.of(ErrorCodes.NO_SUPPORT_FETURES, "eventIdId:" + event.eventId + " no support report", false, null);
+        } else {
+            listener.onEventReceived(session, event);
+            ack.success = true;
+        }
+        write(channel, Envelope.of(MessageType.EVENT_RESULT, envelope.getRequestId(), ack).withSession(session.sessionId(), session.sessionToken()));
     }
 
     private PluginSession requireSession(Channel channel, Envelope envelope, MessageType replyType) {
