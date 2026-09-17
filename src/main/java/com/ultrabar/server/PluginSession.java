@@ -7,6 +7,7 @@ import com.ultrabar.plugin.model.Topic;
 import io.netty.channel.Channel;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * One connected plugin, unique by {@code packageName}.
@@ -67,6 +68,11 @@ public final class PluginSession {
 
     public List<ActionSummary> actions() {
         return actions;
+    }
+
+    public List<ActionSummary> actions(Features... features) {
+        return actions().stream().filter(f -> f.supportsAll(features))
+                .collect(Collectors.toList());
     }
 
     public long revision() {

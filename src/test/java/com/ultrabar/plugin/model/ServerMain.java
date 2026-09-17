@@ -1,6 +1,5 @@
 package com.ultrabar.plugin.model;
 
-import com.fasterxml.jackson.databind.util.JSONPObject;
 import com.ultrabar.server.PluginRegisterHandler;
 import com.ultrabar.server.PluginServer;
 import com.ultrabar.server.PluginServerListener;
