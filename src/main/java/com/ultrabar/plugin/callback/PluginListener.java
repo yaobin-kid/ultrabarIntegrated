@@ -1,6 +1,12 @@
 package com.ultrabar.plugin.callback;
 
-import com.ultrabar.plugin.model.*;
+import com.ultrabar.plugin.model.ActionsPayload;
+import com.ultrabar.plugin.model.ActionsResultPayload;
+import com.ultrabar.plugin.model.CallPayload;
+import com.ultrabar.plugin.model.DescribePayload;
+import com.ultrabar.plugin.model.GetOptionsPayload;
+import com.ultrabar.plugin.model.RegisterResultPayload;
+import com.ultrabar.plugin.model.TopicPayload;
 
 /**
  * Single global listener interface for plugin events.
@@ -9,6 +15,7 @@ import com.ultrabar.plugin.model.*;
 public interface PluginListener {
     /**
      * 注册成功回调
+     *
      * @param payload
      */
     void onRegisterSuccess(RegisterResultPayload payload);
@@ -28,7 +35,8 @@ public interface PluginListener {
     void onCall(CallPayload payload, CallResponder responder);
 
     // server publishes data -> Plugin receives
-    void onTopicUpdate(TopicPayload payload);
+    default void onTopicUpdate(TopicPayload payload) {
+    }
 
     void onOptions(GetOptionsPayload payload, OptionsResponder responder);
 }
