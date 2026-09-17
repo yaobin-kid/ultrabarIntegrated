@@ -1,9 +1,11 @@
 package com.ultrabar.plugin.model;
 
+import com.fasterxml.jackson.databind.util.JSONPObject;
 import com.ultrabar.server.PluginRegisterHandler;
 import com.ultrabar.server.PluginServer;
 import com.ultrabar.server.PluginServerListener;
 import com.ultrabar.server.PluginSession;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,6 +35,8 @@ public final class ServerMain {
 
                 return result;
             }
+
+
         });
 
 
@@ -88,6 +92,11 @@ public final class ServerMain {
             @Override
             public void onUnregistered(PluginSession session) {
                 log.info("plugin offline packageName={}", session.packageName());
+            }
+
+            @Override
+            public void onEventReceived(PluginSession session, EventPayload event) {
+                log.info("onEventReceived :{}", event.eventId);
             }
         });
 

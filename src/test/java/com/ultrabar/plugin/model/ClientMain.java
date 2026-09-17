@@ -6,11 +6,18 @@ import com.ultrabar.plugin.callback.DescribeResponder;
 import com.ultrabar.plugin.callback.OptionsResponder;
 import com.ultrabar.plugin.callback.PluginListener;
 
-import java.util.*;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
 
 public class ClientMain {
+    private static final Logger log = LoggerFactory.getLogger(ClientMain.class);
+
     public static void main(String[] args) throws Exception {
 
 
@@ -21,7 +28,7 @@ public class ClientMain {
         rp.packageName = "com.ultrabar.music";
 
         //支持的动作
-        ActionSummary play = new ActionSummary();
+        ActionSummary play = new ActionSummary(Features.EVENT_REPORT);
         play.actionId = "music.play";
         play.name = "play music";
         play.description = "play on a device";
@@ -42,11 +49,7 @@ public class ClientMain {
         ap.topic.add(Topic.CPU);
 
         client.setActionsConfig(ap);
-
         client.setRegisterConfig(rp);
-
-
-        ExecutorService exec = Executors.newFixedThreadPool(4);
 
         client.setPluginListener(new PluginListener() {
             @Override
@@ -85,13 +88,16 @@ public class ClientMain {
                 Map<String, Object> value = new HashMap<>();
                 value.put("name", "1112");
                 value.put("age", 12);
-                client.reportData("test", value).thenAccept(c -> {
+            /*    client.reportData("test", value).thenAccept(c -> {
                     try {
                         System.out.println("数据上报成功:" + Json.mapper().writeValueAsString(c));
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
                 });
+*/
+                System.out.println("onRegisterSuccess send event");
+                client.sendEvent("music.play", value);
             }
 
             @Override
@@ -310,22 +316,11 @@ public class ClientMain {
             }
         });
 
+        client.startAsync();
 
-        client.startAsync().thenRun(new Runnable() {
-            @Override
-            public void run() {
-                System.out.println("Client started and will auto-register/send actions");
-            }
-        });
+        System.out.println("tset..................");
+        log.info("startAsync");
 
-
-
-
-
-
-
-        Thread.sleep(30_000);
-        client.stop();
-        exec.shutdownNow();
+        Thread.sleep(3_0000);
     }
 }
