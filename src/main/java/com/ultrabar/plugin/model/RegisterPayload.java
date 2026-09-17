@@ -8,7 +8,7 @@ public class RegisterPayload implements Payload {
     public String name;
     public String packageName;
 
-    public boolean isConfig;
+    public boolean isConfig = true;
     public String configBtnName;
 
     public RegisterPayload() {
