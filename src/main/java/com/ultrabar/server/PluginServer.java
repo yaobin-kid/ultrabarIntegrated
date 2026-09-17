@@ -150,7 +150,7 @@ public class PluginServer {
         PluginSession session;
         try {
             session = getValidSessionOrThrow(packageName, actionId);
-            if (!session.hasFeatures(actionId, Features.SERVER_CALL)) {
+            if (!session.hasFeatures(actionId, Features.CALL)) {
                 throw new IllegalStateException("package " + packageName + " has no actionId=" + actionId + ",cannot support server call");
             }
         } catch (IllegalStateException e) {
@@ -432,7 +432,7 @@ public class PluginServer {
         session.touch();
         ReportPayload report = envelope.payloadAs(ReportPayload.class);
         ReportResultPayload ack = new ReportResultPayload();
-        if (!session.hasFeatures(report.actionId, Features.CLIENT_REPORT)) {
+        if (!session.hasFeatures(report.actionId, Features.REPORT_DATA)) {
             ack = new ReportResultPayload();
             ack.success = false;
             ack.error = ErrorInfo.of(ErrorCodes.NO_SUPPORT_FETURES, "actionId:" + report.actionId + " no support report", false, null);
@@ -452,7 +452,7 @@ public class PluginServer {
         session.touch();
         EventPayload event = envelope.payloadAs(EventPayload.class);
         EventResultPayload ack = new EventResultPayload();
-        if (!session.hasFeatures(event.eventId, Features.EVENT_REPORT)) {
+        if (!session.hasFeatures(event.eventId, Features.EVENT)) {
             ack = new EventResultPayload();
             ack.success = false;
             ack.error = ErrorInfo.of(ErrorCodes.NO_SUPPORT_FETURES, "eventId:" + event.eventId + " no support event", false, null);

@@ -1,12 +1,6 @@
 package com.ultrabar.plugin.callback;
 
-import com.ultrabar.plugin.model.ActionsPayload;
-import com.ultrabar.plugin.model.ActionsResultPayload;
-import com.ultrabar.plugin.model.CallPayload;
-import com.ultrabar.plugin.model.DescribePayload;
-import com.ultrabar.plugin.model.GetOptionsPayload;
-import com.ultrabar.plugin.model.RegisterResultPayload;
-import com.ultrabar.plugin.model.TopicPayload;
+import com.ultrabar.plugin.model.*;
 
 /**
  * Single global listener interface for plugin events.
@@ -20,16 +14,21 @@ public interface PluginListener {
      */
     void onRegisterSuccess(RegisterResultPayload payload);
 
-    void onRegisterFailed(Throwable t);
+    default void onRegisterFailed(Throwable t) {
+    }
 
-    void onActionsFailed(Throwable t);
+    default void onActionsFailed(Throwable t) {
 
-    void onActionsAck(ActionsResultPayload ack);
+    }
 
-    void onActionsUpdate(ActionsPayload update);
+    default void onActionsAck(ActionsResultPayload ack) {
+    }
+
+    default void onActionsUpdate(ActionsPayload update){}
 
     // incoming describe from server -> plugin should respond via responder (similar to call)
-    void onDescribe(DescribePayload payload, DescribeResponder responder);
+    default void onDescribe(DescribePayload payload, DescribeResponder responder) {
+    }
 
     // incoming call from server -> plugin should respond via responder
     void onCall(CallPayload payload, CallResponder responder);
@@ -38,5 +37,6 @@ public interface PluginListener {
     default void onTopicUpdate(TopicPayload payload) {
     }
 
-    void onOptions(GetOptionsPayload payload, OptionsResponder responder);
+    default void onOptions(GetOptionsPayload payload, OptionsResponder responder) {
+    }
 }

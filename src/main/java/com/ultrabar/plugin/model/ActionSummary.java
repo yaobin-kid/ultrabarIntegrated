@@ -21,7 +21,7 @@ public class ActionSummary {
     }
 
     public ActionSummary() {
-        this(Features.SERVER_CALL);
+        this(Features.CALL);
     }
 
 

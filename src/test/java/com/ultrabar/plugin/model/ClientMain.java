@@ -28,7 +28,7 @@ public class ClientMain {
         rp.packageName = "com.ultrabar.music";
 
         //支持的动作
-        ActionSummary play = new ActionSummary(Features.EVENT_REPORT);
+        ActionSummary play = new ActionSummary(Features.EVENT);
         play.actionId = "music.play";
         play.name = "play music";
         play.description = "play on a device";
