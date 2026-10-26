@@ -646,6 +646,7 @@ client.setPluginListener(new PluginListener(){
 {
     "appState": "background", // none 无状态， background 当前程序在后台， foreground 程序在前天
     "module": "DOT_KEY",  //模块类型
+    "action": "button",
     "event": {   //按键原始消息
         "action": 1,    //1 down ，0 up
         "downTime": 169360339,

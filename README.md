@@ -3,27 +3,29 @@
 ### [English](README.md) | [简体中文](README_zh.md) | [日本語](README_ja.md)
 
 
-An Ultrabar plugin protocol SDK based on Netty (protocol version = 2). Communication is UTF-8 JSON per line (framed by `\n`).
-
-| Role | Class | Purpose |
-|------|-------|---------|
-| Plugin side | `com.ultrabar.plugin.PluginClient` | Register, report actions, handle describe / get_options / call |
-| Host side (LineOS) | `com.ultrabar.server.PluginServer` | Manage sessions by `packageName`, store actions, initiate calls to plugins |
-
-Third-party developers act as the plugin side and only need to integrate PluginClient and follow the steps. LineOS will periodically scan AndroidManifest.xml to discover services and start them (already started services will be skipped).
+基于 Netty 的 Ultrabar 插件协议 SDK（协议 version = 2）。传输是 **一行一条 UTF-8 JSON**（`\n` 分帧）
 
 
-## 1. Gradle setup
+| 角色          | 类 | 用途 |
+|-------------|---|---|
+| 插件侧端        | `com.ultrabar.plugin.PluginClient` | 注册、上报 actions、处理 describe / get_options / call |
+| 主侧(LineOS)端 | `com.ultrabar.server.PluginServer` | 按 `packageName` 管理会话、保存动作、向插件发起 call |
+
+三方开发者属于`插件侧端角色`，只集成 **PluginClient** 按步骤操作即可。` LineOS 将定期扫描 AndroidManifest.xml 数据，获取服务并启动（已启动将跳过）`
+
+
+## 1.gradle 引入
 ```groovy
 repositories {
     maven { url 'https://jitpack.io' }
 }
 ```
- 
-Dependencies required:
+
+
+必要依赖：
 
 ```groovy
-implementation 'com.github.yaobin-kid:ultrabarIntegrated:1.0.12' // sdk ver
+implementation 'com.github.yaobin-kid:ultrabarIntegrated:1.0.12' //sdk ver
 
 implementation "io.netty:netty-all:4.1.94.Final"
 implementation "com.fasterxml.jackson.core:jackson-databind:2.15.2"
@@ -36,11 +38,10 @@ implementation "org.slf4j:slf4j-simple:2.0.7"
     }
 ```
 
-> Do NOT use `netty-all`
+>  **不要**使用 `netty-all`
 
-
-## 2. Service
-`AndroidManifest.xml`:
+## 2.服务
+`AndroidManifest.xml `：
 ```xml
    <service
             android:name=".service.BackgroundService"
@@ -48,24 +49,24 @@ implementation "org.slf4j:slf4j-simple:2.0.7"
             android:exported="true"
             android:permission="com.ultrabar.plugin.SERVER_REGISER_PERMISSION">
             <meta-data  android:name="ultrabar.plugin"   android:value="com.test.music" />
- </service>
+   </service>
 ```
-### Required settings
+### 必须的设置
 
-> The `meta-data` value must be the `applicationId`.
-> `android:exported="true"` is required.
-> `android:permission="com.ultrabar.plugin.SERVER_REGISER_PERMISSION"` is required.
+> `meta-data` 属性 取值为 `applicationId` <br>
+> `android:exported="true"` <br>
+> android:permission="com.ultrabar.plugin.SERVER_REGISER_PERMISSION"
 
-## 3. Permissions
-`AndroidManifest.xml`:
+## 3.权限
+`AndroidManifest.xml `：
 ```xml
 <uses-permission android:name="android.permission.INTERNET" />
 ```
 
-## 4. BackgroundService example
-> The service should perform the PluginClient startup in the `start()` section.
+## 4. BackgroundService 服务参考代码
+> 需在服务里完成 `PluginClient` 的启动工作 `start()` 部分。
 >
-> Declared BackgroundService will be automatically discovered and started by the system (skipped if already started). During development you may start it manually to test the flow.
+> 声明的 `BackgroundService` 系统自动扫描并完成启动工作（以启则跳过）。 开发阶段为验证流程开发者可自启
 ```java
 
 public class BackgroundService extends Service {
@@ -96,12 +97,12 @@ public class BackgroundService extends Service {
         AudioPlayerManager.getInstance().init(this);
         createNotificationChannel();
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle("Persistent Background Service")
-                .setContentText("Running...")
+                .setContentTitle("常驻后台服务")
+                .setContentText("正在运行...")
                 .setSmallIcon(android.R.drawable.ic_menu_info_details)
                 .build();
 
-        // Important: after starting, you must call this method within a few seconds to "report" to the system
+        // 关键：启动后几秒内必须调用此方法，向系统“交差”
         startForeground(1001, notification);
 
 
@@ -119,14 +120,14 @@ public class BackgroundService extends Service {
 
         ActionSummary play = new ActionSummary();
         play.actionId = "music.play";
-        play.name = "Play";
-        play.description = "Execute device play";
+        play.name = "播放";
+        play.description = "执行设备的播放";
 
 
         ActionSummary pause = new ActionSummary();
         pause.actionId = "music.pause";
-        pause.name = "Pause";
-        pause.description = "Execute device pause";
+        pause.name = "暂停";
+        pause.description = "执行设备的暂停动作";
 
 
         ap.actions = Arrays.asList(play, pause);
@@ -136,8 +137,8 @@ public class BackgroundService extends Service {
         c.setPluginListener(new PluginListener() {
             @Override
             public void onRegisterSuccess(RegisterResultPayload result) {
-                Log.d(TAG, "Registered port:" + result.configServer.port);
-                // start http server
+                Log.d(TAG, "注册端口号:" + result.configServer.port);
+                //start http server
                 RawHttpServer server = new RawHttpServer(result.configServer.port);
                 server.startServer();
             }
@@ -154,7 +155,7 @@ public class BackgroundService extends Service {
 
             @Override
             public void onActionsAck(ActionsResultPayload result) {
-                Log.d(TAG, "Actions registered successfully");
+                Log.d(TAG, "动作注册成功了");
             }
 
             @Override
@@ -166,7 +167,7 @@ public class BackgroundService extends Service {
 
             @Override
             public void onDescribe(DescribePayload describe, DescribeResponder describeResponder) {
-                Log.d(TAG, "Received describe request:" + describe.actionId);
+                Log.d(TAG, "接受到数据查询方法:" + describe.actionId);
                 DescribeResultPayload resultPayload = new DescribeResultPayload();
                 resultPayload.actionId = describe.actionId;
                 resultPayload.success = true;
@@ -175,22 +176,22 @@ public class BackgroundService extends Service {
 
                 DescribeResultPayload.ParameterSpec spec1 = new DescribeResultPayload.ParameterSpec();
                 spec1.id = "deviceId";
-                spec1.name = "Device";
-                spec1.placeholder = "Please select a device";
+                spec1.name = "设备";
+                spec1.placeholder = "请选择设备";
                 spec1.required = true;
                 spec1.type = ParameterType.SELECT;
                 spec1.options = new DescribeResultPayload.OptionSpec();
                 spec1.options.searchable = false;
                 spec1.options.provider = OptionProvider.STATIC;
                 spec1.options.items = new ArrayList<>();
-                spec1.options.items.add(new Label("Living Room Player", "test01"));
-                spec1.options.items.add(new Label("Bedroom Player", "test02"));
+                spec1.options.items.add(new Label("客厅播放器", "test01"));
+                spec1.options.items.add(new Label("卧室播放器", "test02"));
 
 
                 DescribeResultPayload.ParameterSpec spec2 = new DescribeResultPayload.ParameterSpec();
                 spec2.id = "title";
-                spec2.name = "Song Title";
-                spec2.placeholder = "Enter song title";
+                spec2.name = "歌曲名称";
+                spec2.placeholder = "输入歌曲名称";
                 spec2.required = true;
                 spec2.type = ParameterType.TEXT;
                 spec2.options = new DescribeResultPayload.OptionSpec();
@@ -200,8 +201,8 @@ public class BackgroundService extends Service {
 
                 DescribeResultPayload.ParameterSpec spec3 = new DescribeResultPayload.ParameterSpec();
                 spec3.id = "in";
-                spec3.name = "Input Source";
-                spec3.placeholder = "Input source";
+                spec3.name = "设备";
+                spec3.placeholder = "输入源";
                 spec3.required = true;
                 spec3.type = ParameterType.SELECT;
                 spec3.options = new DescribeResultPayload.OptionSpec();
@@ -224,7 +225,7 @@ public class BackgroundService extends Service {
                 if ("music.play".equals(call.actionId)) {
                     AudioPlayerManager.getInstance().play();
                     Intent intent = new Intent(MyApp.context, TestActivity.class);
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); // required
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); // 必须！
                     startActivity(intent);
                 } else if ("music.pause".equals(call.actionId)) {
                     AudioPlayerManager.getInstance().pause();
@@ -240,8 +241,8 @@ public class BackgroundService extends Service {
                         result.hasMore = false;
                         result.nextCursor = "0";
                         result.items = new ArrayList<>();
-                        result.items.add(new Label("qqMusic", "qq"));
-                        result.items.add(new Label("NetEase Music", "163"));
+                        result.items.add(new Label("qq音乐", "qq"));
+                        result.items.add(new Label("网易音乐", "163"));
                         optionsResponder.sendSuccess(result);
                     }
                 }
@@ -265,17 +266,18 @@ public class BackgroundService extends Service {
 
 
 
-## PluginClient details
+
+## PluginClient 详细说明
 
 ```java
     PluginClient client = new PluginClient();
-    // configure registration
+    //配置注册信息
     RegisterPayload rp = new RegisterPayload();
-    rp.name = "Music"; // application name
-    rp.packageName = "com.ultrabar.music"; // recommended package name
+    rp.name = "Music"; //应用名称
+    rp.packageName = "com.ultrabar.music"; //建议包名
 
 
-    // supported actions
+    //支持的动作
     ActionSummary play = new ActionSummary();
     play.actionId = "music.play";
     play.name = "play music";
@@ -302,50 +304,49 @@ public class BackgroundService extends Service {
         @Override
         public void onRegisterSuccess(RegisterResultPayload payload) {
             // ============================================================
-            // Registration success
+            // 注册成功
             //
-            // After the SDK and host app complete registration, the payload
-            // will return session information.
+            // SDK 与主 App 完成注册后，会通过 payload 返回当前会话信息。
             //
-            // configServer.port:
-            //     The HTTP debug server port assigned by the host app.
+            // configServer.port：
+            //     主 App 分配给当前插件的 HTTP 调试服务端口。
             //
-            // Third-party apps should start an HTTP server on this port
-            // to provide a plugin debug page.
+            // 第三方 App 需要在该端口启动自己的 HTTP Server，
+            // 用于提供插件调试页面。
             //
-            // When the host app opens the plugin debug page, it will include
-            // a sessionToken.
+            // 当主 App 打开插件调试页面时，会携带 sessionToken。
             //
-            // sessionToken:
-            //     The credential for the current plugin debug session.
+            // sessionToken：
+            //     当前插件调试会话的身份凭证。
             //
-            // Note:
-            //     The sessionToken is provided to the third-party app by the host.
-            //     The third-party app must validate the token itself — do not assume
-            //     the token is trustworthy by default.
+            // 注意：
+            //     sessionToken 仅负责传递给第三方 App，
+            //     第三方 App 必须自行校验 Token 的合法性，
+            //     不要默认认为收到的 Token 一定可信。
             //
-            // It's recommended to start the HTTP server and bind to payload.configServer.port here.
+            // HTTP Server 建议在这里启动，并绑定到 payload.configServer.port。
             // ============================================================
-
+    
+    
             int httpPort = payload.configServer.port;
             String sessionToken = payload.sessionToken;
-
+    
             System.out.println("Register success: session=" + payload.sessionId+",port="+httpPort+",sessionToken=+sessionToken");
         }
     
         @Override
         public void onRegisterFailed(Throwable t) {
-            // Registration failed.
+            // 注册失败。
             //
-            // If registration fails, the plugin cannot communicate with the host app normally.
-            // Do not start HTTP or Action services that depend on the host app.
+            // 注册失败后表示当前插件暂时无法与主 App 正常通信，
+            // 此时不要启动依赖主 App 的 HTTP / Action 服务。
             //
-            // You can:
-            // 1. Log the error
-            // 2. Notify the user
-            // 3. Wait for the SDK to reconnect automatically
-            // 4. Reinitialize the PluginClient if needed
-            
+            // 可以根据实际业务进行：
+            // 1. 记录错误日志
+            // 2. 提示用户
+            // 3. 等待 SDK 自动重连
+            // 4. 必要时重新初始化 Plugin Client
+    
             System.err.println("Register failed: " + t.getMessage());
         }
     
@@ -357,20 +358,20 @@ public class BackgroundService extends Service {
         @Override
         public void onActionsAck(ActionsResultPayload ack) {
             // ============================================================
-            // Action configuration result
+            // Action 配置处理结果
             //
-            // After a third-party app sends Action configuration to the host,
-            // the host will return the processing result.
+            // 当第三方 App 向主 App 发送 Action 配置后，
+            // 主 App 会返回处理结果。
             //
-            // success:
-            //     Whether the host successfully received/processed the actions.
+            // success：
+            //     主 App 是否成功接收/处理
             //
-            // receivedCount:
-            //     The number of actions actually received by the host.
+            // receivedCount：
+            //     主 App 实际接收到的 Action 数量
             //
-            // Note:
-            //     This is an ACK for action configuration synchronization,
-            //     not the result of executing onCall().
+            // 注意：
+            //     这是“Action 配置同步”的 ACK，
+            //     不是 onCall() 的 Action 执行结果。
             // ============================================================
     
             System.out.println("Actions result: success=" + ack.success + " received=" + ack.receivedCount);
@@ -387,25 +388,27 @@ public class BackgroundService extends Service {
         public void onDescribe(DescribePayload payload, DescribeResponder responder) {
     
             // ============================================================
-            // Action parameter description
+            // Action 参数描述
             //
-            // Before the host app calls an action, it will request the action's
-            // parameter definition via actionId.
+            // 主 App 在调用某个 Action 之前，会先通过 actionId 获取该 Action
+            // 的参数定义。
             //
-            // Here you should tell the host app:
-            //   1. Which parameters the action requires
-            //   2. Each parameter's id / name / type
-            //   3. Whether a parameter is required
-            //   4. Where the parameter's options come from if it is a selectable parameter
+            // 这里需要告诉主 App：
+            //   1. 这个 Action 需要哪些参数
+            //   2. 参数的 id / 名称 / 类型
+            //   3. 参数是否必填
+            //   4. 如果参数需要选择，选项由哪里提供
             //
-            // The parameter id in the definition is important:
-            // The payload.params received later in onCall() will use these ids as keys.
+            // 参数定义中的 id 非常重要：
+            // 后续 onCall() 收到的 payload.params 会使用这里定义的 id
+            // 作为参数 Key。
             // ============================================================
+    
     
             DescribeResultPayload result = new DescribeResultPayload();
             result.actionId = payload.actionId;
             result.success = true;
-            if ("music.play".equals(payload.actionId)) { // describe parameters for play
+            if ("music.play".equals(payload.actionId)) { //获取播放动作的参数
                 DescribeResultPayload.ParameterSpec device = new DescribeResultPayload.ParameterSpec();
                 device.id = "deviceId";
                 device.name = "device";
@@ -417,7 +420,7 @@ public class BackgroundService extends Service {
                 options.searchable = true;
                 device.options = options;
                 result.parameters = Arrays.asList(device);
-            } else if ("music.pause".equals(payload.actionId)) { // pause static parameter example
+            } else if ("music.pause".equals(payload.actionId)) { //pause 静态参数测试
                 DescribeResultPayload.ParameterSpec device = new DescribeResultPayload.ParameterSpec();
                 device.id = "deviceId2";
                 device.name = "device";
@@ -434,6 +437,7 @@ public class BackgroundService extends Service {
                 result.parameters = Arrays.asList(device);
             }
     
+    
             responder.sendSuccess(result);
         }
     
@@ -441,22 +445,22 @@ public class BackgroundService extends Service {
         @Override
         public void onOptions(GetOptionsPayload payload, OptionsResponder responder) {
             // ============================================================
-            // Dynamic parameter options
+            // 动态参数选项
             //
-            // When a parameter's OptionProvider is set to REMOTE in onDescribe(),
-            // the host app will call this method when it needs to show options for that parameter.
+            // 当 onDescribe() 中将参数的 OptionProvider 设置为 REMOTE 后，
+            // 主 App 会在需要展示该参数选项时调用这里。
             //
-            // payload.actionId  -> current action
-            // payload.describeId -> the parameter id
+            // payload.actionId  -> 当前 Action
+            // payload.describeId -> 当前参数的 id
             //
-            // For example:
+            // 例如：
             //   actionId  = music.play
             //   describeId = deviceId
             //
-            // Means the host is requesting:
-            //   "Please tell me what options are available for music.play's deviceId parameter"
+            // 表示主 App 正在请求：
+            //   "请告诉我 music.play 的 deviceId 参数有哪些可选设备"
             //
-            // If there are many options, you can use hasMore / nextCursor for pagination.
+            // 如果选项数量较多，可以通过 hasMore / nextCursor 实现分页。
             // ============================================================
     
             GetOptionsResultPayload result = new GetOptionsResultPayload();
@@ -464,9 +468,9 @@ public class BackgroundService extends Service {
             result.hasMore = false;
             result.nextCursor = null;
     
-            if ("music.play".equals(payload.actionId)) { // action id
+            if ("music.play".equals(payload.actionId)) { //动作id
     
-                if ("deviceId".equals(payload.describeId)) { // parameter id
+                if ("deviceId".equals(payload.describeId)) { //参数id
                     Label item = new Label();
                     item.value = "sp00-1";
                     item.label = "sony tv";
@@ -486,41 +490,48 @@ public class BackgroundService extends Service {
         public void onCall(CallPayload payload, CallResponder responder) {
     
             // ============================================================
-            // Execute Action and return final result
+            // Action 执行, 解析出动作并执行最终返回 数据
             //
-            // When the user configures and runs an Action in the host app,
-            // the host app will call this method.
+            // 当用户在主 App 中配置好 Action 并执行后，
+            // 主 App 会调用这里。
             //
             // payload.actionId
-            //     -> the action to execute
+            //     -> 要执行的 Action
             //
             // payload.params
-            //     -> the parameters defined in onDescribe()
+            //     -> 用户在 onDescribe() 定义的参数
             //
-            // Note:
-            // The keys in params must match the ParameterSpec.id values defined in onDescribe().
+            // 注意：
+            // params 的 Key 必须与 onDescribe() 中
+            // ParameterSpec.id 保持一致。
             //
-            // For example in onDescribe():
+            // 例如 onDescribe()：
+            //
             //     device.id = "deviceId";
-            // then here you must use:
+            //
+            // 那么这里必须通过：
+            //
             //     params.get("deviceId");
-            // to retrieve the user's selected device.
+            //
+            // 获取用户选择的设备。
             // ============================================================
+    
     
             String actionId = payload.actionId;
             Map<String, Object> params = payload.params;
             if ("music.play".equals(actionId)) {
                 // onDescribe DescribeResultPayload.ParameterSpec.id
                 String deviceId = (String) params.get("deviceId");
-                // todo: perform play on the specified device
+                //todo 完成指定设备的播放操作
+    
     
             } else if ("music.pause".equals(actionId)) {
-                // onDescribe DescribeResultPayload.ParameterSpec.id
+                //onDescribe DescribeResultPayload.ParameterSpec.id
                 String deviceId2 = (String) params.get("deviceId2");
-                // todo: perform pause on the specified device
+                //todo 完成指定设备的暂停操作
     
             } else if ("music.stop".equals(actionId)) {
-                // todo: stop all devices
+                //todo 停止所有设备
             }
     
             Map<String, Object> data = new HashMap<String, Object>();
@@ -546,13 +557,14 @@ public class BackgroundService extends Service {
 
 ```
 
-Call `client.updateActions(new ActionsPayload(...))` when the action list changes.
+动作列表变化时调用 `client.updateActions(new ActionsPayload(...))`。
 
 
 
-## PluginServer (Host App)
 
-Sessions are unique by the registered `packageName`; re-registering with the same `packageName` will replace the old connection. A `PluginSession` is only created when the registration callback returns `success == true`.
+## PluginServer（主 App）
+
+会话按注册时的 `packageName` 唯一；同一 `packageName` 再次注册会顶掉旧连接。只有注册回调返回 `success == true` 才会创建 `PluginSession`。
 
 ```java
 final PluginServer server = new PluginServer(39001);
@@ -570,7 +582,7 @@ server.setRegisterHandler(new PluginRegisterHandler() {
         result.configServer = new ConfigServer();
         result.configServer.host = "127.0.0.1";
         result.configServer.port = 8123;
-        // If sessionId / sessionToken / heartbeat are not provided, the server will fill defaults
+        // sessionId / sessionToken / heartbeat 不填时服务端会补默认值
         return result;
     }
 });
@@ -588,39 +600,118 @@ server.setListener(new PluginServerListener() {
 
 server.start();
 
-// Query session
+// 查询会话
 PluginSession session = server.getSession("com.ultrabar.music");
 
-// Call plugin action (the session must have reported the corresponding actionId)
+// 调用插件动作（需该会话已上报对应 actionId）
 Map<String, Object> params = new HashMap<String, Object>();
 params.put("deviceId", "sp00-1");
 server.call("music.play", params)
         .thenAccept(result -> { /* CallResultPayload */ })
         .exceptionally(err -> { err.printStackTrace(); return null; });
 
-// If multiple plugins have the same actionId include packageName
+// 多个插件可能有同名 actionId 时带上 packageName
 server.call("com.ultrabar.music", "music.play", params);
 
 // server.stop();
 ```
 
-## Others
- 
-### R8 / ProGuard
+## 模块事件注册
+### DOT_KEY 模块注册 参考代码
+```java
+PluginClient client = new PluginClient();
+//注册模块 可变参数 传入需要的模块数据
+client.subscribeModuleEvents(ModuleType.DOT_KEY,ModuleType.KNOB_KEY);
+client.setPluginListener(new PluginListener(){
 
-Models use public fields + Jackson. For release builds you must keep these classes:
+    /**
+     * 模块事件回调函数
+     */
+    @Override
+    public void onModuleEvent(ModuleEventPayload payload, ModuleEventResponder responder) {
+        //在前台就消费该事件
+        if (ModuleEventPayload.APP_STATE_FOREGROUND.equals(payload.appState)) {
+            responder.consume(); //消费事件
+        }else{
+            responder.ignore(null); //忽略该事件
+        }
+        
+        Log.w(TAG, String.format("onModuleEvent 模块事件:%s", JSON.toJSON(payload)));
+    }
+    
+});
+```
+#### DOT KEY 模块 payload 数据格式
+```json
+{
+    "appState": "background", // none 无状态， background 当前程序在后台， foreground 程序在前天
+    "module": "DOT_KEY",  //模块类型
+    "action": "button",
+    "event": {   //按键原始消息
+        "action": 1,    //1 down ，0 up
+        "downTime": 169360339,
+        "eventTime": 169360339,
+        "keyCode": 2,  //按键码， 取值 0、1、2
+        "repeatCount": 0  //长按+1
+    },
+    "moduleId": "4",  //模块id
+    "timestamp": 1793002523558
+}
+```
+#### KNOB KEY 模块payload 数据
+```json
+//button 按键事件
+{
+  "appState": "foreground",
+  "module": "KNOB_KEY",
+  "action": "button",
+  "event": {
+    "action": 1,
+    "downTime": 171968479,
+    "eventTime": 171968479,
+    "keyCode": 0,
+    "repeatCount": 0
+  },
+  "moduleId": "6",
+  "timestamp": 1793005131698
+}
+
+
+//旋钮事件 （转得越快报得越快）
+{
+  "appState": "foreground",
+  "module": "KNOB_KEY",
+  "action": "rotate",
+  "event": {
+    "value": 1   // 1 顺时针，-1 逆时针
+  },
+  "moduleId": "6",
+  "timestamp": 1793005179031
+}
+
+```
+> 1.客户端调用 subscribeModuleEvents函数注册对于的模块事件
+> 2.客户端调用setPluginListener 注册回调并实现PluginListener 接口里的 onModuleEvent 方法。
+当模块触发对应功能时就回调该方法。如果消费该事件则调用 responder.consume(); responder.ignore(null) 忽略 或者超时LineOS 走兜底流程触发 模块绑定的profile 配置功能。
+
+
+## 其他
+
+###  R8 / ProGuard
+
+模型是 public 字段 + Jackson，Release 必须 keep：
 
 ```
 -keep class com.ultrabar.plugin.model.** { *; }
 -keep class com.ultrabar.plugin.callback.** { *; }
 -keep class com.ultrabar.plugin.PluginClient { *; }
 ```
- 
- 
 
-## Protocol highlights
 
-- Envelope: `type`, `requestId`, `timestamp`, `protocol`, `payload`; after successful registration the client will include `sessionId` and `auth`.
-- `requestId` is a UUID, used once per RPC.
-- Action ID field is consistently `actionId`.
-- Paired messages: `register` / `register_result`, `actions` / `actions_result`, `describe` / `describe_result`, `get_options` / `get_options_result`, `call` / `call_result`, `heartbeat` / `heartbe[...]`
+
+## 协议要点
+
+- 信封：`type`、`requestId`、`timestamp`、`protocol`、`payload`；注册成功后客户端会带 `sessionId`、`auth`。
+- `requestId` 为 UUID，一次 RPC 用一次。
+- 动作 ID 字段统一为 `actionId`。
+- 成对消息：`register` / `register_result`，`actions` / `actions_result`，`describe` / `describe_result`，`get_options` / `get_options_result`，`call` / `call_result`，`heartbeat` / `heartbeat_ack`。
