@@ -10,3 +10,5 @@ build/
 
 # logs
 logs/
+
+*.class
