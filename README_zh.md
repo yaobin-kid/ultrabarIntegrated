@@ -629,13 +629,19 @@ client.setPluginListener(new PluginListener(){
      */
     @Override
     public void onModuleEvent(ModuleEventPayload payload, ModuleEventResponder responder) {
-        responder.consume();
+        //在前台就消费该事件
+        if (ModuleEventPayload.APP_STATE_FOREGROUND.equals(payload.appState)) {
+            responder.consume(); //消费事件
+        }else{
+            responder.ignore(null);
+        }
+        
         Log.w(TAG, String.format("onModuleEvent 模块事件:%s", JSON.toJSON(payload)));
     }
     
 });
 ```
-#### dot key payload 数据格式
+#### DOT KEY 模块 payload 数据格式
 ```json
 {
     "appState": "background", // none 无状态， background 当前程序在后台， foreground 程序在前天
