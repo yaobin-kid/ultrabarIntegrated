@@ -1,6 +1,7 @@
 package com.ultrabar.server;
 
 import com.ultrabar.plugin.model.EventPayload;
+import com.ultrabar.plugin.model.ModuleEventPayload;
 import com.ultrabar.plugin.model.ReportPayload;
 import com.ultrabar.plugin.model.TaskUpdatePayload;
 
@@ -23,6 +24,13 @@ public interface PluginServerListener {
     }
 
     default void onEventReceived(PluginSession session, EventPayload event) {
+
+    }
+
+    /**
+     * 模块事件没有被任何插件消费时的兜底回调。
+     */
+    default void onModuleEventFallback(ModuleEventPayload event) {
 
     }
 

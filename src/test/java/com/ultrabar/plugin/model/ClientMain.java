@@ -3,6 +3,7 @@ package com.ultrabar.plugin.model;
 import com.ultrabar.plugin.PluginClient;
 import com.ultrabar.plugin.callback.CallResponder;
 import com.ultrabar.plugin.callback.DescribeResponder;
+import com.ultrabar.plugin.callback.ModuleEventResponder;
 import com.ultrabar.plugin.callback.OptionsResponder;
 import com.ultrabar.plugin.callback.PluginListener;
 
@@ -51,6 +52,9 @@ public class ClientMain {
         client.setActionsConfig(ap);
         client.setRegisterConfig(rp);
 
+        //声明本插件关心的模块事件（服务端只向订阅过该模块的插件分发），支持一次传多个。
+        //连接建立/重连成功后 SDK 会自动重新发送订阅。
+        client.subscribeModuleEvents(ModuleType.PLAYER);
         client.setPluginListener(new PluginListener() {
             @Override
             public void onRegisterSuccess(RegisterResultPayload payload) {
@@ -313,6 +317,35 @@ public class ClientMain {
             @Override
             public void onTopicUpdate(TopicPayload payload) {
                 System.out.println("接受到topic 更新数据:" + payload.topic + ",data=" + payload.data);
+            }
+
+            @Override
+            public void onModuleEvent(ModuleEventPayload payload, ModuleEventResponder responder) {
+                // ============================================================
+                // 模块事件（服务端透传)
+                //
+                // payload.appState  -> foreground / background / none
+                // payload.timestamp -> 事件时间戳
+                // payload.module    -> 事件所属模块
+                // payload.action    -> 模块内动作
+                // payload.event     -> 模块原始消息
+                //
+                // 处理成功调用 consume()，表示本插件已消费该事件，
+                // 服务端将停止向后备插件分发。
+                // 无法处理调用 ignore(reason)，服务端会继续分发给下一个插件；
+                // 全部插件都未消费时进入服务端的 onModuleEventFallback。
+                // ============================================================
+                System.out.println("module event appState=" + payload.appState
+                        + ",module=" + payload.module
+                        + ",action=" + payload.action
+                        + ",event=" + payload.event);
+
+                if (payload.module == ModuleType.PLAYER) {
+                    //todo 执行播放/暂停等操作
+                    responder.consume();
+                } else {
+                    responder.ignore("unsupported module: " + payload.module);
+                }
             }
         });
 

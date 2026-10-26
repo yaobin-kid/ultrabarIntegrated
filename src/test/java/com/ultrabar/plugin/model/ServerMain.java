@@ -8,6 +8,8 @@ import com.ultrabar.server.PluginSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -31,11 +33,8 @@ public final class ServerMain {
                 result.configServer = new ConfigServer();
                 result.configServer.port = 100;
                 result.sessionToken = UUID.randomUUID().toString();
-
                 return result;
             }
-
-
         });
 
 
@@ -43,6 +42,8 @@ public final class ServerMain {
             @Override
             public void onRegistered(PluginSession session) {
                 log.info("plugin online packageName={} name={}", session.packageName(), session.plugin().name);
+                //把刚上线的插件标记为前台；后续分发模块事件时前台优先。
+                server.setForegroundApp(session.packageName());
             }
 
             @Override
@@ -51,9 +52,21 @@ public final class ServerMain {
 
                 System.out.println("动作注册成功");
 
-                server.publish(session.packageName(), Topic.CPU, "112")
+              /*  server.publish(session.packageName(), Topic.CPU, "112")
                         .thenAccept(c -> {
                             System.out.println("发布状态:" + c.success);
+                        });
+*/
+                //透传一个模块事件：前台优先、后台其次，全部未消费则走兜底。
+                Map<String, Object> event = new HashMap<>();
+                event.put("key", "play");
+
+                server.sendModuleEvent(ModuleType.PLAYER, "play", event)
+                        .thenAccept(result -> {
+                            System.out.println("模块事件分发: handled=" + result.handled()
+                                    + ",fallback=" + result.fallback()
+                                    + ",packageName=" + result.packageName()
+                                    + ",appState=" + result.event().appState);
                         });
 
 
@@ -96,6 +109,13 @@ public final class ServerMain {
             @Override
             public void onEventReceived(PluginSession session, EventPayload event) {
                 log.info("onEventReceived :{}", event.eventId);
+            }
+
+            @Override
+            public void onModuleEventFallback(ModuleEventPayload event) {
+                //所有订阅了该模块的插件都没有消费，进入兜底处理。
+                log.info("module event fallback module={} action={} appState={}",
+                        event.module, event.action, event.appState);
             }
         });
 

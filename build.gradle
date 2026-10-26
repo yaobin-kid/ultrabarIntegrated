@@ -27,6 +27,16 @@ compileJava {
     options.encoding = 'UTF-8'
 }
 
+compileTestJava {
+    options.encoding = 'UTF-8'
+}
+
+test {
+    // src/test/java 下只有示例 main 方法，没有 JUnit 测试。
+    // Gradle 9 默认在“有测试源但没发现测试”时让 test 任务失败，这里关闭该行为。
+    failOnNoDiscoveredTests = false
+}
+
 
 
 // 3. 配置 maven 发布规则，让 JitPack 知道要发布什么

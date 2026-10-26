@@ -37,6 +37,15 @@ public interface PluginListener {
     default void onTopicUpdate(TopicPayload payload) {
     }
 
+    /**
+     * 收到服务端透传的模块事件。
+     * 消费时调用 {@code responder.consume()}，不消费时调用 {@code responder.ignore(reason)}；
+     * 两者只能调用一次。
+     */
+    default void onModuleEvent(ModuleEventPayload payload, ModuleEventResponder responder) {
+        responder.ignore("no handler");
+    }
+
     default void onOptions(GetOptionsPayload payload, OptionsResponder responder) {
     }
 }

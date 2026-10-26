@@ -3,6 +3,7 @@ package com.ultrabar.plugin.internal;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ultrabar.plugin.callback.CallResponder;
 import com.ultrabar.plugin.callback.DescribeResponder;
+import com.ultrabar.plugin.callback.ModuleEventResponder;
 import com.ultrabar.plugin.callback.OptionsResponder;
 import com.ultrabar.plugin.callback.TopicResponder;
 import com.ultrabar.plugin.model.ActionsPayload;
@@ -12,6 +13,7 @@ import com.ultrabar.plugin.model.Envelope;
 import com.ultrabar.plugin.model.ErrorCodes;
 import com.ultrabar.plugin.model.GetOptionsPayload;
 import com.ultrabar.plugin.model.MessageType;
+import com.ultrabar.plugin.model.ModuleEventPayload;
 import com.ultrabar.plugin.model.TopicPayload;
 import com.ultrabar.plugin.model.TopicResultPayload;
 
@@ -80,6 +82,9 @@ public final class InboundDispatcher {
             case GET_OPTIONS:
                 handleOptions(channel, envelope);
                 return;
+            case MODULE_EVENT:
+                handleModuleEvent(channel, envelope);
+                return;
             default:
                 log.info("ignored inbound type={} requestId={}", type, envelope.getRequestId());
         }
@@ -123,5 +128,26 @@ public final class InboundDispatcher {
         } catch (Exception e) {
             responder.sendError(ErrorCodes.INVALID_PAYLOAD, e.getMessage(), false, null);
         }
+    }
+
+    private void handleModuleEvent(Channel channel, Envelope envelope) {
+        ModuleEventPayload payload;
+        try {
+            payload = envelope.payloadAs(ModuleEventPayload.class);
+        } catch (Exception e) {
+            ModuleEventResponder responder = new ModuleEventResponder(
+                    channel, envelope.getRequestId(), mapper,
+                    session.sessionId(), session.sessionToken());
+            responder.ignore("invalid payload: " + e.getMessage());
+            return;
+        }
+        ModuleEventResponder responder = new ModuleEventResponder(
+                channel, envelope.getRequestId(), mapper,
+                session.sessionId(), session.sessionToken());
+        if (payload == null || payload.module == null) {
+            responder.ignore("invalid module event");
+            return;
+        }
+        notifier.onModuleEvent(payload, responder);
     }
 }

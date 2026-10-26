@@ -15,6 +15,9 @@ import com.ultrabar.plugin.model.EventPayload;
 import com.ultrabar.plugin.model.EventResultPayload;
 import com.ultrabar.plugin.model.Json;
 import com.ultrabar.plugin.model.MessageType;
+import com.ultrabar.plugin.model.ModuleEventRegisterPayload;
+import com.ultrabar.plugin.model.ModuleEventUnregisterPayload;
+import com.ultrabar.plugin.model.ModuleType;
 import com.ultrabar.plugin.model.RegisterPayload;
 import com.ultrabar.plugin.model.ReportPayload;
 import com.ultrabar.plugin.model.ReportResultPayload;
@@ -24,8 +27,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -50,6 +58,8 @@ public class PluginClient {
     private final ListenerNotifier notifier;
     private final ScheduledExecutorService scheduler;
     private final ExecutorService callbackExecutor;
+    private final Set<ModuleType> moduleEvents = Collections.newSetFromMap(
+            new ConcurrentHashMap<ModuleType, Boolean>());
     private volatile boolean stopped;
 
     public PluginClient() {
@@ -87,6 +97,12 @@ public class PluginClient {
         this.envelopes = envelopes;
         this.heartbeat = new HeartbeatScheduler(scheduler, envelopes, session, connection);
         this.handshake = new Handshake(envelopes, session, heartbeat, notifier, connection, scheduler);
+        handshake.setOnSessionReady(new Runnable() {
+            @Override
+            public void run() {
+                resendModuleEvents();
+            }
+        });
     }
 
     public void setRegisterConfig(RegisterPayload payload) {
@@ -131,6 +147,55 @@ public class PluginClient {
         event.params = params;
         event.timestamp = System.currentTimeMillis();
         return envelopes.request(MessageType.EVENT, event, EventResultPayload.class);
+    }
+
+    /**
+     * 订阅模块事件。可一次传入多个模块，订阅后服务端才会把对应模块的事件分发给本插件。
+     * <p>
+     * 可在 {@link #startAsync()} 前调用；每次注册/重连成功后会自动重新订阅。
+     */
+    public void subscribeModuleEvents(ModuleType... modules) {
+        if (modules == null || modules.length == 0) {
+            return;
+        }
+        List<ModuleType> added = new ArrayList<ModuleType>();
+        for (ModuleType module : modules) {
+            if (module != null && moduleEvents.add(module)) {
+                added.add(module);
+            }
+        }
+        //会话尚未建立时先记录，注册成功后由 resendModuleEvents() 统一发送。
+        if (!added.isEmpty() && handshake.isSessionReady()) {
+            envelopes.sendOneWay(MessageType.MODULE_EVENT_REGISTER,
+                    new ModuleEventRegisterPayload(added));
+        }
+    }
+
+    /**
+     * 取消模块事件订阅。可一次传入多个模块。
+     */
+    public void unsubscribeModuleEvents(ModuleType... modules) {
+        if (modules == null || modules.length == 0) {
+            return;
+        }
+        List<ModuleType> removed = new ArrayList<ModuleType>();
+        for (ModuleType module : modules) {
+            if (module != null && moduleEvents.remove(module)) {
+                removed.add(module);
+            }
+        }
+        if (!removed.isEmpty() && handshake.isSessionReady()) {
+            envelopes.sendOneWay(MessageType.MODULE_EVENT_UNREGISTER,
+                    new ModuleEventUnregisterPayload(removed));
+        }
+    }
+
+    private void resendModuleEvents() {
+        if (moduleEvents.isEmpty()) {
+            return;
+        }
+        envelopes.sendOneWay(MessageType.MODULE_EVENT_REGISTER,
+                new ModuleEventRegisterPayload(new ArrayList<ModuleType>(moduleEvents)));
     }
 
     public CompletableFuture<Void> startAsync() {

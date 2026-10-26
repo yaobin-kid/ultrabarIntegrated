@@ -16,6 +16,7 @@ final class SessionRegistry {
     PluginSession put(PluginSession session) {
         PluginSession previous = byPackage.put(session.packageName(), session);
         if (previous != null) {
+            session.copyAppStateFrom(previous);
             bySessionId.remove(previous.sessionId(), previous);
             Channel oldChannel = previous.channel();
             if (oldChannel != null) {

@@ -4,6 +4,7 @@ import com.ultrabar.plugin.callback.PluginListener;
 import com.ultrabar.plugin.model.*;
 import com.ultrabar.plugin.callback.CallResponder;
 import com.ultrabar.plugin.callback.DescribeResponder;
+import com.ultrabar.plugin.callback.ModuleEventResponder;
 import com.ultrabar.plugin.callback.OptionsResponder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -111,6 +112,26 @@ public final class ListenerNotifier {
             }
         });
     }
+
+    void onModuleEvent(final ModuleEventPayload payload, final ModuleEventResponder responder) {
+        PluginListener current = listener;
+        if (current == null) {
+            responder.ignore("No PluginListener registered");
+            return;
+        }
+        emitHandled(current, new ErrorSink() {
+            @Override
+            public void sendError(String code, String message) {
+                responder.ignore(message);
+            }
+        }, new ListenerAction() {
+            @Override
+            public void run(PluginListener l) {
+                l.onModuleEvent(payload, responder);
+            }
+        });
+    }
+
     void onOptions(final GetOptionsPayload payload, final OptionsResponder responder) {
         PluginListener current = listener;
         if (current == null) {

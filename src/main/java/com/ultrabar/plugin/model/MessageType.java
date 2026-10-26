@@ -29,6 +29,11 @@ public enum MessageType {
     EVENT("event", EventPayload.class),
     EVENT_RESULT("event_result", EventResultPayload.class),
 
+    MODULE_EVENT_REGISTER("module_event_register", ModuleEventRegisterPayload.class),
+    MODULE_EVENT_UNREGISTER("module_event_unregister", ModuleEventUnregisterPayload.class),
+    MODULE_EVENT("module_event", ModuleEventPayload.class),
+    MODULE_EVENT_RESULT("module_event_result", ModuleEventResultPayload.class),
+
     TASK_UPDATE("task_update", TaskUpdatePayload.class);
 
 

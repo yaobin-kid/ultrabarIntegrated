@@ -28,6 +28,7 @@ public final class Handshake {
 
     private volatile RegisterPayload registerConfig;
     private volatile ActionsPayload actionsConfig;
+    private volatile Runnable onSessionReady;
     private volatile boolean stopped;
     private ScheduledFuture<?> retry;
 
@@ -52,6 +53,20 @@ public final class Handshake {
 
     public void setActionsConfig(ActionsPayload payload) {
         this.actionsConfig = payload;
+    }
+
+    /**
+     * 注册成功（包括重连后）时触发，用于重新发送模块事件注册等会话级状态。
+     */
+    public void setOnSessionReady(Runnable callback) {
+        this.onSessionReady = callback;
+    }
+
+    /**
+     * 当前是否已注册成功（连接可用且会话已建立）。
+     */
+    public boolean isSessionReady() {
+        return connection.isActive() && session.isOpen();
     }
 
     public void stop() {
@@ -118,6 +133,14 @@ public final class Handshake {
         }
         session.apply(result);
         heartbeat.start();
+        Runnable ready = onSessionReady;
+        if (ready != null) {
+            try {
+                ready.run();
+            } catch (Exception e) {
+                log.warn("session ready callback failed", e);
+            }
+        }
         notifier.onRegisterSuccess(result);
         if (actionsConfig != null) {
             sendActions();

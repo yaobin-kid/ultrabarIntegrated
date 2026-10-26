@@ -2,6 +2,7 @@ package com.ultrabar.server;
 
 import com.ultrabar.plugin.model.ActionSummary;
 import com.ultrabar.plugin.model.Features;
+import com.ultrabar.plugin.model.ModuleType;
 import com.ultrabar.plugin.model.RegisterPayload;
 import com.ultrabar.plugin.model.Topic;
 import io.netty.channel.Channel;
@@ -24,6 +25,9 @@ public final class PluginSession {
     private volatile long revision;
 
     private volatile long lastSeenMillis = System.currentTimeMillis();
+    private volatile Set<ModuleType> moduleEvents = Collections.emptySet();
+    private volatile boolean foreground;
+    private volatile long foregroundAtMillis;
 
     private final int port;
 
@@ -110,6 +114,61 @@ public final class PluginSession {
         return false;
     }
 
+    public Set<ModuleType> moduleEvents() {
+        return moduleEvents;
+    }
+
+    public boolean handlesModuleEvent(ModuleType module) {
+        return module != null && moduleEvents.contains(module);
+    }
+
+    void registerModuleEvents(Collection<ModuleType> modules) {
+        if (modules == null || modules.isEmpty()) {
+            return;
+        }
+        Set<ModuleType> copy = new HashSet<ModuleType>(moduleEvents);
+        for (ModuleType module : modules) {
+            if (module != null) {
+                copy.add(module);
+            }
+        }
+        this.moduleEvents = Collections.unmodifiableSet(copy);
+        touch();
+    }
+
+    void unregisterModuleEvents(Collection<ModuleType> modules) {
+        if (modules == null || modules.isEmpty()) {
+            return;
+        }
+        Set<ModuleType> copy = new HashSet<ModuleType>(moduleEvents);
+        copy.removeAll(modules);
+        this.moduleEvents = Collections.unmodifiableSet(copy);
+        touch();
+    }
+
+    public boolean isForeground() {
+        return foreground;
+    }
+
+    public long foregroundAtMillis() {
+        return foregroundAtMillis;
+    }
+
+    void setForeground(boolean foreground) {
+        this.foreground = foreground;
+        if (foreground) {
+            this.foregroundAtMillis = System.currentTimeMillis();
+        }
+        touch();
+    }
+
+    void copyAppStateFrom(PluginSession other) {
+        if (other == null) {
+            return;
+        }
+        this.foreground = other.foreground;
+        this.foregroundAtMillis = other.foregroundAtMillis;
+    }
 
     void touch() {
         lastSeenMillis = System.currentTimeMillis();

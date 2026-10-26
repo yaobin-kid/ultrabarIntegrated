@@ -16,7 +16,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -31,6 +35,7 @@ public class PluginServer {
     private static final Logger log = LoggerFactory.getLogger(PluginServer.class);
     private static final int MAX_FRAME_BYTES = 10 * 1024 * 1024;
     private static final long CALL_TIMEOUT_MS = 30_000L;
+    private static final long MODULE_EVENT_TIMEOUT_MS = 1_000L;
 
     private final int port;
     private final ObjectMapper mapper;
@@ -141,6 +146,25 @@ public class PluginServer {
     }
 
     /**
+     * 设置某个插件应用的前后台状态。模块事件分发时前台应用优先。
+     */
+    public void setAppState(String packageName, boolean foreground) {
+        PluginSession session = getSession(packageName);
+        if (session != null) {
+            session.setForeground(foreground);
+        }
+    }
+
+    /**
+     * 将指定包名设为唯一前台应用，其余在线插件置为后台。
+     */
+    public void setForegroundApp(String packageName) {
+        for (PluginSession session : sessions.all()) {
+            session.setForeground(session.packageName().equals(packageName));
+        }
+    }
+
+    /**
      * Find the plugin that registered {@code actionId} and invoke it.
      * If more than one plugin owns the same actionId, use
      * {@link #call(String, String, Map)} with packageName.
@@ -176,6 +200,106 @@ public class PluginServer {
         payload.topic = topic;
         payload.data = data;
         return request(session, MessageType.TOPIC, payload, TopicResultPayload.class);
+    }
+
+    /**
+     * 透传一个模块事件：按“前台优先、后台其次”的顺序分发给已订阅该模块的插件。
+     * 所有插件都未消费时调用 {@link PluginServerListener#onModuleEventFallback}。
+     */
+    public CompletableFuture<ModuleEventDispatchResult> sendModuleEvent(
+            ModuleType module, String action, Map<String, Object> event) {
+        if (module == null) {
+            return failedFuture(new IllegalArgumentException("module is required"));
+        }
+        ModuleEventPayload payload = new ModuleEventPayload();
+        payload.module = module;
+        payload.action = action;
+        payload.timestamp = System.currentTimeMillis();
+        payload.event = event;
+        return dispatchModuleEvent(payload);
+    }
+
+    /**
+     * 透传一个已经构造好的模块事件。
+     */
+    public CompletableFuture<ModuleEventDispatchResult> dispatchModuleEvent(ModuleEventPayload event) {
+        if (event == null || event.module == null) {
+            return failedFuture(new IllegalArgumentException("module event requires module"));
+        }
+        if (event.timestamp == null) {
+            event.timestamp = System.currentTimeMillis();
+        }
+        List<PluginSession> candidates = moduleEventCandidates(event.module);
+        CompletableFuture<ModuleEventDispatchResult> result =
+                new CompletableFuture<ModuleEventDispatchResult>();
+        dispatchModuleEventNext(candidates, 0, event, result);
+        return result;
+    }
+
+    /**
+     * 前台应用在前、后台应用在后；同类中优先最近一次前台/最近活跃的应用。
+     */
+    private List<PluginSession> moduleEventCandidates(ModuleType module) {
+        List<PluginSession> candidates = new ArrayList<PluginSession>();
+        for (PluginSession session : sessions.all()) {
+            if (session.handlesModuleEvent(module)
+                    && session.channel() != null
+                    && session.channel().isActive()) {
+                candidates.add(session);
+            }
+        }
+        Collections.sort(candidates, new Comparator<PluginSession>() {
+            @Override
+            public int compare(PluginSession a, PluginSession b) {
+                if (a.isForeground() != b.isForeground()) {
+                    return a.isForeground() ? -1 : 1;
+                }
+                if (a.isForeground()) {
+                    return Long.compare(b.foregroundAtMillis(), a.foregroundAtMillis());
+                }
+                return Long.compare(b.lastSeenMillis(), a.lastSeenMillis());
+            }
+        });
+        return candidates;
+    }
+
+    private void dispatchModuleEventNext(final List<PluginSession> candidates,
+                                         final int index,
+                                         final ModuleEventPayload event,
+                                         final CompletableFuture<ModuleEventDispatchResult> result) {
+        if (index >= candidates.size()) {
+            ModuleEventPayload fallbackEvent = event.copyFor(ModuleEventPayload.APP_STATE_NONE);
+            invokeModuleEventFallback(fallbackEvent);
+            result.complete(ModuleEventDispatchResult.fallback(fallbackEvent));
+            return;
+        }
+        final PluginSession session = candidates.get(index);
+        String appState = session.isForeground()
+                ? ModuleEventPayload.APP_STATE_FOREGROUND
+                : ModuleEventPayload.APP_STATE_BACKGROUND;
+        final ModuleEventPayload targeted = event.copyFor(appState);
+        request(session, MessageType.MODULE_EVENT, targeted, ModuleEventResultPayload.class,
+                MODULE_EVENT_TIMEOUT_MS).whenComplete(
+                new java.util.function.BiConsumer<ModuleEventResultPayload, Throwable>() {
+                    @Override
+                    public void accept(ModuleEventResultPayload ack, Throwable error) {
+                        if (error == null && ack != null && Boolean.TRUE.equals(ack.consumed)) {
+                            result.complete(ModuleEventDispatchResult.handled(
+                                    session.packageName(), targeted));
+                        } else {
+                            dispatchModuleEventNext(candidates, index + 1, event, result);
+                        }
+                    }
+                });
+    }
+
+    private void invokeModuleEventFallback(ModuleEventPayload event) {
+        try {
+            listener.onModuleEventFallback(event);
+        } catch (Exception e) {
+            log.error("module event fallback failed module={}",
+                    event == null ? null : event.module, e);
+        }
     }
 
     private PluginSession getValidSession(String packageName) {
@@ -258,6 +382,7 @@ public class PluginServer {
             case DESCRIBE_RESULT:
             case GET_OPTIONS_RESULT:
             case TOPIC_RESULT:
+            case MODULE_EVENT_RESULT:
             case HEARTBEAT_ACK:
                 pending.complete(envelope.getRequestId(), envelope.getPayload());
                 return;
@@ -269,6 +394,12 @@ public class PluginServer {
                 return;
             case EVENT:
                 handleEvent(channel, envelope);
+                return;
+            case MODULE_EVENT_REGISTER:
+                handleModuleEventRegister(channel, envelope);
+                return;
+            case MODULE_EVENT_UNREGISTER:
+                handleModuleEventUnregister(channel, envelope);
                 return;
 
             default:
@@ -463,6 +594,34 @@ public class PluginServer {
         write(channel, Envelope.of(MessageType.EVENT_RESULT, envelope.getRequestId(), ack).withSession(session.sessionId(), session.sessionToken()));
     }
 
+    private void handleModuleEventRegister(Channel channel, Envelope envelope) {
+        PluginSession session = sessions.resolve(channel, envelope.getSessionId());
+        if (session == null) {
+            log.warn("module_event_register without session from {}", channel.remoteAddress());
+            return;
+        }
+        ModuleEventRegisterPayload payload = envelope.payloadAs(ModuleEventRegisterPayload.class);
+        if (payload == null || payload.modules == null || payload.modules.isEmpty()) {
+            log.warn("module_event_register missing modules from {}", channel.remoteAddress());
+            return;
+        }
+        session.registerModuleEvents(payload.modules);
+    }
+
+    private void handleModuleEventUnregister(Channel channel, Envelope envelope) {
+        PluginSession session = sessions.resolve(channel, envelope.getSessionId());
+        if (session == null) {
+            log.warn("module_event_unregister without session from {}", channel.remoteAddress());
+            return;
+        }
+        ModuleEventUnregisterPayload payload = envelope.payloadAs(ModuleEventUnregisterPayload.class);
+        if (payload == null || payload.modules == null || payload.modules.isEmpty()) {
+            log.warn("module_event_unregister missing modules from {}", channel.remoteAddress());
+            return;
+        }
+        session.unregisterModuleEvents(payload.modules);
+    }
+
     private PluginSession requireSession(Channel channel, Envelope envelope, MessageType replyType) {
         PluginSession session = sessions.resolve(channel, envelope.getSessionId());
         if (session == null) {
@@ -504,9 +663,14 @@ public class PluginServer {
 
     private <T> CompletableFuture<T> request(
             PluginSession session, MessageType type, Payload payload, Class<T> responseType) {
+        return request(session, type, payload, responseType, CALL_TIMEOUT_MS);
+    }
+
+    private <T> CompletableFuture<T> request(
+            PluginSession session, MessageType type, Payload payload, Class<T> responseType, long timeoutMs) {
         Channel channel = session.channel();
         String requestId = RequestIds.next();
-        CompletableFuture<T> future = pending.register(requestId, responseType, CALL_TIMEOUT_MS);
+        CompletableFuture<T> future = pending.register(requestId, responseType, timeoutMs);
         try {
             write(channel, Envelope.of(type, requestId, payload)
                     .withSession(session.sessionId(), session.sessionToken()));
