@@ -208,22 +208,32 @@ public class PluginServer {
     /**
      * 透传一个模块事件：按“前台优先、后台其次”的顺序分发给已订阅该模块的插件。
      * 所有插件都未消费时调用 {@link PluginServerListener#onModuleEventFallback}。
+     *
+     * @param module   模块类型
+     * @param moduleId 模块实例 id，用于区分同一模块类型下的不同设备/实例
+     * @param action   模块内的事件动作，如 play / pause
+     * @param event    模块事件原始消息
      */
     public CompletableFuture<ModuleEventDispatchResult> sendModuleEvent(
-            ModuleType module, String action, Object event) {
-        return sendModuleEvent(module, action, event, moduleEventTimeoutMs);
+            ModuleType module, String moduleId, String action, Object event) {
+        return sendModuleEvent(module, moduleId, action, event, moduleEventTimeoutMs);
     }
 
     /**
-     * 同 {@link #sendModuleEvent(ModuleType, String, Object)}，但可指定等待单个插件回复的超时时间（毫秒）。
+     * 同 {@link #sendModuleEvent(ModuleType, String, String, Object)}，
+     * 但可指定等待单个插件回复的超时时间（毫秒）。
      */
     public CompletableFuture<ModuleEventDispatchResult> sendModuleEvent(
-            ModuleType module, String action, Object event, long timeoutMs) {
+            ModuleType module, String moduleId, String action, Object event, long timeoutMs) {
         if (module == null) {
             return failedFuture(new IllegalArgumentException("module is required"));
         }
+        if (moduleId == null || moduleId.isEmpty()) {
+            return failedFuture(new IllegalArgumentException("moduleId is required"));
+        }
         ModuleEventPayload payload = new ModuleEventPayload();
         payload.module = module;
+        payload.moduleId = moduleId;
         payload.action = action;
         payload.timestamp = System.currentTimeMillis();
         payload.event = event;

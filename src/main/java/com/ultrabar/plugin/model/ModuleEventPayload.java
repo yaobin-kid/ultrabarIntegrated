@@ -13,19 +13,36 @@ public class ModuleEventPayload implements Payload {
     public static final String APP_STATE_BACKGROUND = "background";
     public static final String APP_STATE_NONE = "none";
 
-    /** 事件所属模块 */
+    /**
+     * 事件所属模块
+     */
     public ModuleType module;
 
-    /** 模块内的事件动作，如 play / pause */
+    /**
+     * 模块实例 id，用于区分同一模块类型下的不同设备/实例
+     */
+    public String moduleId;
+
+    /**
+     * 模块内的事件动作，如 play / pause
+     */
     public String action;
 
-    /** 模块事件产生时间（毫秒） */
+    /**
+     * 模块事件产生时间（毫秒）
+     */
     public Long timestamp;
 
-    /** 目标应用当前状态：foreground / background / none */
+    /**
+     * 目标应用当前状态：foreground / background / none
+     */
     public String appState;
 
-    /** 模块事件原始消息 */
+
+
+    /**
+     * 模块事件原始消息
+     */
     public Object event;
 
     public ModuleEventPayload() {
@@ -37,6 +54,7 @@ public class ModuleEventPayload implements Payload {
     public ModuleEventPayload copyFor(String appState) {
         ModuleEventPayload copy = new ModuleEventPayload();
         copy.module = module;
+        copy.moduleId = moduleId;
         copy.action = action;
         copy.timestamp = timestamp;
         copy.appState = appState;
