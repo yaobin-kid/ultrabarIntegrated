@@ -616,6 +616,46 @@ server.call("com.ultrabar.music", "music.play", params);
 // server.stop();
 ```
 
+## 模块事件注册
+### DOT_KEY 模块注册 参考代码
+```java
+PluginClient client = new PluginClient();
+//注册模块
+client.subscribeModuleEvents(ModuleType.DOT_KEY);
+client.setPluginListener(new PluginListener(){
+
+    /**
+     * 模块事件回调函数
+     */
+    @Override
+    public void onModuleEvent(ModuleEventPayload payload, ModuleEventResponder responder) {
+        responder.consume();
+        Log.w(TAG, String.format("onModuleEvent 模块事件:%s", JSON.toJSON(payload)));
+    }
+    
+});
+```
+#### dot key payload 数据格式
+```json
+{
+    "appState": "background", // none 无状态， background 当前程序在后台， foreground 程序在前天
+    "module": "DOT_KEY",  //模块类型
+    "event": {   //按键原始消息
+        "action": 1,    //1 down ，0 up
+        "downTime": 169360339,
+        "eventTime": 169360339,
+        "keyCode": 2,  //按键码， 取值 0、1、2
+        "repeatCount": 0  //长按+1
+    },
+    "moduleId": "4",  //模块id
+    "timestamp": 1793002523558
+}
+```
+> 1.客户端调用 subscribeModuleEvents函数注册对于的模块事件
+> 2.客户端调用setPluginListener 注册回调并实现PluginListener 接口里的 onModuleEvent 方法。
+当模块触发对应功能时就回调该方法。如果消费该事件则调用 responder.consume(); 否则lineos 走兜底流程触发 模块绑定的profile 配置功能。
+
+
 ## 其他
 
 ###  R8 / ProGuard

@@ -108,7 +108,7 @@ public final class ListenerNotifier {
         emit(new ListenerAction() {
             @Override
             public void run(PluginListener l) {
-                l.onTopicUpdate(update);
+              //  l.onTopicUpdate(update);
             }
         });
     }

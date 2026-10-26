@@ -134,14 +134,15 @@ public class PluginClient {
      * @param actionId
      * @param params
      */
-    public CompletableFuture<ReportResultPayload> reportData(String actionId, Map<String, Object> params) {
+    @Deprecated
+    private CompletableFuture<ReportResultPayload> reportData(String actionId, Map<String, Object> params) {
         ReportPayload report = new ReportPayload();
         report.actionId = actionId;
         report.params = params;
         return envelopes.request(MessageType.REPORT, report, ReportResultPayload.class);
     }
 
-    public CompletableFuture<EventResultPayload> sendEvent(String eventId, Map<String, Object> params) {
+    private CompletableFuture<EventResultPayload> sendEvent(String eventId, Map<String, Object> params) {
         EventPayload event = new EventPayload();
         event.eventId = eventId;
         event.params = params;

@@ -34,7 +34,9 @@ public interface PluginListener {
     void onCall(CallPayload payload, CallResponder responder);
 
     // server publishes data -> Plugin receives
+    @Deprecated
     default void onTopicUpdate(TopicPayload payload) {
+
     }
 
     /**

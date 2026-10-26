@@ -22,7 +22,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 
 /**
  * Ultrabar plugin protocol server. Sessions are unique by {@code packageName}.
@@ -42,8 +41,8 @@ public class PluginServer {
      * 按 ModuleType 分组注册的模块事件兜底回调。
      * 同一模块类型可注册多个；兜底时优先遍历这些回调，全部执行完后不再走 PluginServerListener 的兜底。
      */
-    private final Map<ModuleType, Set<Consumer<ModuleEventPayload>>> fallbackCallbacks =
-            new ConcurrentHashMap<ModuleType, Set<Consumer<ModuleEventPayload>>>();
+    private final Map<ModuleType, Set<ModuleEventFallbackHandler>> fallbackCallbacks =
+            new ConcurrentHashMap<ModuleType, Set<ModuleEventFallbackHandler>>();
 
     private final int port;
     private final ObjectMapper mapper;
@@ -197,7 +196,8 @@ public class PluginServer {
     }
 
 
-    public CompletableFuture<TopicResultPayload> publish(String packageName, Topic topic, Object data) {
+    @Deprecated
+    private CompletableFuture<TopicResultPayload> publish(String packageName, Topic topic, Object data) {
         PluginSession session;
         try {
             session = getValidSession(packageName);
@@ -266,11 +266,11 @@ public class PluginServer {
      * @param module   模块类型
      * @param callback 兜底回调，接收未被任何插件消费的 {@link ModuleEventPayload}
      */
-    public void registerFallback(ModuleType module, Consumer<ModuleEventPayload> callback) {
+    public void registerFallback(ModuleType module, ModuleEventFallbackHandler callback) {
         if (module == null || callback == null) {
             throw new IllegalArgumentException("module and callback must not be null");
         }
-        Set<Consumer<ModuleEventPayload>> bucket = fallbackCallbacks.computeIfAbsent(
+        Set<ModuleEventFallbackHandler> bucket = fallbackCallbacks.computeIfAbsent(
                 module, k -> ConcurrentHashMap.newKeySet());
         bucket.add(callback);
     }
@@ -281,11 +281,11 @@ public class PluginServer {
      * @param module   模块类型
      * @param callback 要解绑的回调实例
      */
-    public void unregisterFallback(ModuleType module, Consumer<ModuleEventPayload> callback) {
+    public void unregisterFallback(ModuleType module, ModuleEventFallbackHandler callback) {
         if (module == null || callback == null) {
             return;
         }
-        Set<Consumer<ModuleEventPayload>> bucket = fallbackCallbacks.get(module);
+        Set<ModuleEventFallbackHandler> bucket = fallbackCallbacks.get(module);
         if (bucket == null) {
             return;
         }
@@ -389,13 +389,13 @@ public class PluginServer {
 
     private void invokeModuleEventFallback(ModuleEventPayload event) {
         ModuleType module = event == null ? null : event.module;
-        Set<Consumer<ModuleEventPayload>> bucket = module == null ? null : fallbackCallbacks.get(module);
+        Set<ModuleEventFallbackHandler> bucket = module == null ? null : fallbackCallbacks.get(module);
         if (bucket != null && !bucket.isEmpty()) {
-            Iterator<Consumer<ModuleEventPayload>> it = bucket.iterator();
+            Iterator<ModuleEventFallbackHandler> it = bucket.iterator();
             while (it.hasNext()) {
-                Consumer<ModuleEventPayload> cb = it.next();
+                ModuleEventFallbackHandler cb = it.next();
                 try {
-                    cb.accept(event);
+                    cb.onModuleEventFallback(event);
                 } catch (Exception e) {
                     log.error("registered fallback callback failed module={}", module, e);
                 }
