@@ -207,7 +207,7 @@ public class PluginServer {
      * 所有插件都未消费时调用 {@link PluginServerListener#onModuleEventFallback}。
      */
     public CompletableFuture<ModuleEventDispatchResult> sendModuleEvent(
-            ModuleType module, String action, Map<String, Object> event) {
+            ModuleType module, String action, Object event) {
         if (module == null) {
             return failedFuture(new IllegalArgumentException("module is required"));
         }
