@@ -54,7 +54,7 @@ public class ClientMain {
 
         //声明本插件关心的模块事件（服务端只向订阅过该模块的插件分发），支持一次传多个。
         //连接建立/重连成功后 SDK 会自动重新发送订阅。
-        client.subscribeModuleEvents(ModuleType.PLAYER);
+        client.subscribeModuleEvents(ModuleType.DOT_KEY);
         client.setPluginListener(new PluginListener() {
             @Override
             public void onRegisterSuccess(RegisterResultPayload payload) {
@@ -340,7 +340,7 @@ public class ClientMain {
                         + ",action=" + payload.action
                         + ",event=" + payload.event);
 
-                if (payload.module == ModuleType.PLAYER) {
+                if (payload.module == ModuleType.DOT_KEY) {
                     //todo 执行播放/暂停等操作
                     responder.consume();
                 } else {

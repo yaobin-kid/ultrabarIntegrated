@@ -61,7 +61,7 @@ public final class ServerMain {
                 Map<String, Object> event = new HashMap<>();
                 event.put("key", "play");
 
-                server.sendModuleEvent(ModuleType.PLAYER, "player_01", "play", event)
+                server.sendModuleEvent(ModuleType.DOT_KEY, "player_01", "play", event)
                         .thenAccept(result -> {
                             System.out.println("模块事件分发: handled=" + result.handled()
                                     + ",fallback=" + result.fallback()

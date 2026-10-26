@@ -8,13 +8,9 @@ import com.fasterxml.jackson.annotation.JsonValue;
  */
 public enum ModuleType {
 
-    /** 播放器 */
-    PLAYER("player"),
-
-    /** 智能家居 / 开关 */
-    SMART_HOME("smart_home"),
-
-    /** 按键 / 旋钮事件 */
+    /**
+     * 按键 / 旋钮事件
+     */
     DOT_KEY("dot_key"),
 
     KNOB_KEY("knob_key"),
