@@ -633,7 +633,7 @@ client.setPluginListener(new PluginListener(){
         if (ModuleEventPayload.APP_STATE_FOREGROUND.equals(payload.appState)) {
             responder.consume(); //消费事件
         }else{
-            responder.ignore(null);
+            responder.ignore(null); //忽略该事件
         }
         
         Log.w(TAG, String.format("onModuleEvent 模块事件:%s", JSON.toJSON(payload)));
@@ -691,7 +691,7 @@ client.setPluginListener(new PluginListener(){
 ```
 > 1.客户端调用 subscribeModuleEvents函数注册对于的模块事件
 > 2.客户端调用setPluginListener 注册回调并实现PluginListener 接口里的 onModuleEvent 方法。
-当模块触发对应功能时就回调该方法。如果消费该事件则调用 responder.consume(); 否则lineos 走兜底流程触发 模块绑定的profile 配置功能。
+当模块触发对应功能时就回调该方法。如果消费该事件则调用 responder.consume(); responder.ignore(null) 忽略 或者超时LineOS 走兜底流程触发 模块绑定的profile 配置功能。
 
 
 ## 其他
