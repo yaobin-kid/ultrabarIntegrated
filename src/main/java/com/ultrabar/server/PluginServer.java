@@ -37,6 +37,9 @@ public class PluginServer {
     private static final long CALL_TIMEOUT_MS = 30_000L;
     private static final long MODULE_EVENT_TIMEOUT_MS = 1_000L;
 
+    /** 模块事件分发给单个插件的最大等待时间，可通过 {@link #setModuleEventTimeoutMs(long)} 调整。 */
+    private volatile long moduleEventTimeoutMs = MODULE_EVENT_TIMEOUT_MS;
+
     private final int port;
     private final ObjectMapper mapper;
     private final SessionRegistry sessions = new SessionRegistry();
@@ -208,6 +211,14 @@ public class PluginServer {
      */
     public CompletableFuture<ModuleEventDispatchResult> sendModuleEvent(
             ModuleType module, String action, Object event) {
+        return sendModuleEvent(module, action, event, moduleEventTimeoutMs);
+    }
+
+    /**
+     * 同 {@link #sendModuleEvent(ModuleType, String, Object)}，但可指定等待单个插件回复的超时时间（毫秒）。
+     */
+    public CompletableFuture<ModuleEventDispatchResult> sendModuleEvent(
+            ModuleType module, String action, Object event, long timeoutMs) {
         if (module == null) {
             return failedFuture(new IllegalArgumentException("module is required"));
         }
@@ -216,13 +227,31 @@ public class PluginServer {
         payload.action = action;
         payload.timestamp = System.currentTimeMillis();
         payload.event = event;
-        return dispatchModuleEvent(payload);
+        return dispatchModuleEvent(payload, timeoutMs);
+    }
+
+    /**
+     * 设置等待单个插件回复 consume/ignore 的默认超时时间（毫秒）。
+     * 插件超时未回复视为未消费，继续尝试下一个候选或进入兜底。
+     */
+    public void setModuleEventTimeoutMs(long timeoutMs) {
+        if (timeoutMs <= 0) {
+            throw new IllegalArgumentException("timeoutMs must be positive");
+        }
+        this.moduleEventTimeoutMs = timeoutMs;
     }
 
     /**
      * 透传一个已经构造好的模块事件。
      */
     public CompletableFuture<ModuleEventDispatchResult> dispatchModuleEvent(ModuleEventPayload event) {
+        return dispatchModuleEvent(event, moduleEventTimeoutMs);
+    }
+
+    /**
+     * 透传一个已经构造好的模块事件，并指定等待单个插件回复的超时时间（毫秒）。
+     */
+    public CompletableFuture<ModuleEventDispatchResult> dispatchModuleEvent(ModuleEventPayload event, long timeoutMs) {
         if (event == null || event.module == null) {
             return failedFuture(new IllegalArgumentException("module event requires module"));
         }
@@ -232,7 +261,7 @@ public class PluginServer {
         List<PluginSession> candidates = moduleEventCandidates(event.module);
         CompletableFuture<ModuleEventDispatchResult> result =
                 new CompletableFuture<ModuleEventDispatchResult>();
-        dispatchModuleEventNext(candidates, 0, event, result);
+        dispatchModuleEventNext(candidates, 0, event, timeoutMs, result);
         return result;
     }
 
@@ -266,6 +295,7 @@ public class PluginServer {
     private void dispatchModuleEventNext(final List<PluginSession> candidates,
                                          final int index,
                                          final ModuleEventPayload event,
+                                         final long timeoutMs,
                                          final CompletableFuture<ModuleEventDispatchResult> result) {
         if (index >= candidates.size()) {
             ModuleEventPayload fallbackEvent = event.copyFor(ModuleEventPayload.APP_STATE_NONE);
@@ -279,7 +309,7 @@ public class PluginServer {
                 : ModuleEventPayload.APP_STATE_BACKGROUND;
         final ModuleEventPayload targeted = event.copyFor(appState);
         request(session, MessageType.MODULE_EVENT, targeted, ModuleEventResultPayload.class,
-                MODULE_EVENT_TIMEOUT_MS).whenComplete(
+                timeoutMs).whenComplete(
                 new java.util.function.BiConsumer<ModuleEventResultPayload, Throwable>() {
                     @Override
                     public void accept(ModuleEventResultPayload ack, Throwable error) {
@@ -287,7 +317,7 @@ public class PluginServer {
                             result.complete(ModuleEventDispatchResult.handled(
                                     session.packageName(), targeted));
                         } else {
-                            dispatchModuleEventNext(candidates, index + 1, event, result);
+                            dispatchModuleEventNext(candidates, index + 1, event, timeoutMs, result);
                         }
                     }
                 });
