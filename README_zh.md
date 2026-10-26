@@ -620,8 +620,8 @@ server.call("com.ultrabar.music", "music.play", params);
 ### DOT_KEY 模块注册 参考代码
 ```java
 PluginClient client = new PluginClient();
-//注册模块
-client.subscribeModuleEvents(ModuleType.DOT_KEY);
+//注册模块 可变参数 传入需要的模块数据
+client.subscribeModuleEvents(ModuleType.DOT_KEY,ModuleType.KNOB_KEY);
 client.setPluginListener(new PluginListener(){
 
     /**
@@ -656,6 +656,38 @@ client.setPluginListener(new PluginListener(){
     "moduleId": "4",  //模块id
     "timestamp": 1793002523558
 }
+```
+#### KNOB KEY 模块payload 数据
+```json
+//button 按键事件
+{
+  "appState": "foreground",
+  "module": "KNOB_KEY",
+  "action": "button",
+  "event": {
+    "action": 1,
+    "downTime": 171968479,
+    "eventTime": 171968479,
+    "keyCode": 0,
+    "repeatCount": 0
+  },
+  "moduleId": "6",
+  "timestamp": 1793005131698
+}
+
+
+//旋钮事件 （转得越快报得越快）
+{
+  "appState": "foreground",
+  "module": "KNOB_KEY",
+  "action": "rotate",
+  "event": {
+    "value": 1   // 1 顺时针，-1 逆时针
+  },
+  "moduleId": "6",
+  "timestamp": 1793005179031
+}
+
 ```
 > 1.客户端调用 subscribeModuleEvents函数注册对于的模块事件
 > 2.客户端调用setPluginListener 注册回调并实现PluginListener 接口里的 onModuleEvent 方法。
