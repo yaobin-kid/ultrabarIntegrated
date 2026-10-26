@@ -16,17 +16,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 /**
  * Ultrabar plugin protocol server. Sessions are unique by {@code packageName}.
@@ -37,8 +33,17 @@ public class PluginServer {
     private static final long CALL_TIMEOUT_MS = 30_000L;
     private static final long MODULE_EVENT_TIMEOUT_MS = 1_000L;
 
-    /** 模块事件分发给单个插件的最大等待时间，可通过 {@link #setModuleEventTimeoutMs(long)} 调整。 */
+    /**
+     * 模块事件分发给单个插件的最大等待时间，可通过 {@link #setModuleEventTimeoutMs(long)} 调整。
+     */
     private volatile long moduleEventTimeoutMs = MODULE_EVENT_TIMEOUT_MS;
+
+    /**
+     * 按 ModuleType 分组注册的模块事件兜底回调。
+     * 同一模块类型可注册多个；兜底时优先遍历这些回调，全部执行完后不再走 PluginServerListener 的兜底。
+     */
+    private final Map<ModuleType, Set<Consumer<ModuleEventPayload>>> fallbackCallbacks =
+            new ConcurrentHashMap<ModuleType, Set<Consumer<ModuleEventPayload>>>();
 
     private final int port;
     private final ObjectMapper mapper;
@@ -59,7 +64,7 @@ public class PluginServer {
     private final String ip;
 
     public PluginServer() {
-        this("127.0.0.1", 39001);
+        this(39001);
     }
 
     public PluginServer(int port) {
@@ -252,6 +257,55 @@ public class PluginServer {
     }
 
     /**
+     * 注册模块事件兜底回调。当所有已订阅该模块的插件都没有消费事件时触发。
+     * 同一 {@link ModuleType} 可注册多个回调；兜底时会依次执行全部回调。
+     * <p>
+     * 注册了该 ModuleType 的回调后，将<b>不再</b>调用 {@link PluginServerListener#onModuleEventFallback}；
+     * 只有未注册任何回调的 ModuleType 才会走 listener 的兜底。
+     *
+     * @param module   模块类型
+     * @param callback 兜底回调，接收未被任何插件消费的 {@link ModuleEventPayload}
+     */
+    public void registerFallback(ModuleType module, Consumer<ModuleEventPayload> callback) {
+        if (module == null || callback == null) {
+            throw new IllegalArgumentException("module and callback must not be null");
+        }
+        Set<Consumer<ModuleEventPayload>> bucket = fallbackCallbacks.computeIfAbsent(
+                module, k -> ConcurrentHashMap.newKeySet());
+        bucket.add(callback);
+    }
+
+    /**
+     * 解绑之前通过 {@link #registerFallback} 注册的兜底回调。
+     *
+     * @param module   模块类型
+     * @param callback 要解绑的回调实例
+     */
+    public void unregisterFallback(ModuleType module, Consumer<ModuleEventPayload> callback) {
+        if (module == null || callback == null) {
+            return;
+        }
+        Set<Consumer<ModuleEventPayload>> bucket = fallbackCallbacks.get(module);
+        if (bucket == null) {
+            return;
+        }
+        bucket.remove(callback);
+        if (bucket.isEmpty()) {
+            fallbackCallbacks.remove(module);
+        }
+    }
+
+    /**
+     * 解绑指定模块类型下所有已注册的兜底回调。
+     */
+    public void removeAllFallbacks(ModuleType module) {
+        if (module == null) {
+            return;
+        }
+        fallbackCallbacks.remove(module);
+    }
+
+    /**
      * 透传一个已经构造好的模块事件。
      */
     public CompletableFuture<ModuleEventDispatchResult> dispatchModuleEvent(ModuleEventPayload event) {
@@ -334,11 +388,24 @@ public class PluginServer {
     }
 
     private void invokeModuleEventFallback(ModuleEventPayload event) {
-        try {
-            listener.onModuleEventFallback(event);
-        } catch (Exception e) {
-            log.error("module event fallback failed module={}",
-                    event == null ? null : event.module, e);
+        ModuleType module = event == null ? null : event.module;
+        Set<Consumer<ModuleEventPayload>> bucket = module == null ? null : fallbackCallbacks.get(module);
+        if (bucket != null && !bucket.isEmpty()) {
+            Iterator<Consumer<ModuleEventPayload>> it = bucket.iterator();
+            while (it.hasNext()) {
+                Consumer<ModuleEventPayload> cb = it.next();
+                try {
+                    cb.accept(event);
+                } catch (Exception e) {
+                    log.error("registered fallback callback failed module={}", module, e);
+                }
+            }
+        } else {
+            try {
+                listener.onModuleEventFallback(event);
+            } catch (Exception e) {
+                log.error("module event fallback failed module={}", module, e);
+            }
         }
     }
 
