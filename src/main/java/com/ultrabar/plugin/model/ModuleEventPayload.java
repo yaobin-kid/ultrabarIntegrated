@@ -2,8 +2,6 @@ package com.ultrabar.plugin.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
-import java.util.Map;
-
 /**
  * 服务端透传给插件的统一模块事件消息。
  * <p>
@@ -28,7 +26,7 @@ public class ModuleEventPayload implements Payload {
     public String appState;
 
     /** 模块事件原始消息 */
-    public Map<String, Object> event;
+    public Object event;
 
     public ModuleEventPayload() {
     }

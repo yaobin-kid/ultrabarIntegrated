@@ -7,11 +7,21 @@ import com.fasterxml.jackson.annotation.JsonValue;
  * 模块事件所属模块。
  */
 public enum ModuleType {
-    /** 播放器 */
+    /**
+     * 播放器
+     */
     PLAYER("player"),
 
-    /** 智能家居 / 开关 */
-    SMART_HOME("smart_home");
+    /**
+     * 智能家居 / 开关
+     */
+    SMART_HOME("smart_home"),
+
+    DOT_KEY("DOT_KEY"),
+
+    KNOB_KEY("KNOB_KEY"),
+
+    ;
 
     private final String wireName;
 
