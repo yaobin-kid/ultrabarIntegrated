@@ -1,10 +1,6 @@
 package com.ultrabar.server;
 
-import com.ultrabar.plugin.model.ActionSummary;
-import com.ultrabar.plugin.model.Features;
-import com.ultrabar.plugin.model.ModuleType;
-import com.ultrabar.plugin.model.RegisterPayload;
-import com.ultrabar.plugin.model.Topic;
+import com.ultrabar.plugin.model.*;
 import io.netty.channel.Channel;
 
 import java.util.*;
@@ -29,10 +25,14 @@ public final class PluginSession {
     private volatile boolean foreground;
     private volatile long foregroundAtMillis;
 
-    /** 最近一次收到的 agenui 数据 JSON 字符串 */
+    /**
+     * 最近一次收到的 agenui 数据 JSON 字符串
+     */
     private volatile String aGenUIData;
 
-    /** 最近一次收到的 agenui dataModel JSON 字符串 */
+    /**
+     * 最近一次收到的 agenui dataModel JSON 字符串
+     */
     private volatile String aGenUIDataModel;
 
     private final int port;
@@ -78,6 +78,16 @@ public final class PluginSession {
 
     public List<ActionSummary> actions() {
         return actions;
+    }
+
+
+    public String toSurfaceId() {
+        StringBuilder builder = new StringBuilder("agenui_");
+        for (int i = 0; i < packageName.length(); i++) {
+            char c = packageName.charAt(i);
+            builder.append(Character.isLetterOrDigit(c) ? c : '_');
+        }
+        return builder.toString();
     }
 
     public List<ActionSummary> actions(Features... features) {
@@ -152,17 +162,23 @@ public final class PluginSession {
         touch();
     }
 
-    /** 注册时是否声明支持 agenui 功能 */
+    /**
+     * 注册时是否声明支持 agenui 功能
+     */
     public boolean supportsAGenUI() {
         return plugin != null && plugin.supportsAGenUI;
     }
 
-    /** 获取最近一次收到的 agenui 数据 JSON 字符串 */
+    /**
+     * 获取最近一次收到的 agenui 数据 JSON 字符串
+     */
     public String aGenUIData() {
         return aGenUIData;
     }
 
-    /** 存储一份 agenui 数据 JSON 字符串 */
+    /**
+     * 存储一份 agenui 数据 JSON 字符串
+     */
     void setAGenUIData(String data) {
         if (data == null) {
             return;
@@ -171,12 +187,16 @@ public final class PluginSession {
         touch();
     }
 
-    /** 获取最近一次收到的 agenui dataModel JSON 字符串 */
+    /**
+     * 获取最近一次收到的 agenui dataModel JSON 字符串
+     */
     public String aGenUIDataModel() {
         return aGenUIDataModel;
     }
 
-    /** 存储一份 agenui dataModel JSON 字符串 */
+    /**
+     * 存储一份 agenui dataModel JSON 字符串
+     */
     void setAGenUIDataModel(String dataModel) {
         if (dataModel == null) {
             return;
