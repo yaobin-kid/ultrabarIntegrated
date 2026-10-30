@@ -29,11 +29,11 @@ public final class PluginSession {
     private volatile boolean foreground;
     private volatile long foregroundAtMillis;
 
-    /** 最近一次收到的 agenui 数据（key=dataType） */
-    private volatile Map<String, Object> agenuiData = Collections.emptyMap();
+    /** 最近一次收到的 agenui 数据 JSON 字符串 */
+    private volatile String aGenUIData;
 
-    /** 最近一次收到的 agenui dataModel（key=modelType） */
-    private volatile Map<String, Object> agenuiDataModels = Collections.emptyMap();
+    /** 最近一次收到的 agenui dataModel JSON 字符串 */
+    private volatile String aGenUIDataModel;
 
     private final int port;
 
@@ -153,49 +153,35 @@ public final class PluginSession {
     }
 
     /** 注册时是否声明支持 agenui 功能 */
-    public boolean supportsAgenui() {
-        return plugin != null && plugin.supportsAgenui;
+    public boolean supportsAGenUI() {
+        return plugin != null && plugin.supportsAGenUI;
     }
 
-    /** 获取当前已缓存的全部 agenui 数据快照 */
-    public Map<String, Object> agenuiData() {
-        return agenuiData;
+    /** 获取最近一次收到的 agenui 数据 JSON 字符串 */
+    public String aGenUIData() {
+        return aGenUIData;
     }
 
-    /** 获取指定类型的 agenui 数据 */
-    public Object agenuiData(String dataType) {
-        return agenuiData.get(dataType);
-    }
-
-    /** 存储一份 agenui 数据 */
-    void setAgenuiData(String dataType, Object data) {
-        if (dataType == null) {
+    /** 存储一份 agenui 数据 JSON 字符串 */
+    void setAGenUIData(String data) {
+        if (data == null) {
             return;
         }
-        Map<String, Object> copy = new HashMap<String, Object>(agenuiData);
-        copy.put(dataType, data);
-        this.agenuiData = Collections.unmodifiableMap(copy);
+        this.aGenUIData = data;
         touch();
     }
 
-    /** 获取当前已缓存的全部 agenui dataModel 快照 */
-    public Map<String, Object> agenuiDataModels() {
-        return agenuiDataModels;
+    /** 获取最近一次收到的 agenui dataModel JSON 字符串 */
+    public String aGenUIDataModel() {
+        return aGenUIDataModel;
     }
 
-    /** 获取指定类型的 agenui dataModel */
-    public Object agenuiDataModel(String modelType) {
-        return agenuiDataModels.get(modelType);
-    }
-
-    /** 存储一份 agenui dataModel */
-    void setAgenuiDataModel(String modelType, Object dataModel) {
-        if (modelType == null) {
+    /** 存储一份 agenui dataModel JSON 字符串 */
+    void setAGenUIDataModel(String dataModel) {
+        if (dataModel == null) {
             return;
         }
-        Map<String, Object> copy = new HashMap<String, Object>(agenuiDataModels);
-        copy.put(modelType, dataModel);
-        this.agenuiDataModels = Collections.unmodifiableMap(copy);
+        this.aGenUIDataModel = dataModel;
         touch();
     }
 

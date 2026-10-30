@@ -11,10 +11,10 @@ import com.ultrabar.plugin.internal.ListenerNotifier;
 import com.ultrabar.plugin.internal.RequestTable;
 import com.ultrabar.plugin.internal.SessionState;
 import com.ultrabar.plugin.model.ActionsPayload;
-import com.ultrabar.plugin.model.AgenuiDataPayload;
-import com.ultrabar.plugin.model.AgenuiDataResultPayload;
-import com.ultrabar.plugin.model.AgenuiUpdateDataModelPayload;
-import com.ultrabar.plugin.model.AgenuiUpdateDataModelResultPayload;
+import com.ultrabar.plugin.model.AGenUIDataPayload;
+import com.ultrabar.plugin.model.AGenUIDataResultPayload;
+import com.ultrabar.plugin.model.AGenUIUpdateDataModelPayload;
+import com.ultrabar.plugin.model.AGenUIUpdateDataModelResultPayload;
 import com.ultrabar.plugin.model.EventPayload;
 import com.ultrabar.plugin.model.EventResultPayload;
 import com.ultrabar.plugin.model.Json;
@@ -23,9 +23,6 @@ import com.ultrabar.plugin.model.ModuleEventRegisterPayload;
 import com.ultrabar.plugin.model.ModuleEventUnregisterPayload;
 import com.ultrabar.plugin.model.ModuleType;
 import com.ultrabar.plugin.model.RegisterPayload;
-import com.ultrabar.plugin.model.ReportPayload;
-import com.ultrabar.plugin.model.ReportResultPayload;
-import com.ultrabar.plugin.model.TaskUpdatePayload;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -125,27 +122,6 @@ public class PluginClient {
         notifier.setListener(listener);
     }
 
-    /**
-     * Push a later status for an accepted call. {@code requestId} is new; correlate with {@code task.taskId}.
-     */
-    public void sendTaskUpdate(TaskUpdatePayload payload) {
-        envelopes.sendOneWay(MessageType.TASK_UPDATE, payload);
-    }
-
-    /**
-     * 上报属性
-     *
-     * @param actionId
-     * @param params
-     */
-    @Deprecated
-    private CompletableFuture<ReportResultPayload> reportData(String actionId, Map<String, Object> params) {
-        ReportPayload report = new ReportPayload();
-        report.actionId = actionId;
-        report.params = params;
-        return envelopes.request(MessageType.REPORT, report, ReportResultPayload.class);
-    }
-
     public CompletableFuture<EventResultPayload> sendEvent(String eventId, Map<String, Object> params) {
         EventPayload event = new EventPayload();
         event.eventId = eventId;
@@ -205,37 +181,35 @@ public class PluginClient {
 
     /**
      * 上报 agenui 数据到服务端。服务端会将数据缓存到 PluginSession 中，
-     * 并通过 {@link PluginServerListener#onAgenuiData} 回调通知宿主。
+     * 并通过 {@link PluginServerListener#onAGenUIData} 回调通知宿主。
      *
-     * @param dataType 数据类型标识
-     * @param data     原始数据
+     * @param data 数据 JSON 字符串
      */
-    public CompletableFuture<AgenuiDataResultPayload> sendAgenuiData(String dataType, Object data) {
-        AgenuiDataPayload payload = new AgenuiDataPayload(dataType, data);
-        return envelopes.request(MessageType.AGENUI_DATA, payload, AgenuiDataResultPayload.class);
+    public CompletableFuture<AGenUIDataResultPayload> sendAGenUIData(String data) {
+        AGenUIDataPayload payload = new AGenUIDataPayload(data);
+        return envelopes.request(MessageType.AGENUI_DATA, payload, AGenUIDataResultPayload.class);
     }
 
     /**
      * 上报 agenui updateDataModel 到服务端。服务端会将 dataModel 缓存到 PluginSession 中，
-     * 并通过 {@link PluginServerListener#onAgenuiUpdateDataModel} 回调通知宿主。
+     * 并通过 {@link PluginServerListener#onAGenUIUpdateDataModel} 回调通知宿主。
      *
-     * @param modelType dataModel 类型标识
-     * @param dataModel 完整 dataModel 对象
+     * @param dataModel dataModel JSON 字符串
      */
-    public CompletableFuture<AgenuiUpdateDataModelResultPayload> sendAgenuiUpdateDataModel(
-            String modelType, Object dataModel) {
-        return sendAgenuiUpdateDataModel(modelType, dataModel, false);
+    public CompletableFuture<AGenUIUpdateDataModelResultPayload> sendAGenUIUpdateDataModel(
+            String dataModel) {
+        return sendAGenUIUpdateDataModel(dataModel, false);
     }
 
     /**
-     * 同 {@link #sendAgenuiUpdateDataModel(String, Object)}，但可标记是否为增量更新。
+     * 同 {@link #sendAGenUIUpdateDataModel(String)}，但可标记是否为增量更新。
      */
-    public CompletableFuture<AgenuiUpdateDataModelResultPayload> sendAgenuiUpdateDataModel(
-            String modelType, Object dataModel, boolean incremental) {
-        AgenuiUpdateDataModelPayload payload = new AgenuiUpdateDataModelPayload(modelType, dataModel);
+    public CompletableFuture<AGenUIUpdateDataModelResultPayload> sendAGenUIUpdateDataModel(
+            String dataModel, boolean incremental) {
+        AGenUIUpdateDataModelPayload payload = new AGenUIUpdateDataModelPayload(dataModel);
         payload.incremental = incremental;
         return envelopes.request(MessageType.AGENUI_UPDATE_DATA_MODEL, payload,
-                AgenuiUpdateDataModelResultPayload.class);
+                AGenUIUpdateDataModelResultPayload.class);
     }
 
     public CompletableFuture<Void> startAsync() {

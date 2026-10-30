@@ -2,7 +2,7 @@ package com.ultrabar.plugin.internal;
 
 import com.ultrabar.plugin.callback.PluginListener;
 import com.ultrabar.plugin.model.*;
-import com.ultrabar.plugin.callback.AgenuiActionCallResponder;
+import com.ultrabar.plugin.callback.AGenUIActionCallResponder;
 import com.ultrabar.plugin.callback.CallResponder;
 import com.ultrabar.plugin.callback.DescribeResponder;
 import com.ultrabar.plugin.callback.ModuleEventResponder;
@@ -105,15 +105,6 @@ public final class ListenerNotifier {
         });
     }
 
-    void onTopicUpdate(final TopicPayload update) {
-        emit(new ListenerAction() {
-            @Override
-            public void run(PluginListener l) {
-              //  l.onTopicUpdate(update);
-            }
-        });
-    }
-
     void onModuleEvent(final ModuleEventPayload payload, final ModuleEventResponder responder) {
         PluginListener current = listener;
         if (current == null) {
@@ -152,7 +143,7 @@ public final class ListenerNotifier {
         });
     }
 
-    void onAgenuiActionCall(final AgenuiActionCallPayload payload, final AgenuiActionCallResponder responder) {
+    void onAGenUIActionCall(final AGenUIActionCallPayload payload, final AGenUIActionCallResponder responder) {
         PluginListener current = listener;
         if (current == null) {
             responder.sendError(ErrorCodes.NO_HANDLER, "No PluginListener registered", false);
@@ -166,7 +157,7 @@ public final class ListenerNotifier {
         }, new ListenerAction() {
             @Override
             public void run(PluginListener l) {
-                l.onAgenuiActionCall(payload, responder);
+                l.onAGenUIActionCall(payload, responder);
             }
         });
     }

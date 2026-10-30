@@ -3,25 +3,21 @@ package com.ultrabar.plugin.model;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
- * 插件端上报的 agenui 数据。
+ * 插件端上报的 AGenUI 数据。
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class AgenuiDataPayload implements Payload {
+public class AGenUIDataPayload implements Payload {
 
-    /** agenui 数据类型标识 */
-    public String dataType;
-
-    /** agenui 原始数据 */
-    public Object data;
+    /** AGenUI 数据 JSON 字符串 */
+    public String data;
 
     /** 数据产生时间戳（毫秒） */
     public Long timestamp;
 
-    public AgenuiDataPayload() {
+    public AGenUIDataPayload() {
     }
 
-    public AgenuiDataPayload(String dataType, Object data) {
-        this.dataType = dataType;
+    public AGenUIDataPayload(String data) {
         this.data = data;
         this.timestamp = System.currentTimeMillis();
     }

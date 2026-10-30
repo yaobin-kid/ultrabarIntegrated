@@ -1,16 +1,15 @@
 package com.ultrabar.plugin.internal;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ultrabar.plugin.callback.AgenuiActionCallResponder;
+import com.ultrabar.plugin.callback.AGenUIActionCallResponder;
 import com.ultrabar.plugin.callback.CallResponder;
 import com.ultrabar.plugin.callback.DescribeResponder;
 import com.ultrabar.plugin.callback.ModuleEventResponder;
 import com.ultrabar.plugin.callback.OptionsResponder;
-import com.ultrabar.plugin.callback.TopicResponder;
 import com.ultrabar.plugin.model.ActionsPayload;
-import com.ultrabar.plugin.model.AgenuiActionCallPayload;
-import com.ultrabar.plugin.model.AgenuiDataResultPayload;
-import com.ultrabar.plugin.model.AgenuiUpdateDataModelResultPayload;
+import com.ultrabar.plugin.model.AGenUIActionCallPayload;
+import com.ultrabar.plugin.model.AGenUIDataResultPayload;
+import com.ultrabar.plugin.model.AGenUIUpdateDataModelResultPayload;
 import com.ultrabar.plugin.model.CallPayload;
 import com.ultrabar.plugin.model.DescribePayload;
 import com.ultrabar.plugin.model.Envelope;
@@ -18,8 +17,6 @@ import com.ultrabar.plugin.model.ErrorCodes;
 import com.ultrabar.plugin.model.GetOptionsPayload;
 import com.ultrabar.plugin.model.MessageType;
 import com.ultrabar.plugin.model.ModuleEventPayload;
-import com.ultrabar.plugin.model.TopicPayload;
-import com.ultrabar.plugin.model.TopicResultPayload;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -65,7 +62,6 @@ public final class InboundDispatcher {
             case GET_OPTIONS_RESULT:
             case CALL_RESULT:
             case HEARTBEAT_ACK:
-            case REPORT_RESULT:
             case EVENT_RESULT:
             case AGENUI_DATA_RESULT:
             case AGENUI_UPDATE_DATA_MODEL_RESULT:
@@ -83,9 +79,6 @@ public final class InboundDispatcher {
             case CALL:
                 handleCall(channel, envelope);
                 return;
-            case TOPIC:
-                handleTopic(channel, envelope);
-                return;
             case GET_OPTIONS:
                 handleOptions(channel, envelope);
                 return;
@@ -93,7 +86,7 @@ public final class InboundDispatcher {
                 handleModuleEvent(channel, envelope);
                 return;
             case AGENUI_ACTION_CALL:
-                handleAgenuiActionCall(channel, envelope);
+                handleAGenUIActionCall(channel, envelope);
                 return;
             default:
                 log.info("ignored inbound type={} requestId={}", type, envelope.getRequestId());
@@ -115,17 +108,6 @@ public final class InboundDispatcher {
                 channel, envelope.getRequestId(), mapper, session.sessionId(), session.sessionToken());
         try {
             notifier.onCall(envelope.payloadAs(CallPayload.class), responder);
-        } catch (Exception e) {
-            responder.sendError(ErrorCodes.INVALID_PAYLOAD, e.getMessage(), false, null);
-        }
-    }
-
-    private void handleTopic(Channel channel, Envelope envelope) {
-        TopicResponder responder = new TopicResponder(channel, envelope.getRequestId(), mapper, session.sessionId(), session.sessionToken());
-        try {
-            TopicPayload topicPayload = envelope.payloadAs(TopicPayload.class);
-            notifier.onTopicUpdate(topicPayload);
-            responder.sendSuccess(new TopicResultPayload(topicPayload.topic));
         } catch (Exception e) {
             responder.sendError(ErrorCodes.INVALID_PAYLOAD, e.getMessage(), false, null);
         }
@@ -161,13 +143,13 @@ public final class InboundDispatcher {
         notifier.onModuleEvent(payload, responder);
     }
 
-    private void handleAgenuiActionCall(Channel channel, Envelope envelope) {
-        AgenuiActionCallResponder responder = new AgenuiActionCallResponder(
+    private void handleAGenUIActionCall(Channel channel, Envelope envelope) {
+        AGenUIActionCallResponder responder = new AGenUIActionCallResponder(
                 channel, envelope.getRequestId(), mapper,
                 session.sessionId(), session.sessionToken());
         try {
-            AgenuiActionCallPayload payload = envelope.payloadAs(AgenuiActionCallPayload.class);
-            notifier.onAgenuiActionCall(payload, responder);
+            AGenUIActionCallPayload payload = envelope.payloadAs(AGenUIActionCallPayload.class);
+            notifier.onAGenUIActionCall(payload, responder);
         } catch (Exception e) {
             responder.sendError(ErrorCodes.INVALID_PAYLOAD, e.getMessage(), false);
         }

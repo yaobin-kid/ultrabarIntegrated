@@ -8,18 +8,18 @@ import java.util.Map;
  * 服务端主动调用插件端的 agenui action。
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class AgenuiActionCallPayload implements Payload {
+public class AGenUIActionCallPayload implements Payload {
 
-    /** agenui action id，如 "agenui_chat" / "agenui_reset" */
+    /** AGenUI action id */
     public String actionId;
 
     /** 调用参数 */
     public Map<String, Object> params;
 
-    public AgenuiActionCallPayload() {
+    public AGenUIActionCallPayload() {
     }
 
-    public AgenuiActionCallPayload(String actionId, Map<String, Object> params) {
+    public AGenUIActionCallPayload(String actionId, Map<String, Object> params) {
         this.actionId = actionId;
         this.params = params;
     }

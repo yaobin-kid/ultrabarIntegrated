@@ -11,110 +11,100 @@ import static org.junit.Assert.*;
 /**
  * agenui 协议载荷的构造与序列化单元测试。
  */
-public class AgenuiProtocolTest {
+public class AGenUIProtocolTest {
 
     private final ObjectMapper mapper = new ObjectMapper();
 
     @Test
-    public void testAgenuiDataPayloadFields() {
-        Map<String, Object> data = new HashMap<String, Object>();
-        data.put("status", "playing");
-        data.put("volume", 80);
-
-        AgenuiDataPayload p = new AgenuiDataPayload("audio_event", data);
-        assertEquals("audio_event", p.dataType);
-        assertEquals(data, p.data);
+    public void testAGenUIDataPayloadFields() {
+        AGenUIDataPayload p = new AGenUIDataPayload("{\"status\":\"playing\",\"volume\":80}");
+        assertEquals("{\"status\":\"playing\",\"volume\":80}", p.data);
         assertNotNull(p.timestamp);
         assertTrue(p.timestamp > 0);
     }
 
     @Test
-    public void testAgenuiDataPayloadJson() throws Exception {
-        AgenuiDataPayload p = new AgenuiDataPayload("audio_event", "playing");
+    public void testAGenUIDataPayloadJson() throws Exception {
+        AGenUIDataPayload p = new AGenUIDataPayload("{\"status\":\"playing\"}");
         String json = mapper.writeValueAsString(p);
-        assertTrue(json.contains("audio_event"));
         assertTrue(json.contains("playing"));
 
-        AgenuiDataPayload round = mapper.readValue(json, AgenuiDataPayload.class);
-        assertEquals("audio_event", round.dataType);
-        assertEquals("playing", round.data);
+        AGenUIDataPayload round = mapper.readValue(json, AGenUIDataPayload.class);
+        assertEquals("{\"status\":\"playing\"}", round.data);
     }
 
     @Test
-    public void testAgenuiUpdateDataModelPayloadDefaultIncremental() {
-        AgenuiUpdateDataModelPayload p = new AgenuiUpdateDataModelPayload("agent_state", "thinking");
-        assertEquals("agent_state", p.modelType);
-        assertEquals("thinking", p.dataModel);
+    public void testAGenUIUpdateDataModelPayloadDefaultIncremental() {
+        AGenUIUpdateDataModelPayload p = new AGenUIUpdateDataModelPayload("{\"phase\":\"thinking\"}");
+        assertEquals("{\"phase\":\"thinking\"}", p.dataModel);
         assertFalse(p.incremental);
         assertNotNull(p.timestamp);
     }
 
     @Test
-    public void testAgenuiUpdateDataModelPayloadIncrementalTrue() {
-        AgenuiUpdateDataModelPayload p = new AgenuiUpdateDataModelPayload();
-        p.modelType = "agent_state";
-        p.dataModel = Map.of("phase", "acting");
+    public void testAGenUIUpdateDataModelPayloadIncrementalTrue() {
+        AGenUIUpdateDataModelPayload p = new AGenUIUpdateDataModelPayload();
+        p.dataModel = "{\"phase\":\"acting\"}";
         p.incremental = true;
         p.timestamp = 123L;
 
-        assertEquals("agent_state", p.modelType);
+        assertEquals("{\"phase\":\"acting\"}", p.dataModel);
         assertTrue(p.incremental);
         assertEquals(Long.valueOf(123L), p.timestamp);
     }
 
     @Test
-    public void testAgenuiUpdateDataModelPayloadJson() throws Exception {
-        AgenuiUpdateDataModelPayload p = new AgenuiUpdateDataModelPayload("agent_state", Map.of("phase", "thinking"));
+    public void testAGenUIUpdateDataModelPayloadJson() throws Exception {
+        AGenUIUpdateDataModelPayload p = new AGenUIUpdateDataModelPayload("{\"phase\":\"thinking\"}");
         String json = mapper.writeValueAsString(p);
-        assertTrue(json.contains("agent_state"));
         assertTrue(json.contains("thinking"));
 
-        AgenuiUpdateDataModelPayload round = mapper.readValue(json, AgenuiUpdateDataModelPayload.class);
-        assertEquals("agent_state", round.modelType);
+        AGenUIUpdateDataModelPayload round = mapper.readValue(json, AGenUIUpdateDataModelPayload.class);
+        assertEquals("{\"phase\":\"thinking\"}", round.dataModel);
     }
 
     @Test
-    public void testAgenuiActionCallPayloadFields() {
+    public void testAGenUIActionCallPayloadFields() {
         Map<String, Object> params = new HashMap<String, Object>();
         params.put("prompt", "hello");
 
-        AgenuiActionCallPayload p = new AgenuiActionCallPayload("agenui_chat", params);
+        AGenUIActionCallPayload p = new AGenUIActionCallPayload("agenui_chat", params);
         assertEquals("agenui_chat", p.actionId);
         assertEquals(params, p.params);
     }
 
     @Test
-    public void testAgenuiActionCallPayloadJson() throws Exception {
-        AgenuiActionCallPayload p = new AgenuiActionCallPayload("agenui_reset", null);
+    public void testAGenUIActionCallPayloadJson() throws Exception {
+        AGenUIActionCallPayload p = new AGenUIActionCallPayload("agenui_reset", null);
         String json = mapper.writeValueAsString(p);
         assertTrue(json.contains("agenui_reset"));
 
-        AgenuiActionCallPayload round = mapper.readValue(json, AgenuiActionCallPayload.class);
+        AGenUIActionCallPayload round = mapper.readValue(json, AGenUIActionCallPayload.class);
         assertEquals("agenui_reset", round.actionId);
         assertNull(round.params);
     }
 
     @Test
-    public void testAgenuiActionCallResultPayload() {
-        AgenuiActionCallResultPayload ok = new AgenuiActionCallResultPayload(true, "reply text");
+    public void testAGenUIActionCallResultPayload() {
+        AGenUIActionCallResultPayload ok = new AGenUIActionCallResultPayload(true, "reply text");
         assertTrue(ok.success);
         assertEquals("reply text", ok.result);
         assertTrue(ok.succeeded());
 
-        AgenuiActionCallResultPayload fail = new AgenuiActionCallResultPayload(false, null);
+        AGenUIActionCallResultPayload fail = new AGenUIActionCallResultPayload(false, null);
         assertFalse(fail.success);
         assertFalse(fail.succeeded());
     }
 
     @Test
-    public void testMessageTypeAgenuiPayloadBindings() {
+    public void testMessageTypeAGenUIPayloadBindings() {
         // 6 种 agenui 类型都注册了正确的 payload class
-        assertEquals(AgenuiDataPayload.class, MessageType.AGENUI_DATA.payloadType());
-        assertEquals(AgenuiDataResultPayload.class, MessageType.AGENUI_DATA_RESULT.payloadType());
-        assertEquals(AgenuiUpdateDataModelPayload.class, MessageType.AGENUI_UPDATE_DATA_MODEL.payloadType());
-        assertEquals(AgenuiUpdateDataModelResultPayload.class, MessageType.AGENUI_UPDATE_DATA_MODEL_RESULT.payloadType());
-        assertEquals(AgenuiActionCallPayload.class, MessageType.AGENUI_ACTION_CALL.payloadType());
-        assertEquals(AgenuiActionCallResultPayload.class, MessageType.AGENUI_ACTION_CALL_RESULT.payloadType());
+        assertEquals(AGenUIDataPayload.class, MessageType.AGENUI_DATA.payloadType());
+        assertEquals(AGenUIDataResultPayload.class, MessageType.AGENUI_DATA_RESULT.payloadType());
+        assertEquals(AGenUIUpdateDataModelPayload.class, MessageType.AGENUI_UPDATE_DATA_MODEL.payloadType());
+        assertEquals(AGenUIUpdateDataModelResultPayload.class, MessageType.AGENUI_UPDATE_DATA_MODEL_RESULT.payloadType());
+        assertEquals(AGenUIActionCallPayload.class, MessageType.AGENUI_ACTION_CALL.payloadType());
+        assertEquals(AGenUIActionCallResultPayload.class, MessageType.AGENUI_ACTION_CALL_RESULT.payloadType());
 
         // wire 名字
         assertEquals("agenui_data", MessageType.AGENUI_DATA.wireName());
@@ -122,15 +112,15 @@ public class AgenuiProtocolTest {
     }
 
     @Test
-    public void testRegisterPayloadSupportsAgenuiDefaultFalse() {
+    public void testRegisterPayloadSupportsAGenUIDefaultFalse() {
         RegisterPayload rp = new RegisterPayload();
-        assertFalse("supportsAgenui 默认应为 false", rp.supportsAgenui);
+        assertFalse("supportsAGenUI 默认应为 false", rp.supportsAGenUI);
     }
 
     @Test
-    public void testRegisterPayloadSupportsAgenuiSetTrue() {
+    public void testRegisterPayloadSupportsAGenUISetTrue() {
         RegisterPayload rp = new RegisterPayload();
-        rp.supportsAgenui = true;
-        assertTrue(rp.supportsAgenui);
+        rp.supportsAGenUI = true;
+        assertTrue(rp.supportsAGenUI);
     }
 }

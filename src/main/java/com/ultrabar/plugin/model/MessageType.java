@@ -14,8 +14,6 @@ public enum MessageType {
     DESCRIBE("describe", DescribePayload.class),
     DESCRIBE_RESULT("describe_result", DescribeResultPayload.class),
     CALL("call", CallPayload.class),
-    TOPIC("topic", TopicPayload.class),
-    TOPIC_RESULT("topic_result", TopicResultPayload.class),
 
     CALL_RESULT("call_result", CallResultPayload.class),
     GET_OPTIONS("get_options", GetOptionsPayload.class),
@@ -23,9 +21,6 @@ public enum MessageType {
     HEARTBEAT("heartbeat", HeartbeatPayload.class),
     HEARTBEAT_ACK("heartbeat_ack", HeartbeatAckPayload.class),
 
-    REPORT("report", ReportPayload.class),
-
-    REPORT_RESULT("report_result", ReportResultPayload.class),
     EVENT("event", EventPayload.class),
     EVENT_RESULT("event_result", EventResultPayload.class),
 
@@ -34,14 +29,14 @@ public enum MessageType {
     MODULE_EVENT("module_event", ModuleEventPayload.class),
     MODULE_EVENT_RESULT("module_event_result", ModuleEventResultPayload.class),
 
-    AGENUI_DATA("agenui_data", AgenuiDataPayload.class),
-    AGENUI_DATA_RESULT("agenui_data_result", AgenuiDataResultPayload.class),
-    AGENUI_UPDATE_DATA_MODEL("agenui_update_data_model", AgenuiUpdateDataModelPayload.class),
-    AGENUI_UPDATE_DATA_MODEL_RESULT("agenui_update_data_model_result", AgenuiUpdateDataModelResultPayload.class),
-    AGENUI_ACTION_CALL("agenui_action_call", AgenuiActionCallPayload.class),
-    AGENUI_ACTION_CALL_RESULT("agenui_action_call_result", AgenuiActionCallResultPayload.class),
+    AGENUI_DATA("agenui_data", AGenUIDataPayload.class),
+    AGENUI_DATA_RESULT("agenui_data_result", AGenUIDataResultPayload.class),
+    AGENUI_UPDATE_DATA_MODEL("agenui_update_data_model", AGenUIUpdateDataModelPayload.class),
+    AGENUI_UPDATE_DATA_MODEL_RESULT("agenui_update_data_model_result", AGenUIUpdateDataModelResultPayload.class),
+    AGENUI_ACTION_CALL("agenui_action_call", AGenUIActionCallPayload.class),
+    AGENUI_ACTION_CALL_RESULT("agenui_action_call_result", AGenUIActionCallResultPayload.class),
 
-    TASK_UPDATE("task_update", TaskUpdatePayload.class);
+    ;
 
 
     private final String wireName;

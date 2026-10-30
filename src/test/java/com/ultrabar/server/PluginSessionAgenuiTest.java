@@ -12,103 +12,83 @@ import static org.mockito.Mockito.*;
 /**
  * PluginSession 的 agenui 相关单元测试。
  */
-public class PluginSessionAgenuiTest {
+public class PluginSessionAGenUITest {
 
-    private PluginSession newSession(boolean supportsAgenui) {
+    private PluginSession newSession(boolean supportsAGenUI) {
         RegisterPayload rp = new RegisterPayload();
         rp.name = "TestPlugin";
         rp.packageName = "com.test.plugin";
-        rp.supportsAgenui = supportsAgenui;
+        rp.supportsAGenUI = supportsAGenUI;
         Channel channel = mock(Channel.class);
         when(channel.isActive()).thenReturn(true);
         return new PluginSession("TestPlugin", "com.test.plugin", "session_1", "token_1", rp, channel, 100);
     }
 
     @Test
-    public void testSupportsAgenuiTrue() {
+    public void testSupportsAGenUITrue() {
         PluginSession s = newSession(true);
-        assertTrue(s.supportsAgenui());
+        assertTrue(s.supportsAGenUI());
     }
 
     @Test
-    public void testSupportsAgenuiFalse() {
+    public void testSupportsAGenUIFalse() {
         PluginSession s = newSession(false);
-        assertFalse(s.supportsAgenui());
+        assertFalse(s.supportsAGenUI());
     }
 
     @Test
-    public void testAgenuiDataEmptyInitially() {
+    public void testAGenUIDataEmptyInitially() {
         PluginSession s = newSession(true);
-        Map<String, Object> snapshot = s.agenuiData();
-        assertNotNull(snapshot);
-        assertTrue(snapshot.isEmpty());
-        assertNull(s.agenuiData("any_type"));
+        assertNull(s.aGenUIData());
     }
 
     @Test
     public void testSetAndGetAgenuiData() {
         PluginSession s = newSession(true);
-        s.setAgenuiData("audio_event", "playing");
-        assertEquals("playing", s.agenuiData("audio_event"));
-
-        Map<String, Object> snapshot = s.agenuiData();
-        assertEquals(1, snapshot.size());
-        assertEquals("playing", snapshot.get("audio_event"));
+        s.setAGenUIData("{\"status\":\"playing\"}");
+        assertEquals("{\"status\":\"playing\"}", s.aGenUIData());
     }
 
     @Test
-    public void testSetAgenuiDataNullTypeIgnored() {
+    public void testSetAGenUIDataNullIgnored() {
         PluginSession s = newSession(true);
-        s.setAgenuiData(null, "value");
-        assertTrue(s.agenuiData().isEmpty());
+        s.setAGenUIData(null);
+        assertNull(s.aGenUIData());
     }
 
     @Test
-    public void testSetAgenuiDataOverwriteSameType() {
+    public void testSetAGenUIDataOverwrite() {
         PluginSession s = newSession(true);
-        s.setAgenuiData("audio_event", "playing");
-        s.setAgenuiData("audio_event", "paused");
-        assertEquals("paused", s.agenuiData("audio_event"));
+        s.setAGenUIData("{\"status\":\"playing\"}");
+        s.setAGenUIData("{\"status\":\"paused\"}");
+        assertEquals("{\"status\":\"paused\"}", s.aGenUIData());
     }
 
     @Test
-    public void testSetAgenuiDataMultipleTypes() {
+    public void testAGenUIDataModelEmptyInitially() {
         PluginSession s = newSession(true);
-        s.setAgenuiData("audio_event", "playing");
-        s.setAgenuiData("volume_event", 80);
-        Map<String, Object> snapshot = s.agenuiData();
-        assertEquals(2, snapshot.size());
+        assertNull(s.aGenUIDataModel());
     }
 
     @Test
-    public void testAgenuiDataModelEmptyInitially() {
+    public void testSetAndGetAGenUIDataModel() {
         PluginSession s = newSession(true);
-        Map<String, Object> snapshot = s.agenuiDataModels();
-        assertNotNull(snapshot);
-        assertTrue(snapshot.isEmpty());
-        assertNull(s.agenuiDataModel("any_model"));
+        s.setAGenUIDataModel("{\"phase\":\"thinking\"}");
+        assertEquals("{\"phase\":\"thinking\"}", s.aGenUIDataModel());
     }
 
     @Test
-    public void testSetAndGetAgenuiDataModel() {
+    public void testSetAGenUIDataModelNullIgnored() {
         PluginSession s = newSession(true);
-        s.setAgenuiDataModel("agent_state", "thinking");
-        assertEquals("thinking", s.agenuiDataModel("agent_state"));
-        assertEquals(1, s.agenuiDataModels().size());
+        s.setAGenUIDataModel(null);
+        assertNull(s.aGenUIDataModel());
     }
 
     @Test
-    public void testSetAgenuiDataModelNullTypeIgnored() {
+    public void testSetAGenUIDataModelOverwrite() {
         PluginSession s = newSession(true);
-        s.setAgenuiDataModel(null, "value");
-        assertTrue(s.agenuiDataModels().isEmpty());
-    }
-
-    @Test
-    public void testSetAgenuiDataModelOverwrite() {
-        PluginSession s = newSession(true);
-        s.setAgenuiDataModel("agent_state", "thinking");
-        s.setAgenuiDataModel("agent_state", "acting");
-        assertEquals("acting", s.agenuiDataModel("agent_state"));
+        s.setAGenUIDataModel("{\"phase\":\"thinking\"}");
+        s.setAGenUIDataModel("{\"phase\":\"acting\"}");
+        assertEquals("{\"phase\":\"acting\"}", s.aGenUIDataModel());
     }
 }

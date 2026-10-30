@@ -33,12 +33,6 @@ public interface PluginListener {
     // incoming call from server -> plugin should respond via responder
     void onCall(CallPayload payload, CallResponder responder);
 
-    // server publishes data -> Plugin receives
-    @Deprecated
-    default void onTopicUpdate(TopicPayload payload) {
-
-    }
-
     /**
      * 收到服务端透传的模块事件。
      * 消费时调用 {@code responder.consume()}，不消费时调用 {@code responder.ignore(reason)}；
@@ -53,10 +47,10 @@ public interface PluginListener {
 
     /**
      * 收到服务端发起的 agenui action call。
-     * 需通过 {@link AgenuiActionCallResponder#sendSuccess(Object)} 或
-     * {@link AgenuiActionCallResponder#sendError(String, String, boolean)} 响应。
+     * 需通过 {@link AGenUIActionCallResponder#sendSuccess(Object)} 或
+     * {@link AGenUIActionCallResponder#sendError(String, String, boolean)} 响应。
      */
-    default void onAgenuiActionCall(AgenuiActionCallPayload payload, AgenuiActionCallResponder responder) {
+    default void onAGenUIActionCall(AGenUIActionCallPayload payload, AGenUIActionCallResponder responder) {
         responder.sendError(ErrorCodes.NO_HANDLER, "no agenui action handler registered", false);
     }
 }

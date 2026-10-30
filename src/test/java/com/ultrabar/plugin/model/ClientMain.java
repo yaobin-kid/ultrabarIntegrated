@@ -315,11 +315,6 @@ public class ClientMain {
             }
 
             @Override
-            public void onTopicUpdate(TopicPayload payload) {
-                System.out.println("接受到topic 更新数据:" + payload.topic + ",data=" + payload.data);
-            }
-
-            @Override
             public void onModuleEvent(ModuleEventPayload payload, ModuleEventResponder responder) {
                 // ============================================================
                 // 模块事件（服务端透传)

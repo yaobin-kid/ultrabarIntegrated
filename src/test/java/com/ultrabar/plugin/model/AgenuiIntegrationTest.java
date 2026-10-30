@@ -1,7 +1,7 @@
 package com.ultrabar.plugin.model;
 
 import com.ultrabar.plugin.PluginClient;
-import com.ultrabar.plugin.callback.AgenuiActionCallResponder;
+import com.ultrabar.plugin.callback.AGenUIActionCallResponder;
 import com.ultrabar.plugin.callback.PluginListener;
 import com.ultrabar.server.PluginRegisterHandler;
 import com.ultrabar.server.PluginServer;
@@ -24,12 +24,12 @@ import static org.junit.Assert.*;
 
 /**
  * agenui 功能端到端集成测试：起真实 Netty server + client，覆盖
- * client.sendAgenuiData / sendAgenuiUpdateDataModel → server 存储 + 回调，
- * 以及 server.callAgenuiAction → client.onAgenuiActionCall → responder.sendSuccess。
+ * client.sendAGenUIData / sendAGenUIUpdateDataModel → server 存储 + 回调，
+ * 以及 server.callAGenUIAction → client.onAGenUIActionCall → responder.sendSuccess。
  *
  * 端口使用 0 让 OS 动态分配，避免并发测试端口冲突。
  */
-public class AgenuiIntegrationTest {
+public class AGenUIIntegrationTest {
 
     private static final String PKG = "com.test.agenui";
 
@@ -70,8 +70,8 @@ public class AgenuiIntegrationTest {
         }
     }
 
-    /** 创建 client，连接已启动的 server，声明 supportsAgenui，返回 session。 */
-    private PluginSession startClientWithSupportsAgenui(boolean supportsAgenui) throws Exception {
+    /** 创建 client，连接已启动的 server，声明 supportsAGenUI，返回 session。 */
+    private PluginSession startClientWithSupportsAGenUI(boolean supportsAGenUI) throws Exception {
         final CountDownLatch registered = new CountDownLatch(1);
         final AtomicReference<PluginSession> sessionRef = new AtomicReference<PluginSession>();
         server.setListener(new PluginServerListener() {
@@ -86,25 +86,30 @@ public class AgenuiIntegrationTest {
         RegisterPayload rp = new RegisterPayload();
         rp.name = "AgenuiTestPlugin";
         rp.packageName = PKG;
-        rp.supportsAgenui = supportsAgenui;
+        rp.supportsAGenUI = supportsAGenUI;
         client.setRegisterConfig(rp);
+        client.setPluginListener(new PluginListener() {
+            @Override public void onRegisterSuccess(RegisterResultPayload payload) {}
+            @Override public void onCall(CallPayload payload, com.ultrabar.plugin.callback.CallResponder responder) {}
+        });
 
+        assertTrue("client 启动超时", client.startAsync().get(5, TimeUnit.SECONDS) == null);
         assertTrue("client 注册超时", registered.await(5, TimeUnit.SECONDS));
         assertNotNull(sessionRef.get());
         return sessionRef.get();
     }
 
-    // ====== 1. client.sendAgenuiData → server 存储 + listener.onAgenuiData ======
+    // ====== 1. client.sendAGenUIData → server 存储 + listener.onAGenUIData ======
 
     @Test
-    public void testSendAgenuiDataStoresAndNotifies() throws Exception {
-        PluginSession session = startClientWithSupportsAgenui(true);
+    public void testSendAGenUIDataStoresAndNotifies() throws Exception {
+        PluginSession session = startClientWithSupportsAGenUI(true);
 
         final CountDownLatch latch = new CountDownLatch(1);
-        final AtomicReference<AgenuiDataPayload> receivedRef = new AtomicReference<AgenuiDataPayload>();
+        final AtomicReference<AGenUIDataPayload> receivedRef = new AtomicReference<AGenUIDataPayload>();
         server.setListener(new PluginServerListener() {
             @Override
-            public void onAgenuiData(PluginSession s, AgenuiDataPayload payload) {
+            public void onAGenUIData(PluginSession s, AGenUIDataPayload payload) {
                 receivedRef.set(payload);
                 latch.countDown();
             }
@@ -114,29 +119,29 @@ public class AgenuiIntegrationTest {
         data.put("status", "playing");
         data.put("volume", 80);
 
-        AgenuiDataResultPayload ack = client.sendAgenuiData("audio_event", data).get(3, TimeUnit.SECONDS);
+        String dataJson = Json.mapper().writeValueAsString(data);
+        AGenUIDataResultPayload ack = client.sendAGenUIData(dataJson).get(3, TimeUnit.SECONDS);
         assertTrue("ack 应成功", ack.success);
 
         assertTrue("listener 应收到回调", latch.await(3, TimeUnit.SECONDS));
         assertNotNull(receivedRef.get());
-        assertEquals("audio_event", receivedRef.get().dataType);
-        assertEquals(data, receivedRef.get().data);
+        assertEquals(dataJson, receivedRef.get().data);
 
-        assertEquals(data, session.agenuiData("audio_event"));
+        assertEquals(dataJson, session.aGenUIData());
     }
 
-    // ====== 2. client.sendAgenuiUpdateDataModel → server 存储 + listener.onAgenuiUpdateDataModel ======
+    // ====== 2. client.sendAGenUIUpdateDataModel → server 存储 + listener.onAGenUIUpdateDataModel ======
 
     @Test
-    public void testSendAgenuiUpdateDataModelStoresAndNotifies() throws Exception {
-        PluginSession session = startClientWithSupportsAgenui(true);
+    public void testSendAGenUIUpdateDataModelStoresAndNotifies() throws Exception {
+        PluginSession session = startClientWithSupportsAGenUI(true);
 
         final CountDownLatch latch = new CountDownLatch(1);
-        final AtomicReference<AgenuiUpdateDataModelPayload> receivedRef =
-                new AtomicReference<AgenuiUpdateDataModelPayload>();
+        final AtomicReference<AGenUIUpdateDataModelPayload> receivedRef =
+                new AtomicReference<AGenUIUpdateDataModelPayload>();
         server.setListener(new PluginServerListener() {
             @Override
-            public void onAgenuiUpdateDataModel(PluginSession s, AgenuiUpdateDataModelPayload payload) {
+            public void onAGenUIUpdateDataModel(PluginSession s, AGenUIUpdateDataModelPayload payload) {
                 receivedRef.set(payload);
                 latch.countDown();
             }
@@ -146,27 +151,27 @@ public class AgenuiIntegrationTest {
         model.put("phase", "thinking");
         model.put("text", "你好");
 
-        AgenuiUpdateDataModelResultPayload ack = client.sendAgenuiUpdateDataModel("agent_state", model, false)
+        String modelJson = Json.mapper().writeValueAsString(model);
+        AGenUIUpdateDataModelResultPayload ack = client.sendAGenUIUpdateDataModel(modelJson, false)
                 .get(3, TimeUnit.SECONDS);
         assertTrue("ack 应成功", ack.success);
 
         assertTrue("listener 应收到回调", latch.await(3, TimeUnit.SECONDS));
         assertNotNull(receivedRef.get());
-        assertEquals("agent_state", receivedRef.get().modelType);
-        assertEquals(model, receivedRef.get().dataModel);
+        assertEquals(modelJson, receivedRef.get().dataModel);
         assertFalse("非增量", receivedRef.get().incremental);
 
-        assertEquals(model, session.agenuiDataModel("agent_state"));
+        assertEquals(modelJson, session.aGenUIDataModel());
     }
 
     @Test
-    public void testSendAgenuiUpdateDataModelIncremental() throws Exception {
-        startClientWithSupportsAgenui(true);
+    public void testSendAGenUIUpdateDataModelIncremental() throws Exception {
+        startClientWithSupportsAGenUI(true);
 
         final CountDownLatch latch = new CountDownLatch(1);
         server.setListener(new PluginServerListener() {
             @Override
-            public void onAgenuiUpdateDataModel(PluginSession s, AgenuiUpdateDataModelPayload payload) {
+            public void onAGenUIUpdateDataModel(PluginSession s, AGenUIUpdateDataModelPayload payload) {
                 latch.countDown();
             }
         });
@@ -174,17 +179,18 @@ public class AgenuiIntegrationTest {
         Map<String, Object> incrementalModel = new HashMap<String, Object>();
         incrementalModel.put("phase", "acting");
 
-        AgenuiUpdateDataModelResultPayload ack = client.sendAgenuiUpdateDataModel(
-                "agent_state", incrementalModel, true).get(3, TimeUnit.SECONDS);
+        String incJson = Json.mapper().writeValueAsString(incrementalModel);
+        AGenUIUpdateDataModelResultPayload ack = client.sendAGenUIUpdateDataModel(
+                incJson, true).get(3, TimeUnit.SECONDS);
         assertTrue(ack.success);
         assertTrue("listener 应收到回调", latch.await(3, TimeUnit.SECONDS));
     }
 
-    // ====== 3. server.callAgenuiAction → client.onAgenuiActionCall → responder.sendSuccess ======
+    // ====== 3. server.callAGenUIAction → client.onAGenUIActionCall → responder.sendSuccess ======
 
     @Test
-    public void testCallAgenuiActionOk() throws Exception {
-        startClientWithSupportsAgenui(true);
+    public void testCallAGenUIActionOk() throws Exception {
+        startClientWithSupportsAGenUI(true);
 
         final CountDownLatch handled = new CountDownLatch(1);
         final AtomicReference<String> actionIdRef = new AtomicReference<String>();
@@ -195,7 +201,7 @@ public class AgenuiIntegrationTest {
             @Override public void onCall(CallPayload payload, com.ultrabar.plugin.callback.CallResponder responder) {}
 
             @Override
-            public void onAgenuiActionCall(AgenuiActionCallPayload payload, AgenuiActionCallResponder responder) {
+            public void onAGenUIActionCall(AGenUIActionCallPayload payload, AGenUIActionCallResponder responder) {
                 actionIdRef.set(payload.actionId);
                 paramsRef.set(payload.params);
                 Map<String, Object> result = new HashMap<String, Object>();
@@ -208,7 +214,8 @@ public class AgenuiIntegrationTest {
         Map<String, Object> params = new HashMap<String, Object>();
         params.put("prompt", "hello");
 
-        AgenuiActionCallResultPayload result = server.callAgenuiAction(PKG, "agenui_chat", params)
+        String json = "{\"actionId\":\"agenui_chat\",\"params\":{\"prompt\":\"hello\"}}";
+        AGenUIActionCallResultPayload result = server.callAGenUIAction(PKG, json)
                 .get(3, TimeUnit.SECONDS);
 
         assertTrue("call 应成功", result.success);
@@ -220,8 +227,8 @@ public class AgenuiIntegrationTest {
     }
 
     @Test
-    public void testCallAgenuiActionClientRespondsError() throws Exception {
-        startClientWithSupportsAgenui(true);
+    public void testCallAGenUIActionClientRespondsError() throws Exception {
+        startClientWithSupportsAGenUI(true);
 
         final CountDownLatch handled = new CountDownLatch(1);
         client.setPluginListener(new PluginListener() {
@@ -229,13 +236,13 @@ public class AgenuiIntegrationTest {
             @Override public void onCall(CallPayload payload, com.ultrabar.plugin.callback.CallResponder responder) {}
 
             @Override
-            public void onAgenuiActionCall(AgenuiActionCallPayload payload, AgenuiActionCallResponder responder) {
+            public void onAGenUIActionCall(AGenUIActionCallPayload payload, AGenUIActionCallResponder responder) {
                 responder.sendError("NO_SUPPORT", "unknown action", false);
                 handled.countDown();
             }
         });
 
-        AgenuiActionCallResultPayload result = server.callAgenuiAction(PKG, "agenui_reset", null)
+        AGenUIActionCallResultPayload result = server.callAGenUIAction(PKG, "{\"actionId\":\"agenui_reset\"}")
                 .get(3, TimeUnit.SECONDS);
 
         assertFalse("客户端拒绝时 result.success 应为 false", result.success);
@@ -245,15 +252,15 @@ public class AgenuiIntegrationTest {
     }
 
     @Test
-    public void testCallAgenuiActionRejectedWhenNotSupports() throws Exception {
-        startClientWithSupportsAgenui(false);
+    public void testCallAGenUIActionRejectedWhenNotSupports() throws Exception {
+        startClientWithSupportsAGenUI(false);
 
-        CompletableFuture<AgenuiActionCallResultPayload> future =
-                server.callAgenuiAction(PKG, "agenui_chat", null);
+        CompletableFuture<AGenUIActionCallResultPayload> future =
+                server.callAGenUIAction(PKG, "{\"actionId\":\"agenui_chat\"}");
 
         try {
             future.get(1, TimeUnit.SECONDS);
-            fail("supportsAgenui=false 时应抛 Exception");
+            fail("supportsAGenUI=false 时应抛 Exception");
         } catch (java.util.concurrent.ExecutionException ex) {
             assertTrue("错误信息应包含 supports agenui",
                     ex.getCause().getMessage().contains("does not support agenui"));
@@ -261,11 +268,11 @@ public class AgenuiIntegrationTest {
     }
 
     @Test
-    public void testCallAgenuiActionUnknownPackage() throws Exception {
-        startClientWithSupportsAgenui(true);
+    public void testCallAGenUIActionUnknownPackage() throws Exception {
+        startClientWithSupportsAGenUI(true);
 
-        CompletableFuture<AgenuiActionCallResultPayload> future =
-                server.callAgenuiAction("com.unknown.pkg", "agenui_chat", null);
+        CompletableFuture<AGenUIActionCallResultPayload> future =
+                server.callAGenUIAction("com.unknown.pkg", "{\"actionId\":\"agenui_chat\"}");
 
         try {
             future.get(1, TimeUnit.SECONDS);
@@ -277,18 +284,18 @@ public class AgenuiIntegrationTest {
     }
 
     @Test
-    public void testCallAgenuiActionTimeoutWhenClientSilent() throws Exception {
-        startClientWithSupportsAgenui(true);
+    public void testCallAGenUIActionTimeoutWhenClientSilent() throws Exception {
+        startClientWithSupportsAGenUI(true);
 
-        // 不实现 onAgenuiActionCall，让插件默认返回 NO_HANDLER
+        // 不实现 onAGenUIActionCall，让插件默认返回 NO_HANDLER
         // 但我们不期望默认处理——测试的是默认 NO_HANDLER 立即响应后 server 端 result.error 被设置
         client.setPluginListener(new PluginListener() {
             @Override public void onRegisterSuccess(RegisterResultPayload payload) {}
             @Override public void onCall(CallPayload payload, com.ultrabar.plugin.callback.CallResponder responder) {}
-            // onAgenuiActionCall 不实现，走 PluginListener 默认：responder.sendError(NO_HANDLER, ...)
+            // onAGenUIActionCall 不实现，走 PluginListener 默认：responder.sendError(NO_HANDLER, ...)
         });
 
-        AgenuiActionCallResultPayload result = server.callAgenuiAction(PKG, "agenui_chat", null)
+        AGenUIActionCallResultPayload result = server.callAGenUIAction(PKG, "{\"actionId\":\"agenui_chat\"}")
                 .get(3, TimeUnit.SECONDS);
 
         assertFalse("默认 NO_HANDLER 应返回 false", result.success);
