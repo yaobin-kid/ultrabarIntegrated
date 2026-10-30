@@ -240,7 +240,7 @@ rp.supportsAGenUI = true;   // 第 4 点
 
 ```
 服务端                                         客户端
-  │  server.callAGenUIAction(pkg, "{...}")    │
+  │  server.callAGenUIAction(pkg, "chat", argsJson) │
   │  ① 校验 session.supportsAGenUI()          │
   │  ─── AGENUI_ACTION_CALL ───────────────► │
   │                                           │  InboundDispatcher.handleAGenUIActionCall()
@@ -253,16 +253,13 @@ rp.supportsAGenUI = true;   // 第 4 点
 
 ```java
 CompletableFuture<AGenUIActionCallResultPayload> callAGenUIAction(
-        String packageName, String json)
+        String packageName, String functionName, String args)
 ```
 
-- `json` 为 JSON 字符串，需包含 `actionId` 与可选的 `params` 字段，例如：
-  ```
-  {"actionId":"agenui_chat","params":{"prompt":"hello"}}
-  ```
+- `args` 为 JSON 字符串（可为 null），例如 `"{\"prompt\":\"hello\"}"`
 - 若 session 不存在 → Future 立即失败 `"no active session"`
 - 若 session 未声明 `supportsAGenUI=true` → Future 立即失败 `"does not support agenui"`
-- 若 JSON 非法或缺少 `actionId` → Future 立即失败并附原因
+- 若 `functionName` 为空 → Future 立即失败
 
 ### 5.3 客户端回调：PluginListener.onAGenUIActionCall
 
@@ -437,7 +434,7 @@ server.removeAllFallbacks(ModuleType module);
 | `setRegisterHandler(PluginRegisterHandler)` | 自定义注册逻辑 |
 | `setListener(PluginServerListener)` | 设置全局监听器 |
 | `call(String pkg, String actionId, Map params)` | 调用插件 Action |
-| `callAGenUIAction(String pkg, String json)` | 调用插件 AGenUI Action（json 需含 actionId/params） |
+| `callAGenUIAction(String pkg, String functionName, String args)` | 调用插件 AGenUI Action |
 | `setAppState(String pkg, boolean foreground)` | 设置插件前后台 |
 | `setForegroundApp(String pkg)` | 该插件前台，其余后台 |
 | `sendModuleEvent(ModuleType, String moduleId, String action, Object event)` | 触发模块事件 |
@@ -683,11 +680,11 @@ public class HostApp {
         // 7. 调用插件的 AGenUI action call
         //    · session 不存在 → Future 立即失败 "no active session"
         //    · session.supportsAGenUI() == false → Future 立即失败 "does not support agenui"
-        //    · json 需包含 actionId 与可选的 params 字段
+        //    · functionName 为空 → Future 立即失败
         // ──────────────────────────────
-        String agenuiJson = "{\"actionId\":\"chat\",\"params\":{\"question\":\"现在播放的是什么歌？\"}}";
+        String argsJson = Json.mapper().writeValueAsString(Map.of("question", "现在播放的是什么歌？"));
         CompletableFuture<AGenUIActionCallResultPayload> agenuiFut =
-                server.callAGenUIAction("com.ultrabar.music", agenuiJson);
+                server.callAGenUIAction("com.ultrabar.music", "chat", argsJson);
         agenuiFut.whenComplete((result, err) -> {
             if (err != null) {
                 System.out.println("[host] AGenUI action failed: " + err.getMessage());
@@ -950,23 +947,29 @@ public class MusicPlugin {
             @Override
             public void onAGenUIActionCall(AGenUIActionCallPayload payload,
                                             AGenUIActionCallResponder responder) {
-                String actionId = payload.actionId;
-                Map<String, Object> params = payload.params;
-                System.out.println("[music] AGenUI action call=" + actionId + " params=" + params);
+                String functionName = payload.functionName;
+                String argsJson = payload.args;
+                System.out.println("[music] AGenUI function=" + functionName + " args=" + argsJson);
 
-                switch (actionId) {
+                switch (functionName) {
                     case "chat": {
-                        String question = (String) params.get("question");
-                        Map<String, Object> reply = new HashMap<>();
-                        reply.put("answer", "当前正在播放：周杰伦 - 晴天");
-                        reply.put("question", question);
-                        responder.sendSuccess(reply);
+                        try {
+                            @SuppressWarnings("unchecked")
+                            Map<String, Object> args = Json.mapper().readValue(argsJson, Map.class);
+                            String question = (String) args.get("question");
+                            Map<String, Object> reply = new HashMap<>();
+                            reply.put("answer", "当前正在播放：周杰伦 - 晴天");
+                            reply.put("question", question);
+                            responder.sendSuccess(reply);
+                        } catch (Exception e) {
+                            responder.sendError(ErrorCodes.INTERNAL, "args json invalid: " + e.getMessage(), false);
+                        }
                         break;
                     }
                     default: {
                         // 对于自己不认识的 AGenUI action，沿用默认 NO_HANDLER 行为
                         responder.sendError(ErrorCodes.NO_HANDLER,
-                                "no handler for agenui action: " + actionId, false);
+                                "no handler for agenui function: " + functionName, false);
                     }
                 }
             }

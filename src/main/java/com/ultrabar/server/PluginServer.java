@@ -146,6 +146,17 @@ public class PluginServer {
         return sessions.all();
     }
 
+    /** 返回所有声明了 supportsAGenUI=true 的在线插件会话。 */
+    public Collection<PluginSession> sessionsSupportingAGenUI() {
+        java.util.List<PluginSession> result = new java.util.ArrayList<PluginSession>();
+        for (PluginSession s : sessions.all()) {
+            if (s.supportsAGenUI()) {
+                result.add(s);
+            }
+        }
+        return result;
+    }
+
     /** 返回服务端实际绑定的端口（start() 后可用；port=0 时由 OS 分配）。 */
     public int getPort() {
         return boundPort > 0 ? boundPort : port;
@@ -206,12 +217,12 @@ public class PluginServer {
      * 调用指定插件的 agenui action。
      * 插件必须在注册时声明 {@link RegisterPayload#supportsAGenUI} 为 true 才会被接受。
      *
-     * @param packageName 目标插件包名
-     * @param json        JSON 字符串，需包含 actionId 与 params 字段，例如：
-     *                    {@code "{\"actionId\":\"agenui_chat\",\"params\":{\"prompt\":\"hello\"}}"}
+     * @param packageName  目标插件包名
+     * @param functionName 函数名
+     * @param args         调用参数 JSON 字符串（可为 null）
      */
     public CompletableFuture<AGenUIActionCallResultPayload> callAGenUIAction(
-            String packageName, String json) {
+            String packageName, String functionName, String args) {
         PluginSession session;
         try {
             session = getValidSession(packageName);
@@ -222,16 +233,10 @@ public class PluginServer {
             return failedFuture(new IllegalStateException(
                     "package " + packageName + " does not support agenui"));
         }
-        AGenUIActionCallPayload payload;
-        try {
-            payload = mapper.readValue(json, AGenUIActionCallPayload.class);
-        } catch (Exception e) {
-            return failedFuture(new IllegalArgumentException(
-                    "invalid json for agenui action call: " + e.getMessage(), e));
+        if (functionName == null || functionName.isEmpty()) {
+            return failedFuture(new IllegalArgumentException("functionName must not be empty"));
         }
-        if (payload == null || payload.actionId == null || payload.actionId.isEmpty()) {
-            return failedFuture(new IllegalArgumentException("json must contain non-empty actionId"));
-        }
+        AGenUIActionCallPayload payload = new AGenUIActionCallPayload(functionName, args);
         return request(session, MessageType.AGENUI_ACTION_CALL, payload, AGenUIActionCallResultPayload.class);
     }
 

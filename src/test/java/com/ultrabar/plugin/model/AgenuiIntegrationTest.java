@@ -193,8 +193,8 @@ public class AGenUIIntegrationTest {
         startClientWithSupportsAGenUI(true);
 
         final CountDownLatch handled = new CountDownLatch(1);
-        final AtomicReference<String> actionIdRef = new AtomicReference<String>();
-        final AtomicReference<Map<?, ?>> paramsRef = new AtomicReference<Map<?, ?>>();
+        final AtomicReference<String> functionNameRef = new AtomicReference<String>();
+        final AtomicReference<String> argsRef = new AtomicReference<String>();
 
         client.setPluginListener(new PluginListener() {
             @Override public void onRegisterSuccess(RegisterResultPayload payload) {}
@@ -202,8 +202,8 @@ public class AGenUIIntegrationTest {
 
             @Override
             public void onAGenUIActionCall(AGenUIActionCallPayload payload, AGenUIActionCallResponder responder) {
-                actionIdRef.set(payload.actionId);
-                paramsRef.set(payload.params);
+                functionNameRef.set(payload.functionName);
+                argsRef.set(payload.args);
                 Map<String, Object> result = new HashMap<String, Object>();
                 result.put("reply", "hello back");
                 responder.sendSuccess(result);
@@ -213,17 +213,17 @@ public class AGenUIIntegrationTest {
 
         Map<String, Object> params = new HashMap<String, Object>();
         params.put("prompt", "hello");
+        String argsJson = Json.mapper().writeValueAsString(params);
 
-        String json = "{\"actionId\":\"agenui_chat\",\"params\":{\"prompt\":\"hello\"}}";
-        AGenUIActionCallResultPayload result = server.callAGenUIAction(PKG, json)
+        AGenUIActionCallResultPayload result = server.callAGenUIAction(PKG, "agenui_chat", argsJson)
                 .get(3, TimeUnit.SECONDS);
 
         assertTrue("call 应成功", result.success);
         assertEquals("hello back", ((Map<?, ?>) result.result).get("reply"));
 
         assertTrue("client 应收到 action call", handled.await(3, TimeUnit.SECONDS));
-        assertEquals("agenui_chat", actionIdRef.get());
-        assertEquals(params, paramsRef.get());
+        assertEquals("agenui_chat", functionNameRef.get());
+        assertEquals(argsJson, argsRef.get());
     }
 
     @Test
@@ -242,7 +242,7 @@ public class AGenUIIntegrationTest {
             }
         });
 
-        AGenUIActionCallResultPayload result = server.callAGenUIAction(PKG, "{\"actionId\":\"agenui_reset\"}")
+        AGenUIActionCallResultPayload result = server.callAGenUIAction(PKG, "agenui_reset", null)
                 .get(3, TimeUnit.SECONDS);
 
         assertFalse("客户端拒绝时 result.success 应为 false", result.success);
@@ -256,7 +256,7 @@ public class AGenUIIntegrationTest {
         startClientWithSupportsAGenUI(false);
 
         CompletableFuture<AGenUIActionCallResultPayload> future =
-                server.callAGenUIAction(PKG, "{\"actionId\":\"agenui_chat\"}");
+                server.callAGenUIAction(PKG, "agenui_chat", null);
 
         try {
             future.get(1, TimeUnit.SECONDS);
@@ -272,7 +272,7 @@ public class AGenUIIntegrationTest {
         startClientWithSupportsAGenUI(true);
 
         CompletableFuture<AGenUIActionCallResultPayload> future =
-                server.callAGenUIAction("com.unknown.pkg", "{\"actionId\":\"agenui_chat\"}");
+                server.callAGenUIAction("com.unknown.pkg", "agenui_chat", null);
 
         try {
             future.get(1, TimeUnit.SECONDS);
@@ -295,7 +295,7 @@ public class AGenUIIntegrationTest {
             // onAGenUIActionCall 不实现，走 PluginListener 默认：responder.sendError(NO_HANDLER, ...)
         });
 
-        AGenUIActionCallResultPayload result = server.callAGenUIAction(PKG, "{\"actionId\":\"agenui_chat\"}")
+        AGenUIActionCallResultPayload result = server.callAGenUIAction(PKG, "agenui_chat", null)
                 .get(3, TimeUnit.SECONDS);
 
         assertFalse("默认 NO_HANDLER 应返回 false", result.success);

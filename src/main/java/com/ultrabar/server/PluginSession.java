@@ -81,15 +81,6 @@ public final class PluginSession {
     }
 
 
-    public String toSurfaceId() {
-        StringBuilder builder = new StringBuilder("agenui_");
-        for (int i = 0; i < packageName.length(); i++) {
-            char c = packageName.charAt(i);
-            builder.append(Character.isLetterOrDigit(c) ? c : '_');
-        }
-        return builder.toString();
-    }
-
     public List<ActionSummary> actions(Features... features) {
         return actions().stream().filter(f -> f.supportsAll(features))
                 .collect(Collectors.toList());
@@ -260,5 +251,16 @@ public final class PluginSession {
         }
 
         touch();
+    }
+
+
+
+    public String toSurfaceId() {
+        StringBuilder builder = new StringBuilder("agenui_");
+        for (int i = 0; i < packageName.length(); i++) {
+            char c = packageName.charAt(i);
+            builder.append(Character.isLetterOrDigit(c) ? c : '_');
+        }
+        return builder.toString();
     }
 }
