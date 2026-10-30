@@ -50,4 +50,13 @@ public interface PluginListener {
 
     default void onOptions(GetOptionsPayload payload, OptionsResponder responder) {
     }
+
+    /**
+     * 收到服务端发起的 agenui action call。
+     * 需通过 {@link AgenuiActionCallResponder#sendSuccess(Object)} 或
+     * {@link AgenuiActionCallResponder#sendError(String, String, boolean)} 响应。
+     */
+    default void onAgenuiActionCall(AgenuiActionCallPayload payload, AgenuiActionCallResponder responder) {
+        responder.sendError(ErrorCodes.NO_HANDLER, "no agenui action handler registered", false);
+    }
 }

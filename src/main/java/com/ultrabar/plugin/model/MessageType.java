@@ -34,6 +34,13 @@ public enum MessageType {
     MODULE_EVENT("module_event", ModuleEventPayload.class),
     MODULE_EVENT_RESULT("module_event_result", ModuleEventResultPayload.class),
 
+    AGENUI_DATA("agenui_data", AgenuiDataPayload.class),
+    AGENUI_DATA_RESULT("agenui_data_result", AgenuiDataResultPayload.class),
+    AGENUI_UPDATE_DATA_MODEL("agenui_update_data_model", AgenuiUpdateDataModelPayload.class),
+    AGENUI_UPDATE_DATA_MODEL_RESULT("agenui_update_data_model_result", AgenuiUpdateDataModelResultPayload.class),
+    AGENUI_ACTION_CALL("agenui_action_call", AgenuiActionCallPayload.class),
+    AGENUI_ACTION_CALL_RESULT("agenui_action_call_result", AgenuiActionCallResultPayload.class),
+
     TASK_UPDATE("task_update", TaskUpdatePayload.class);
 
 

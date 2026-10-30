@@ -11,6 +11,10 @@ import com.ultrabar.plugin.internal.ListenerNotifier;
 import com.ultrabar.plugin.internal.RequestTable;
 import com.ultrabar.plugin.internal.SessionState;
 import com.ultrabar.plugin.model.ActionsPayload;
+import com.ultrabar.plugin.model.AgenuiDataPayload;
+import com.ultrabar.plugin.model.AgenuiDataResultPayload;
+import com.ultrabar.plugin.model.AgenuiUpdateDataModelPayload;
+import com.ultrabar.plugin.model.AgenuiUpdateDataModelResultPayload;
 import com.ultrabar.plugin.model.EventPayload;
 import com.ultrabar.plugin.model.EventResultPayload;
 import com.ultrabar.plugin.model.Json;
@@ -142,7 +146,7 @@ public class PluginClient {
         return envelopes.request(MessageType.REPORT, report, ReportResultPayload.class);
     }
 
-    private CompletableFuture<EventResultPayload> sendEvent(String eventId, Map<String, Object> params) {
+    public CompletableFuture<EventResultPayload> sendEvent(String eventId, Map<String, Object> params) {
         EventPayload event = new EventPayload();
         event.eventId = eventId;
         event.params = params;
@@ -197,6 +201,41 @@ public class PluginClient {
         }
         envelopes.sendOneWay(MessageType.MODULE_EVENT_REGISTER,
                 new ModuleEventRegisterPayload(new ArrayList<ModuleType>(moduleEvents)));
+    }
+
+    /**
+     * 上报 agenui 数据到服务端。服务端会将数据缓存到 PluginSession 中，
+     * 并通过 {@link PluginServerListener#onAgenuiData} 回调通知宿主。
+     *
+     * @param dataType 数据类型标识
+     * @param data     原始数据
+     */
+    public CompletableFuture<AgenuiDataResultPayload> sendAgenuiData(String dataType, Object data) {
+        AgenuiDataPayload payload = new AgenuiDataPayload(dataType, data);
+        return envelopes.request(MessageType.AGENUI_DATA, payload, AgenuiDataResultPayload.class);
+    }
+
+    /**
+     * 上报 agenui updateDataModel 到服务端。服务端会将 dataModel 缓存到 PluginSession 中，
+     * 并通过 {@link PluginServerListener#onAgenuiUpdateDataModel} 回调通知宿主。
+     *
+     * @param modelType dataModel 类型标识
+     * @param dataModel 完整 dataModel 对象
+     */
+    public CompletableFuture<AgenuiUpdateDataModelResultPayload> sendAgenuiUpdateDataModel(
+            String modelType, Object dataModel) {
+        return sendAgenuiUpdateDataModel(modelType, dataModel, false);
+    }
+
+    /**
+     * 同 {@link #sendAgenuiUpdateDataModel(String, Object)}，但可标记是否为增量更新。
+     */
+    public CompletableFuture<AgenuiUpdateDataModelResultPayload> sendAgenuiUpdateDataModel(
+            String modelType, Object dataModel, boolean incremental) {
+        AgenuiUpdateDataModelPayload payload = new AgenuiUpdateDataModelPayload(modelType, dataModel);
+        payload.incremental = incremental;
+        return envelopes.request(MessageType.AGENUI_UPDATE_DATA_MODEL, payload,
+                AgenuiUpdateDataModelResultPayload.class);
     }
 
     public CompletableFuture<Void> startAsync() {

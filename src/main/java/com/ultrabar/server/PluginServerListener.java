@@ -1,5 +1,7 @@
 package com.ultrabar.server;
 
+import com.ultrabar.plugin.model.AgenuiDataPayload;
+import com.ultrabar.plugin.model.AgenuiUpdateDataModelPayload;
 import com.ultrabar.plugin.model.EventPayload;
 import com.ultrabar.plugin.model.ModuleEventPayload;
 import com.ultrabar.plugin.model.ReportPayload;
@@ -32,6 +34,20 @@ public interface PluginServerListener {
      */
     default void onModuleEventFallback(ModuleEventPayload event) {
 
+    }
+
+    /**
+     * 插件端上报 agenui 数据时触发。
+     * 此时数据已存入 {@link PluginSession} 中。
+     */
+    default void onAgenuiData(PluginSession session, AgenuiDataPayload payload) {
+    }
+
+    /**
+     * 插件端上报 agenui updateDataModel 时触发。
+     * 此时 dataModel 已存入 {@link PluginSession} 中。
+     */
+    default void onAgenuiUpdateDataModel(PluginSession session, AgenuiUpdateDataModelPayload payload) {
     }
 
 }

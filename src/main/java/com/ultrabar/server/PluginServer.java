@@ -61,6 +61,7 @@ public class PluginServer {
     private EventLoopGroup workerGroup;
     private Channel bindChannel;
     private final String ip;
+    private volatile int boundPort;
 
     public PluginServer() {
         this(39001);
@@ -114,6 +115,7 @@ public class PluginServer {
                 });
         ChannelFuture future = bootstrap.bind(ip, port).sync();
         bindChannel = future.channel();
+        this.boundPort = ((java.net.InetSocketAddress) bindChannel.localAddress()).getPort();
         scheduler.scheduleAtFixedRate(new Runnable() {
             @Override
             public void run() {
@@ -142,6 +144,11 @@ public class PluginServer {
 
     public Collection<PluginSession> sessions() {
         return sessions.all();
+    }
+
+    /** 返回服务端实际绑定的端口（start() 后可用；port=0 时由 OS 分配）。 */
+    public int getPort() {
+        return boundPort > 0 ? boundPort : port;
     }
 
     /**
@@ -193,6 +200,30 @@ public class PluginServer {
         payload.params = params;
         payload.idempotencyKey = RequestIds.next();
         return request(session, MessageType.CALL, payload, CallResultPayload.class);
+    }
+
+    /**
+     * 调用指定插件的 agenui action。
+     * 插件必须在注册时声明 {@link RegisterPayload#supportsAgenui} 为 true 才会被接受。
+     *
+     * @param packageName 目标插件包名
+     * @param actionId    agenui action id，如 "agenui_chat" / "agenui_reset"
+     * @param params      调用参数
+     */
+    public CompletableFuture<AgenuiActionCallResultPayload> callAgenuiAction(
+            String packageName, String actionId, Map<String, Object> params) {
+        PluginSession session;
+        try {
+            session = getValidSession(packageName);
+        } catch (IllegalStateException e) {
+            return failedFuture(e);
+        }
+        if (!session.supportsAgenui()) {
+            return failedFuture(new IllegalStateException(
+                    "package " + packageName + " does not support agenui"));
+        }
+        AgenuiActionCallPayload payload = new AgenuiActionCallPayload(actionId, params);
+        return request(session, MessageType.AGENUI_ACTION_CALL, payload, AgenuiActionCallResultPayload.class);
     }
 
 
@@ -491,6 +522,7 @@ public class PluginServer {
             case TOPIC_RESULT:
             case MODULE_EVENT_RESULT:
             case HEARTBEAT_ACK:
+            case AGENUI_ACTION_CALL_RESULT:
                 pending.complete(envelope.getRequestId(), envelope.getPayload());
                 return;
             case TASK_UPDATE:
@@ -507,6 +539,12 @@ public class PluginServer {
                 return;
             case MODULE_EVENT_UNREGISTER:
                 handleModuleEventUnregister(channel, envelope);
+                return;
+            case AGENUI_DATA:
+                handleAgenuiData(channel, envelope);
+                return;
+            case AGENUI_UPDATE_DATA_MODEL:
+                handleAgenuiUpdateDataModel(channel, envelope);
                 return;
 
             default:
@@ -727,6 +765,77 @@ public class PluginServer {
             return;
         }
         session.unregisterModuleEvents(payload.modules);
+    }
+
+    private void handleAgenuiData(Channel channel, Envelope envelope) {
+        PluginSession session = sessions.resolve(channel, envelope.getSessionId());
+        if (session == null) {
+            log.warn("agenui_data without session from {}", channel.remoteAddress());
+            return;
+        }
+        session.touch();
+        AgenuiDataPayload payload;
+        AgenuiDataResultPayload ack = new AgenuiDataResultPayload();
+        ack.success = true;
+        try {
+            payload = envelope.payloadAs(AgenuiDataPayload.class);
+        } catch (Exception e) {
+            ack.success = false;
+            ack.error = ErrorInfo.of(ErrorCodes.INVALID_PAYLOAD, e.getMessage(), false, null);
+            write(channel, Envelope.of(MessageType.AGENUI_DATA_RESULT, envelope.getRequestId(), ack)
+                    .withSession(session.sessionId(), session.sessionToken()));
+            return;
+        }
+        if (payload != null) {
+            if (payload.timestamp == null) {
+                payload.timestamp = System.currentTimeMillis();
+            }
+            session.setAgenuiData(payload.dataType, payload.data);
+            try {
+                listener.onAgenuiData(session, payload);
+            } catch (Exception e) {
+                log.error("onAgenuiData listener failed packageName={}", session.packageName(), e);
+            }
+        }
+        write(channel, Envelope.of(MessageType.AGENUI_DATA_RESULT, envelope.getRequestId(), ack)
+                .withSession(session.sessionId(), session.sessionToken()));
+    }
+
+    private void handleAgenuiUpdateDataModel(Channel channel, Envelope envelope) {
+        PluginSession session = sessions.resolve(channel, envelope.getSessionId());
+        if (session == null) {
+            log.warn("agenui_update_data_model without session from {}", channel.remoteAddress());
+            return;
+        }
+        session.touch();
+        AgenuiUpdateDataModelPayload payload;
+        AgenuiUpdateDataModelResultPayload ack = new AgenuiUpdateDataModelResultPayload();
+        ack.success = true;
+        try {
+            payload = envelope.payloadAs(AgenuiUpdateDataModelPayload.class);
+        } catch (Exception e) {
+            ack.success = false;
+            ack.error = ErrorInfo.of(ErrorCodes.INVALID_PAYLOAD, e.getMessage(), false, null);
+            write(channel, Envelope.of(MessageType.AGENUI_UPDATE_DATA_MODEL_RESULT, envelope.getRequestId(), ack)
+                    .withSession(session.sessionId(), session.sessionToken()));
+            return;
+        }
+        if (payload != null) {
+            if (payload.timestamp == null) {
+                payload.timestamp = System.currentTimeMillis();
+            }
+            if (payload.incremental == null) {
+                payload.incremental = false;
+            }
+            session.setAgenuiDataModel(payload.modelType, payload.dataModel);
+            try {
+                listener.onAgenuiUpdateDataModel(session, payload);
+            } catch (Exception e) {
+                log.error("onAgenuiUpdateDataModel listener failed packageName={}", session.packageName(), e);
+            }
+        }
+        write(channel, Envelope.of(MessageType.AGENUI_UPDATE_DATA_MODEL_RESULT, envelope.getRequestId(), ack)
+                .withSession(session.sessionId(), session.sessionToken()));
     }
 
     private PluginSession requireSession(Channel channel, Envelope envelope, MessageType replyType) {

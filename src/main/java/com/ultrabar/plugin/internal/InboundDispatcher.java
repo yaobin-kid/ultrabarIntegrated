@@ -1,12 +1,16 @@
 package com.ultrabar.plugin.internal;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ultrabar.plugin.callback.AgenuiActionCallResponder;
 import com.ultrabar.plugin.callback.CallResponder;
 import com.ultrabar.plugin.callback.DescribeResponder;
 import com.ultrabar.plugin.callback.ModuleEventResponder;
 import com.ultrabar.plugin.callback.OptionsResponder;
 import com.ultrabar.plugin.callback.TopicResponder;
 import com.ultrabar.plugin.model.ActionsPayload;
+import com.ultrabar.plugin.model.AgenuiActionCallPayload;
+import com.ultrabar.plugin.model.AgenuiDataResultPayload;
+import com.ultrabar.plugin.model.AgenuiUpdateDataModelResultPayload;
 import com.ultrabar.plugin.model.CallPayload;
 import com.ultrabar.plugin.model.DescribePayload;
 import com.ultrabar.plugin.model.Envelope;
@@ -63,6 +67,9 @@ public final class InboundDispatcher {
             case HEARTBEAT_ACK:
             case REPORT_RESULT:
             case EVENT_RESULT:
+            case AGENUI_DATA_RESULT:
+            case AGENUI_UPDATE_DATA_MODEL_RESULT:
+            case AGENUI_ACTION_CALL_RESULT:
                 if (!requests.complete(envelope.getRequestId(), envelope.getPayload())) {
                     log.debug("no pending request for type={} requestId={}", type, envelope.getRequestId());
                 }
@@ -84,6 +91,9 @@ public final class InboundDispatcher {
                 return;
             case MODULE_EVENT:
                 handleModuleEvent(channel, envelope);
+                return;
+            case AGENUI_ACTION_CALL:
+                handleAgenuiActionCall(channel, envelope);
                 return;
             default:
                 log.info("ignored inbound type={} requestId={}", type, envelope.getRequestId());
@@ -149,5 +159,17 @@ public final class InboundDispatcher {
             return;
         }
         notifier.onModuleEvent(payload, responder);
+    }
+
+    private void handleAgenuiActionCall(Channel channel, Envelope envelope) {
+        AgenuiActionCallResponder responder = new AgenuiActionCallResponder(
+                channel, envelope.getRequestId(), mapper,
+                session.sessionId(), session.sessionToken());
+        try {
+            AgenuiActionCallPayload payload = envelope.payloadAs(AgenuiActionCallPayload.class);
+            notifier.onAgenuiActionCall(payload, responder);
+        } catch (Exception e) {
+            responder.sendError(ErrorCodes.INVALID_PAYLOAD, e.getMessage(), false);
+        }
     }
 }
