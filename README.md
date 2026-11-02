@@ -2,25 +2,22 @@
 
 ### [English](README.md) | [简体中文](README_zh.md) | [日本語](README_ja.md)
 
-
 基于 Netty 的 Ultrabar 插件协议 SDK（协议 version = 2）。传输是 **一行一条 UTF-8 JSON**（`\n` 分帧）
 
+| 角色          | 类                                  | 用途                                              |
+| ----------- | ---------------------------------- | ----------------------------------------------- |
+| 插件侧端        | `com.ultrabar.plugin.PluginClient` | 注册、上报 actions、处理 describe / get\_options / call |
+| 主侧(LineOS)端 | `com.ultrabar.server.PluginServer` | 按 `packageName` 管理会话、保存动作、向插件发起 call            |
 
-| 角色          | 类 | 用途 |
-|-------------|---|---|
-| 插件侧端        | `com.ultrabar.plugin.PluginClient` | 注册、上报 actions、处理 describe / get_options / call |
-| 主侧(LineOS)端 | `com.ultrabar.server.PluginServer` | 按 `packageName` 管理会话、保存动作、向插件发起 call |
-
-三方开发者属于`插件侧端角色`，只集成 **PluginClient** 按步骤操作即可。` LineOS 将定期扫描 AndroidManifest.xml 数据，获取服务并启动（已启动将跳过）`
-
+三方开发者属于`插件侧端角色`，只集成 **PluginClient** 按步骤操作即可。  ` LineOS 将定期扫描 AndroidManifest.xml 数据，获取服务并启动（已启动将跳过）`
 
 ## 1.gradle 引入
+
 ```groovy
 repositories {
     maven { url 'https://jitpack.io' }
 }
 ```
-
 
 必要依赖：
 
@@ -31,6 +28,7 @@ implementation "io.netty:netty-all:4.1.94.Final"
 implementation "com.fasterxml.jackson.core:jackson-databind:2.15.2"
 implementation "org.slf4j:slf4j-simple:2.0.7"
 ```
+
 ```groovy
   packagingOptions {
         exclude 'META-INF/INDEX.LIST'
@@ -38,10 +36,12 @@ implementation "org.slf4j:slf4j-simple:2.0.7"
     }
 ```
 
->  **不要**使用 `netty-all`
+> **不要**使用 `netty-all`
 
 ## 2.服务
-`AndroidManifest.xml `：
+
+`AndroidManifest.xml `  ：
+
 ```xml
    <service
             android:name=".service.BackgroundService"
@@ -51,22 +51,27 @@ implementation "org.slf4j:slf4j-simple:2.0.7"
             <meta-data  android:name="ultrabar.plugin"   android:value="com.test.music" />
    </service>
 ```
+
 ### 必须的设置
 
-> `meta-data` 属性 取值为 `applicationId` <br>
-> `android:exported="true"` <br>
-> android:permission="com.ultrabar.plugin.SERVER_REGISER_PERMISSION"
+> `meta-data` 属性 取值为 `applicationId`
+> `android:exported="true"`
+> android:permission="com.ultrabar.plugin.SERVER\_REGISER\_PERMISSION"
 
 ## 3.权限
-`AndroidManifest.xml `：
+
+`AndroidManifest.xml `  ：
+
 ```xml
 <uses-permission android:name="android.permission.INTERNET" />
 ```
 
 ## 4. BackgroundService 服务参考代码
+
 > 需在服务里完成 `PluginClient` 的启动工作 `start()` 部分。
 >
 > 声明的 `BackgroundService` 系统自动扫描并完成启动工作（以启则跳过）。 开发阶段为验证流程开发者可自启
+
 ```java
 
 public class BackgroundService extends Service {
@@ -263,9 +268,6 @@ public class BackgroundService extends Service {
 
 }
 ```
-
-
-
 
 ## PluginClient 详细说明
 
@@ -559,9 +561,6 @@ public class BackgroundService extends Service {
 
 动作列表变化时调用 `client.updateActions(new ActionsPayload(...))`。
 
-
-
-
 ## PluginServer（主 App）
 
 会话按注册时的 `packageName` 唯一；同一 `packageName` 再次注册会顶掉旧连接。只有注册回调返回 `success == true` 才会创建 `PluginSession`。
@@ -616,8 +615,303 @@ server.call("com.ultrabar.music", "music.play", params);
 // server.stop();
 ```
 
-## 模块事件注册
-### DOT_KEY 模块注册 参考代码
+## AGenUI 功能（A2UI v0.9 协议）
+
+AGenUI 基于 **[A2UI v0.9 协议](https://a2ui.org/specification/v0.9-a2ui/)**，是插件（Agent）↔ 主 App（Renderer）之间的生成式 UI 通道：
+
+- **插件 → 主 App**：上报 A2UI envelope 消息（创建 surface、更新组件树、更新数据模型），主 App 缓存到 `PluginSession` 并通过 `PluginServerListener` 回调通知
+- **主 App → 插件**：用户在 UI 上的交互以 action 形式回传给插件处理
+
+> ⚠️ **协议版本**：本功能传输的所有 JSON 均为 **A2UI v0.9** 格式，每条 envelope 必须带 `"version": "v0.9"` 字段。**不要**使用 v0.8 的 `beginRendering` / `surfaceUpdate` / `dataModelUpdate` 消息名。
+
+### A2UI v0.9 消息类型对照
+
+| Envelope key       | 方向      | 对应 API                      | 用途            |
+| ------------------ | ------- | --------------------------- | ------------- |
+| `createSurface`    | 插件→主App | `sendAGenUIData`            | 创建 UI surface |
+| `updateComponents` | 插件→主App | `sendAGenUIData`            | 定义/更新组件树      |
+| `updateDataModel`  | 插件→主App | `sendAGenUIUpdateDataModel` | 写入/更新数据模型     |
+| `deleteSurface`    | 插件→主App | `sendAGenUIData`            | 删除 surface    |
+| `action`           | 主App→插件 | `callAGenUIAction`          | 用户交互回传        |
+
+### 1. 启用 AGenUI
+
+插件注册时声明 `supportsAGenUI = true`（**必须**，否则主 App 调用会被服务端拒绝）：
+
+```java
+RegisterPayload reg = new RegisterPayload();
+reg.packageName = "com.example.plugin";
+reg.name = "示例插件";
+reg.versionCode = 1;
+reg.versionName = "1.0.0";
+reg.protocolVersion = 1;
+reg.supportsAGenUI = true;   // ★ 关键开关
+// ... 其他字段
+```
+
+### 2. 插件端：上报 UI 结构（sendAGenUIData）
+
+`sendAGenUIData(String data)` 发送**完整的 A2UI v0.9 envelope**，用于 `createSurface` / `updateComponents` / `deleteSurface`。
+
+**2.1 创建视图 伪代码**：
+
+```Java
+String ui = {  
+            "name": "Focus Card",
+            "description": "带按钮交互与数据绑定的任务卡片。",
+            "messages": [
+               {
+                  "createSurface": {
+                     "catalogId": "https://a2ui.org/specification/v0_9/standard_catalog.json",
+                     "sendDataModel": true,
+                     "surfaceId": "example-focus"
+                  },
+                  "version": "v0.9"
+               },
+               {
+                  "version": "v0.9",
+                  "updateComponents": {
+                     "components": [
+                        {
+                           "component": "Card",
+                           "styles": {
+                              "border-radius": "120px",
+                              "filter": "drop-shadow(0px 6px 24px 0px rgba(0, 0, 0, 0.08))",
+                              "padding": "0px",
+                              "width": "100%",
+                              "height": "100%"
+                           },
+                           "id": "root",
+                           "child": "card-stack"
+                        },
+                        {
+                           "component": "Column",
+                           "children": [
+                              "bg-image",
+                              "content"
+                           ],
+                           "styles": {
+                              "border-radius": "60px",
+                              "overflow": "hidden",
+                              "width": "100%",
+                              "position": "relative",
+                              "height": "100%"
+                           },
+                           "id": "card-stack"
+                        },
+                        {
+                           "fit": "cover",
+                           "component": "Image",
+                           "styles": {
+                              "top": "0px",
+                              "left": "0px",
+                              "width": "100%",
+                              "position": "absolute",
+                              "height": "100%"
+                           },
+                           "id": "bg-image",
+                           "url": "https://sslcdn.lifex360.com/icon/2026/07/7abvzteswetomhnej2eq.png"
+                        },
+                        {
+                           "component": "Column",
+                           "children": [
+                              "eyebrow",
+                              "headline",
+                              "body",
+                              "divider",
+                              "footer"
+                           ],
+                           "styles": {
+                              "padding": "24px",
+                              "z-index": "1",
+                              "gap": "14px",
+                              "position": "relative"
+                           },
+                           "id": "content",
+                           "align": "stretch"
+                        },
+                        {
+                           "component": "Text",
+                           "styles": {
+                              "margin-left": "20px",
+                              "color": "#FFFFFF",
+                              "font-weight": "bold",
+                              "font-size": "38px",
+                              "line-height": "38px"
+                           },
+                           "id": "eyebrow",
+                           "text": {
+                              "path": "/eyebrow"
+                           }
+                        },
+                        {
+                           "component": "Text",
+                           "styles": {
+                              "color": "#FFFFFF",
+                              "font-weight": "bold",
+                              "font-size": "38px",
+                              "line-height": "48px"
+                           },
+                           "id": "headline",
+                           "text": {
+                              "path": "/headline"
+                           }
+                        },
+                        {
+                           "component": "Text",
+                           "styles": {
+                              "color": "#FFFFFF",
+                              "font-size": "26px",
+                              "line-height": "38px"
+                           },
+                           "id": "body",
+                           "text": {
+                              "path": "/body"
+                           }
+                        },
+                        {
+                           "component": "Divider",
+                           "styles": {
+                              "color": "rgba(255, 255, 255, 0.3)",
+                              "height": "1px"
+                           },
+                           "id": "divider"
+                        },
+                        {
+                           "component": "Row",
+                           "children": [
+                              "progress",
+                              "button"
+                           ],
+                           "justify": "spaceBetween",
+                           "id": "footer",
+                           "align": "center"
+                        },
+                        {
+                           "component": "Text",
+                           "styles": {
+                              "color": "#FFFFFF",
+                              "font-size": "26px",
+                              "line-height": "34px"
+                           },
+                           "id": "progress",
+                           "text": {
+                              "path": "/progress"
+                           }
+                        },
+                        {
+                           "component": "Button",
+                           "action": {
+                              "functionCall": {
+                                 "call": "handleWidgetAction",
+                                 "args": {
+                                    "value": "打卡成功！"
+                                 }
+                              }
+                           },
+                           "styles": {
+                              "border-radius": "12px",
+                              "background-color": "#1A73E8",
+                              "padding": "12px 24px",
+                              "width": "220px",
+                              ":active": {
+                                 "background-color": "#1557B0",
+                                 "transform": "scale(0.97)",
+                                 "opacity": "0.85"
+                              },
+                              "height": "64px"
+                           },
+                           "id": "button",
+                           "child": "button-label"
+                        },
+                        {
+                           "component": "Text",
+                           "styles": {
+                              "color": "#FFFFFF",
+                              "font-weight": "bold",
+                              "font-size": "26px",
+                              "line-height": "34px",
+                              "text-align": "center"
+                           },
+                           "id": "button-label",
+                           "text": {
+                              "path": "/buttonLabel"
+                           }
+                        }
+                     ],
+                     "surfaceId": "example-focus"
+                  }
+               },
+               {
+                  "updateDataModel": {
+                     "surfaceId": "example-focus",
+                     "value": {
+                        "eyebrow": "今日重点Change",
+                        "progress": "1 / 3",
+                        "body": "通过 RecyclerView + AGenUI，把服务端下发的 JSON 直接渲染成原生卡片。",
+                        "headline": "完成 AGenUI 接入",
+                        "buttonLabel": "打卡"
+                     }
+                  },
+                  "version": "v0.9"
+               }
+            ]
+         }
+client.sendAGenUIData(ui);
+```
+
+ 建议在 onRegisterSuccess 回调里调用  sendAGenUIData 上报当前ui状态
+
+**2.2 更新视图状态值 伪代码**：
+
+```Java
+String update = {   
+            "version": "v0.9",
+            "updateDataModel": {
+                "surfaceId": "example-focus",
+                "value": {
+                    "eyebrow": "今日重点",
+                    "headline": "完成 AGenUI 接入",
+                    "body": "通过 RecyclerView + AGenUI，把服务端下发的 JSON 直接渲染成原生卡片。",
+                    "progress": "1 / 3",
+                    "buttonLabel": "打PC卡"
+                }
+            }
+ }
+
+ client.sendAGenUIUpdateDataModel(update);
+
+```
+
+<br />
+
+**2.3 事件回传 参考代码**
+
+```Java
+{
+                           "component": "Button",
+                           "action": {
+                              "functionCall": {
+                                 "call": "handleWidgetAction",
+                                 "args": {
+                                    "value": "打卡成功！"
+                                 }
+                              }
+                           },
+                          
+                           "id": "button",
+                           "child": "button-label"
+                        },
+
+ functionCall 对象里的call属性取值 handleWidgetAction  点击时会把args 参数透传到 PluginListener.onAGenUIActionCall 回调
+```
+
+<br />
+
+<br />
+
+### DOT\_KEY 模块注册 参考代码
+
 ```java
 PluginClient client = new PluginClient();
 //注册模块 可变参数 传入需要的模块数据
@@ -641,7 +935,9 @@ client.setPluginListener(new PluginListener(){
     
 });
 ```
+
 #### DOT KEY 模块 payload 数据格式
+
 ```json
 {
     "appState": "background", // none 无状态， background 当前程序在后台， foreground 程序在前天
@@ -658,7 +954,9 @@ client.setPluginListener(new PluginListener(){
     "timestamp": 1793002523558
 }
 ```
+
 #### KNOB KEY 模块payload 数据
+
 ```json
 //button 按键事件
 {
@@ -690,28 +988,8 @@ client.setPluginListener(new PluginListener(){
 }
 
 ```
+
 > 1.客户端调用 subscribeModuleEvents函数注册对于的模块事件
 > 2.客户端调用setPluginListener 注册回调并实现PluginListener 接口里的 onModuleEvent 方法。
-当模块触发对应功能时就回调该方法。如果消费该事件则调用 responder.consume(); responder.ignore(null) 忽略 或者超时LineOS 走兜底流程触发 模块绑定的profile 配置功能。
+> 当模块触发对应功能时就回调该方法。如果消费该事件则调用 responder.consume(); responder.ignore(null) 忽略 或者超时LineOS 走兜底流程触发 模块绑定的profile 配置功能。
 
-
-## 其他
-
-###  R8 / ProGuard
-
-模型是 public 字段 + Jackson，Release 必须 keep：
-
-```
--keep class com.ultrabar.plugin.model.** { *; }
--keep class com.ultrabar.plugin.callback.** { *; }
--keep class com.ultrabar.plugin.PluginClient { *; }
-```
-
-
-
-## 协议要点
-
-- 信封：`type`、`requestId`、`timestamp`、`protocol`、`payload`；注册成功后客户端会带 `sessionId`、`auth`。
-- `requestId` 为 UUID，一次 RPC 用一次。
-- 动作 ID 字段统一为 `actionId`。
-- 成对消息：`register` / `register_result`，`actions` / `actions_result`，`describe` / `describe_result`，`get_options` / `get_options_result`，`call` / `call_result`，`heartbeat` / `heartbeat_ack`。

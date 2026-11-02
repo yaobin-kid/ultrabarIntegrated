@@ -204,7 +204,9 @@ CompletableFuture<EventResultPayload> sendEvent(String eventId, Map<String, Obje
 
 - 服务端回调：`PluginServerListener.onEventReceived(session, event)`
 
-### 4.2 AGenUI 数据上报
+### 4.2 AGenUI 数据上报（A2UI v0.9 协议）
+
+> ⚠️ **协议版本**：`data` / `dataModel` 传输的均为 **[A2UI v0.9](https://a2ui.org/specification/v0.9-a2ui/)** 格式 JSON，envelope 必须带 `"version": "v0.9"`。不要使用 v0.8 的 `beginRendering` / `surfaceUpdate` / `dataModelUpdate` 消息名。
 
 ```java
 CompletableFuture<AGenUIDataResultPayload> sendAGenUIData(String data)
@@ -212,8 +214,26 @@ CompletableFuture<AGenUIUpdateDataModelResultPayload> sendAGenUIUpdateDataModel(
 CompletableFuture<AGenUIUpdateDataModelResultPayload> sendAGenUIUpdateDataModel(String dataModel, boolean incremental)
 ```
 
+**`sendAGenUIData(data)`** — `data` 是完整的 A2UI v0.9 envelope，用于 `createSurface` / `updateComponents` / `deleteSurface`：
+
+```json
+{ "version": "v0.9", "createSurface": { "surfaceId": "main", "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json" } }
+```
+```json
+{ "version": "v0.9", "updateComponents": { "surfaceId": "main", "components": [
+  { "id": "root", "component": { "Text": { "text": { "path": "/track/name" } } } }
+] } }
+```
+（注意 v0.9 的 `component` 是对象 `{"Text": {...}}`，不是 v0.8 的字符串 `"Text"`）
+
+**`sendAGenUIUpdateDataModel(dataModel)`** — `dataModel` 是 A2UI v0.9 `updateDataModel` 消息（`path` 为 JSON Pointer，`contents` 为写入数据）：
+
+```json
+{ "version": "v0.9", "updateDataModel": { "surfaceId": "main", "path": "/", "contents": { "track": { "name": "晴天" } } } }
+```
+
 **服务端行为**：收到后
-1. `session.setAGenUIData(data)` / `session.setAGenUIDataModel(dataModel)` — 存入 PluginSession
+1. `session.setAGenUIData(data)` / `session.setAGenUIDataModel(dataModel)` — 存入 PluginSession（单值覆盖）
 2. `listener.onAGenUIData(session, payload)` / `listener.onAGenUIUpdateDataModel(session, payload)` — 回调宿主
 3. 回 ACK 给客户端
 
@@ -677,10 +697,11 @@ public class HostApp {
         });
 
         // ──────────────────────────────
-        // 7. 调用插件的 AGenUI action call
+        // 7. 调用插件的 AGenUI action call（回传 A2UI v0.9 action）
         //    · session 不存在 → Future 立即失败 "no active session"
         //    · session.supportsAGenUI() == false → Future 立即失败 "does not support agenui"
         //    · functionName 为空 → Future 立即失败
+        //    · functionName 即 A2UI action.name，args 即 action.context (JSON 字符串)
         // ──────────────────────────────
         String argsJson = Json.mapper().writeValueAsString(Map.of("question", "现在播放的是什么歌？"));
         CompletableFuture<AGenUIActionCallResultPayload> agenuiFut =
@@ -944,11 +965,12 @@ public class MusicPlugin {
             }
 
             // ==== AGenUI action call（默认返回 NO_HANDLER，这里 override 真正实现） ====
+            // 对应 A2UI v0.9 action：functionName = action.name，args = action.context (JSON 字符串)
             @Override
             public void onAGenUIActionCall(AGenUIActionCallPayload payload,
                                             AGenUIActionCallResponder responder) {
-                String functionName = payload.functionName;
-                String argsJson = payload.args;
+                String functionName = payload.functionName;   // A2UI action.name
+                String argsJson = payload.args;               // A2UI action.context (JSON)
                 System.out.println("[music] AGenUI function=" + functionName + " args=" + argsJson);
 
                 switch (functionName) {
@@ -997,22 +1019,31 @@ public class MusicPlugin {
 
         // ──────────────────────────────
         // 7. 主动上报 AGenUI 数据（无论 supportsAGenUI=true/false 都可以上报）
+        //    所有 JSON 均为 A2UI v0.9 协议格式，envelope 必须带 "version":"v0.9"
         // ──────────────────────────────
 
-        // 7a. 完整上报 —— 音频事件流（JSON 字符串）
-        String audioEventJson = Json.mapper().writeValueAsString(Map.of(
-                "type", "beat",
-                "timestamp", System.currentTimeMillis()));
-        client.sendAGenUIData(audioEventJson);
+        // 7a. 上报 A2UI v0.9 createSurface envelope（创建 UI surface）
+        String createSurfaceJson = "{\"version\":\"v0.9\",\"createSurface\":{"
+                + "\"surfaceId\":\"main\","
+                + "\"catalogId\":\"https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json\"}}";
+        client.sendAGenUIData(createSurfaceJson);
 
-        // 7b. 完整 dataModel（JSON 字符串）
-        String agentStateJson = Json.mapper().writeValueAsString(Map.of(
-                "mode", "chat", "lastUserMessage", "你好"));
-        client.sendAGenUIUpdateDataModel(agentStateJson);
+        // 7a'. 上报 A2UI v0.9 updateComponents envelope（定义组件树，component 为对象形式）
+        String updateComponentsJson = "{\"version\":\"v0.9\",\"updateComponents\":{"
+                + "\"surfaceId\":\"main\",\"components\":["
+                + "{\"id\":\"root\",\"component\":{\"Text\":{\"text\":{\"path\":\"/track/name\"}}}}]}}";
+        client.sendAGenUIData(updateComponentsJson);
 
-        // 7c. 增量 dataModel（只传变化的字段，JSON 字符串）
-        String agentDeltaJson = Json.mapper().writeValueAsString(Map.of("mode", "listen"));
-        client.sendAGenUIUpdateDataModel(agentDeltaJson, true);  // incremental=true
+        // 7b. 全量 updateDataModel（path:"/" 替换整个数据模型）
+        String fullDataModelJson = "{\"version\":\"v0.9\",\"updateDataModel\":{"
+                + "\"surfaceId\":\"main\",\"path\":\"/\","
+                + "\"contents\":{\"track\":{\"name\":\"晴天\",\"duration\":269}}}}";
+        client.sendAGenUIUpdateDataModel(fullDataModelJson);
+
+        // 7c. 局部 updateDataModel（path 指向具体节点，incremental=true）
+        String deltaDataModelJson = "{\"version\":\"v0.9\",\"updateDataModel\":{"
+                + "\"surfaceId\":\"main\",\"path\":\"/track\",\"contents\":{\"name\":\"七里香\"}}}";
+        client.sendAGenUIUpdateDataModel(deltaDataModelJson, true);  // incremental=true
 
         // ──────────────────────────────
         // 8. 订阅运行时变更 / 取消订阅

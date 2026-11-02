@@ -17,7 +17,6 @@ public final class PluginSession {
     private volatile Channel channel;
     private final String name;
     private volatile List<ActionSummary> actions = Collections.emptyList();
-    private volatile Set<Topic> topics;
     private volatile long revision;
 
     private volatile long lastSeenMillis = System.currentTimeMillis();
