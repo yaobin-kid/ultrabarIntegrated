@@ -68,8 +68,8 @@ public class AGenUIProtocolTest {
         String argsJson = "{\"prompt\":\"hello\"}";
 
         AGenUIActionCallPayload p = new AGenUIActionCallPayload("agenui_chat", argsJson);
-        assertEquals("agenui_chat", p.functionName);
-        assertEquals(argsJson, p.args);
+        assertEquals("agenui_chat", p.actionName);
+        assertEquals(argsJson, p.context);
     }
 
     @Test
@@ -79,8 +79,8 @@ public class AGenUIProtocolTest {
         assertTrue(json.contains("agenui_reset"));
 
         AGenUIActionCallPayload round = mapper.readValue(json, AGenUIActionCallPayload.class);
-        assertEquals("agenui_reset", round.functionName);
-        assertNull(round.args);
+        assertEquals("agenui_reset", round.actionName);
+        assertNull(round.context);
     }
 
     @Test

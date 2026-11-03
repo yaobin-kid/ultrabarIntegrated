@@ -193,8 +193,8 @@ public class AGenUIIntegrationTest {
         startClientWithSupportsAGenUI(true);
 
         final CountDownLatch handled = new CountDownLatch(1);
-        final AtomicReference<String> functionNameRef = new AtomicReference<String>();
-        final AtomicReference<String> argsRef = new AtomicReference<String>();
+        final AtomicReference<String> actionNameRef = new AtomicReference<String>();
+        final AtomicReference<String> contextRef = new AtomicReference<String>();
 
         client.setPluginListener(new PluginListener() {
             @Override public void onRegisterSuccess(RegisterResultPayload payload) {}
@@ -202,8 +202,8 @@ public class AGenUIIntegrationTest {
 
             @Override
             public void onAGenUIActionCall(AGenUIActionCallPayload payload, AGenUIActionCallResponder responder) {
-                functionNameRef.set(payload.functionName);
-                argsRef.set(payload.args);
+                actionNameRef.set(payload.actionName);
+                contextRef.set(payload.context);
                 Map<String, Object> result = new HashMap<String, Object>();
                 result.put("reply", "hello back");
                 responder.sendSuccess(result);
@@ -222,8 +222,8 @@ public class AGenUIIntegrationTest {
         assertEquals("hello back", ((Map<?, ?>) result.result).get("reply"));
 
         assertTrue("client 应收到 action call", handled.await(3, TimeUnit.SECONDS));
-        assertEquals("agenui_chat", functionNameRef.get());
-        assertEquals(argsJson, argsRef.get());
+        assertEquals("agenui_chat", actionNameRef.get());
+        assertEquals(argsJson, contextRef.get());
     }
 
     @Test

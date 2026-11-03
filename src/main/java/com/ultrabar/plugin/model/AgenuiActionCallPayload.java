@@ -9,16 +9,16 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 public class AGenUIActionCallPayload implements Payload {
 
     /** 函数名 */
-    public String functionName;
+    public String actionName;
 
     /** 调用参数 JSON 字符串 */
-    public String args;
+    public String context;
 
     public AGenUIActionCallPayload() {
     }
 
-    public AGenUIActionCallPayload(String functionName, String args) {
-        this.functionName = functionName;
-        this.args = args;
+    public AGenUIActionCallPayload(String actionName, String context) {
+        this.actionName = actionName;
+        this.context = context;
     }
 }

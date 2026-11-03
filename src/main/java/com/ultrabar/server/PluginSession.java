@@ -242,15 +242,6 @@ public final class PluginSession {
         touch();
     }
 
-    void updateTopic(Set<Topic> topics) {
-        if (topics == null) {
-            this.topics = Collections.emptySet();
-        } else {
-            this.topics = Collections.unmodifiableSet(new HashSet<>(topics));
-        }
-
-        touch();
-    }
 
 
 

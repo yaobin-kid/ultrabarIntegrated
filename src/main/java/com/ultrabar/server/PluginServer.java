@@ -218,11 +218,11 @@ public class PluginServer {
      * 插件必须在注册时声明 {@link RegisterPayload#supportsAGenUI} 为 true 才会被接受。
      *
      * @param packageName  目标插件包名
-     * @param functionName 函数名
-     * @param args         调用参数 JSON 字符串（可为 null）
+     * @param actionName 函数名
+     * @param context         调用参数 JSON 字符串（可为 null）
      */
     public CompletableFuture<AGenUIActionCallResultPayload> callAGenUIAction(
-            String packageName, String functionName, String args) {
+            String packageName, String actionName, String context) {
         PluginSession session;
         try {
             session = getValidSession(packageName);
@@ -233,10 +233,10 @@ public class PluginServer {
             return failedFuture(new IllegalStateException(
                     "package " + packageName + " does not support agenui"));
         }
-        if (functionName == null || functionName.isEmpty()) {
+        if (actionName == null || actionName.isEmpty()) {
             return failedFuture(new IllegalArgumentException("functionName must not be empty"));
         }
-        AGenUIActionCallPayload payload = new AGenUIActionCallPayload(functionName, args);
+        AGenUIActionCallPayload payload = new AGenUIActionCallPayload(actionName, context);
         return request(session, MessageType.AGENUI_ACTION_CALL, payload, AGenUIActionCallResultPayload.class);
     }
 
@@ -657,7 +657,6 @@ public class PluginServer {
             return;
         }
         ActionsPayload payload = envelope.payloadAs(ActionsPayload.class);
-        session.updateTopic(payload == null ? null : payload.topic);
         session.updateActions(payload == null ? null : payload.actions, payload == null ? null : payload.revision);
         ActionsResultPayload result = new ActionsResultPayload();
         result.success = true;
