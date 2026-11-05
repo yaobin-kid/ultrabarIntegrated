@@ -16,7 +16,7 @@ public enum ModuleType {
     KNOB_KEY("KNOB_KEY"),
 
     SENSE_CUBE("SENSE_CUBE"),
-    VIVO_CUBE("VIVO_CUBE"),
+  //  VIVO_CUBE("VIVO_CUBE"),
 
 
 
