@@ -60,6 +60,7 @@ public class ModuleEventPayload implements Payload {
         ModuleEventPayload copy = new ModuleEventPayload();
         copy.module = module;
         copy.moduleId = moduleId;
+        copy.sn = sn;
         copy.action = action;
         copy.timestamp = timestamp;
         copy.appState = appState;

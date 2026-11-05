@@ -951,6 +951,7 @@ client.setPluginListener(new PluginListener(){
         "repeatCount": 0  //长按+1
     },
     "moduleId": "4",  //模块id
+    "sn": "xxxxx",  //模块串号
     "timestamp": 1793002523558
 }
 ```
@@ -971,6 +972,7 @@ client.setPluginListener(new PluginListener(){
     "repeatCount": 0
   },
   "moduleId": "6",
+  "sn": "xxx",  //模块串号
   "timestamp": 1793005131698
 }
 
@@ -984,6 +986,7 @@ client.setPluginListener(new PluginListener(){
     "value": 1   // 1 顺时针，-1 逆时针
   },
   "moduleId": "6",
+  "sn": "xxxx",  //模块串号
   "timestamp": 1793005179031
 }
 
