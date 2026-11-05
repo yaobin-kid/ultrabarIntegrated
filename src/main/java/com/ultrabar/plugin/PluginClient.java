@@ -21,7 +21,10 @@ import com.ultrabar.plugin.model.Json;
 import com.ultrabar.plugin.model.MessageType;
 import com.ultrabar.plugin.model.ModuleEventRegisterPayload;
 import com.ultrabar.plugin.model.ModuleEventUnregisterPayload;
+import com.ultrabar.plugin.model.ModuleOnlineFilter;
 import com.ultrabar.plugin.model.ModuleType;
+import com.ultrabar.plugin.model.QueryModulesPayload;
+import com.ultrabar.plugin.model.QueryModulesResultPayload;
 import com.ultrabar.plugin.model.RegisterPayload;
 
 import org.slf4j.Logger;
@@ -210,6 +213,25 @@ public class PluginClient {
         payload.incremental = incremental;
         return envelopes.request(MessageType.AGENUI_UPDATE_DATA_MODEL, payload,
                 AGenUIUpdateDataModelResultPayload.class);
+    }
+
+    /**
+     * 查询模块列表。服务端收到后会回调 {@link PluginServerListener#onQueryModules}
+     * 由宿主提供模块数据，按 filter 过滤后封装返回。
+     *
+     * @param filter 在线状态过滤（ONLINE 在线 / OFFLINE 离线 / ALL 全部），null 视为 ALL
+     */
+    public CompletableFuture<QueryModulesResultPayload> queryModules(ModuleOnlineFilter filter) {
+        QueryModulesPayload payload = new QueryModulesPayload(
+                filter == null ? ModuleOnlineFilter.ALL : filter);
+        return envelopes.request(MessageType.QUERY_MODULES, payload, QueryModulesResultPayload.class);
+    }
+
+    /**
+     * 查询全部模块（在线 + 离线）。
+     */
+    public CompletableFuture<QueryModulesResultPayload> queryModules() {
+        return queryModules(ModuleOnlineFilter.ALL);
     }
 
     public CompletableFuture<Void> startAsync() {

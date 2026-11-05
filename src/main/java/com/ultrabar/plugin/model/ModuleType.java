@@ -11,9 +11,14 @@ public enum ModuleType {
     /**
      * 按键 / 旋钮事件
      */
-    DOT_KEY("dot_key"),
+    DOT_KEY("DOT_KEY"),
 
-    KNOB_KEY("knob_key"),
+    KNOB_KEY("KNOB_KEY"),
+
+    SENSE_CUBE("SENSE_CUBE"),
+    VIVO_CUBE("VIVO_CUBE"),
+
+
 
     ;
 

@@ -18,6 +18,8 @@ import org.slf4j.LoggerFactory;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Ultrabar plugin protocol server. Sessions are unique by {@code packageName}.
@@ -539,6 +541,9 @@ public class PluginServer {
             case AGENUI_UPDATE_DATA_MODEL:
                 handleAGenUIUpdateDataModel(channel, envelope);
                 return;
+            case QUERY_MODULES:
+                handleQueryModules(channel, envelope);
+                return;
 
             default:
                 log.info("ignored plugin message type={} from {}", envelope.getType(), channel.remoteAddress());
@@ -797,6 +802,36 @@ public class PluginServer {
             }
         }
         write(channel, Envelope.of(MessageType.AGENUI_UPDATE_DATA_MODEL_RESULT, envelope.getRequestId(), ack)
+                .withSession(session.sessionId(), session.sessionToken()));
+    }
+
+    private void handleQueryModules(Channel channel, Envelope envelope) {
+        PluginSession session = sessions.resolve(channel, envelope.getSessionId());
+        if (session == null) {
+            log.warn("query_modules without session from {}", channel.remoteAddress());
+            return;
+        }
+        session.touch();
+        QueryModulesResultPayload result = new QueryModulesResultPayload();
+        try {
+            QueryModulesPayload payload = envelope.payloadAs(QueryModulesPayload.class);
+            final ModuleOnlineFilter filter = (payload != null && payload.filter != null)
+                    ? payload.filter : ModuleOnlineFilter.ALL;
+            List<ModuleInfo> modules = listener.onQueryModules(session);
+            result.modules = modules == null ? Collections.<ModuleInfo>emptyList()
+                    : modules.stream()
+                            .filter(m -> m != null)
+                            .filter(m -> filter == ModuleOnlineFilter.ALL
+                                    || (filter == ModuleOnlineFilter.ONLINE && m.online)
+                                    || (filter == ModuleOnlineFilter.OFFLINE && !m.online))
+                            .collect(Collectors.toList());
+            result.success = true;
+        } catch (Exception e) {
+            log.error("onQueryModules failed packageName={}", session.packageName(), e);
+            result.success = false;
+            result.error = ErrorInfo.of(ErrorCodes.HANDLER_EXCEPTION, e.getMessage(), false, null);
+        }
+        write(channel, Envelope.of(MessageType.QUERY_MODULES_RESULT, envelope.getRequestId(), result)
                 .withSession(session.sessionId(), session.sessionToken()));
     }
 

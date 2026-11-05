@@ -36,6 +36,9 @@ public enum MessageType {
     AGENUI_ACTION_CALL("agenui_action_call", AGenUIActionCallPayload.class),
     AGENUI_ACTION_CALL_RESULT("agenui_action_call_result", AGenUIActionCallResultPayload.class),
 
+    QUERY_MODULES("query_modules", QueryModulesPayload.class),
+    QUERY_MODULES_RESULT("query_modules_result", QueryModulesResultPayload.class),
+
     ;
 
 

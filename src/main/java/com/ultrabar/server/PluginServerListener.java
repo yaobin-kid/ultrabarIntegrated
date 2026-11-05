@@ -4,6 +4,10 @@ import com.ultrabar.plugin.model.AGenUIDataPayload;
 import com.ultrabar.plugin.model.AGenUIUpdateDataModelPayload;
 import com.ultrabar.plugin.model.EventPayload;
 import com.ultrabar.plugin.model.ModuleEventPayload;
+import com.ultrabar.plugin.model.ModuleInfo;
+
+import java.util.Collections;
+import java.util.List;
 
 public interface PluginServerListener {
     default void onRegistered(PluginSession session) {
@@ -38,6 +42,17 @@ public interface PluginServerListener {
      * 此时 dataModel 已存入 {@link PluginSession} 中。
      */
     default void onAGenUIUpdateDataModel(PluginSession session, AGenUIUpdateDataModelPayload payload) {
+    }
+
+    /**
+     * 插件查询模块列表时触发。宿主实现此方法返回模块数据，
+     * 在线/离线过滤由服务端统一完成。
+     *
+     * @param session 发起查询的插件会话
+     * @return 模块列表；返回全部模块即可。默认返回空列表。
+     */
+    default List<ModuleInfo> onQueryModules(PluginSession session) {
+        return Collections.emptyList();
     }
 
 }
