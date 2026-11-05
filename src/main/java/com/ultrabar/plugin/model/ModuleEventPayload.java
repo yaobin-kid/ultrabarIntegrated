@@ -26,7 +26,7 @@ public class ModuleEventPayload implements Payload {
     /**
      * 模块串号
      */
-    private String sn;
+    public String sn;
 
     /**
      * 模块内的事件动作，如 play / pause
