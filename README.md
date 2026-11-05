@@ -996,3 +996,37 @@ client.setPluginListener(new PluginListener(){
 > 2.客户端调用setPluginListener 注册回调并实现PluginListener 接口里的 onModuleEvent 方法。
 > 当模块触发对应功能时就回调该方法。如果消费该事件则调用 responder.consume(); responder.ignore(null) 忽略 或者超时LineOS 走兜底流程触发 模块绑定的profile 配置功能。
 
+
+# 查询所有模块
+```java
+
+PluginClient c = new PluginClient();
+//查询所有
+CompletableFuture<QueryModulesResultPayload> f = c.queryModules();
+//查询在线模块
+// CompletableFuture<QueryModulesResultPayload> f = c.queryModules(ModuleOnlineFilter.ONLINE);
+//查询离线模块
+//CompletableFuture<QueryModulesResultPayload> f = c.queryModules(ModuleOnlineFilter.OFFLINE);
+f.thenAccept(c -> {
+  //打印queryModules查询结果:{"modules":[{"module":"SENSE_CUBE","moduleId":"31","name":"Sense Cube","online":false,"sn":"0000019F20E45C31"},{"module":"DOT_KEY","moduleId":"37","name":"Dot Key","online":true,"sn":"0000019E4F84ABEF"}],"success":true}
+  Log.d(TAG, "queryModules查询结果:" + JSONObject.toJSONString(c));
+});
+
+```
+> 目前仅 返回  DOT_KEY, KNOB_KEY, SENSE_CUBE;
+
+#### QueryModulesResultPayload 数据结构
+```json
+{
+    "modules": [
+        {
+            "module": "SENSE_CUBE",   //模块 仅支持  DOT_KEY, KNOB_KEY, SENSE_CUBE;
+            "moduleId": "31",  //模块id
+            "name": "Sense Cube", //名称
+            "online": false, //在线状态 true 在线，false  离线
+            "sn": "0000019F20E45C31"  //设备串号
+        } 
+    ],
+    "success": true
+}
+```
