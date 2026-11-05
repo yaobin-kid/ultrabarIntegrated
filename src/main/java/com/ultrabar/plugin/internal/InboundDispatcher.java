@@ -66,6 +66,7 @@ public final class InboundDispatcher {
             case AGENUI_DATA_RESULT:
             case AGENUI_UPDATE_DATA_MODEL_RESULT:
             case AGENUI_ACTION_CALL_RESULT:
+            case QUERY_MODULES_RESULT:
                 if (!requests.complete(envelope.getRequestId(), envelope.getPayload())) {
                     log.debug("no pending request for type={} requestId={}", type, envelope.getRequestId());
                 }

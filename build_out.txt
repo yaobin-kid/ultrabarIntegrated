@@ -1,0 +1,96 @@
+﻿Starting a Gradle Daemon, 1 incompatible and 9 stopped Daemons could not be reused, use --status for details
+
+> Task :compileJava FAILED
+.\gradlew.bat : ����: [options] Դֵ 8 �ѹ�ʱ������δ�����а���ɾ��
+所在位置 行:15 字符: 1604
++ ...  = 'more'; $env:TERM = 'dumb'; .\gradlew.bat compileJava 2>&1 | Out-F ...
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (����: [options]...��δ�����а���ɾ��:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+����: [options] Ŀ��ֵ 8 �ѹ�ʱ������δ�����а���ɾ��
+����: [options] Ҫ�����й��ѹ�ʱѡ��ľ���, ��ʹ�� -Xlint:-options��
+E:\SourceCode\android\2026\ultrabarIntegrated\src\main\java\com\ultrabar\plugin\model\MessageType.java:40: ����: �˴���Ҫ
+ö�ٳ���
+        ("query_modules_result", QueryModulesResultPayload.class),
+        ^
+E:\SourceCode\android\2026\ultrabarIntegrated\src\main\java\com\ultrabar\plugin\model\MessageType.java:40: ����: �Ƿ����
+��Ϳ�ʼ
+        ("query_modules_result", QueryModulesResultPayload.class),
+         ^
+E:\SourceCode\android\2026\ultrabarIntegrated\src\main\java\com\ultrabar\plugin\model\MessageType.java:40: ����: ��Ҫ<��
+ʶ��>
+        ("query_modules_result", QueryModulesResultPayload.class),
+                                                                ^
+E:\SourceCode\android\2026\ultrabarIntegrated\src\main\java\com\ultrabar\plugin\model\MessageType.java:48: ����: ��Ҫ')'
+��','
+    MessageType(String wireName, Class<? extends Payload> payloadType) {
+                      ^
+E:\SourceCode\android\2026\ultrabarIntegrated\src\main\java\com\ultrabar\plugin\model\MessageType.java:48: ����: ��Ҫ','
+, '}'��';'
+    MessageType(String wireName, Class<? extends Payload> payloadType) {
+                                      ^
+E:\SourceCode\android\2026\ultrabarIntegrated\src\main\java\com\ultrabar\plugin\model\MessageType.java:48: ����: ��Ҫ','
+, '}'��';'
+    MessageType(String wireName, Class<? extends Payload> payloadType) {
+                                                                     ^
+E:\SourceCode\android\2026\ultrabarIntegrated\src\main\java\com\ultrabar\plugin\model\MessageType.java:53: ����: ��Ҫ<��
+ʶ��>
+    @JsonValue
+              ^
+7 ������
+3 ������
+
+[Incubating] Problems report is available at: file:///E:/SourceCode/android/2026/ultrabarIntegrated/build/reports/problems/problems-report.html
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':compileJava'.
+> Compilation failed; see the compiler output below.
+  E:\SourceCode\android\2026\ultrabarIntegrated\src\main\java\com\ultrabar\plugin\model\MessageType.java:48: ����: ��Ҫ'
+)'��','
+      MessageType(String wireName, Class<? extends Payload> payloadType) {
+                        ^
+  ����: [options] Ŀ��ֵ 8 �ѹ�ʱ������δ�����а���ɾ��
+  E:\SourceCode\android\2026\ultrabarIntegrated\src\main\java\com\ultrabar\plugin\model\MessageType.java:48: ����: ��Ҫ'
+,', '}'��';'
+      MessageType(String wireName, Class<? extends Payload> payloadType) {
+                                        ^
+  E:\SourceCode\android\2026\ultrabarIntegrated\src\main\java\com\ultrabar\plugin\model\MessageType.java:48: ����: ��Ҫ'
+,', '}'��';'
+      MessageType(String wireName, Class<? extends Payload> payloadType) {
+                                                                       ^
+  E:\SourceCode\android\2026\ultrabarIntegrated\src\main\java\com\ultrabar\plugin\model\MessageType.java:40: ����: �Ƿ��
+����Ϳ�ʼ
+          ("query_modules_result", QueryModulesResultPayload.class),
+           ^
+  ����: [options] Դֵ 8 �ѹ�ʱ������δ�����а���ɾ��
+  ����: [options] Ҫ�����й��ѹ�ʱѡ��ľ���, ��ʹ�� -Xlint:-options��
+  E:\SourceCode\android\2026\ultrabarIntegrated\src\main\java\com\ultrabar\plugin\model\MessageType.java:40: ����: ��Ҫ<
+��ʶ��>
+          ("query_modules_result", QueryModulesResultPayload.class),
+                                                                  ^
+  E:\SourceCode\android\2026\ultrabarIntegrated\src\main\java\com\ultrabar\plugin\model\MessageType.java:53: ����: ��Ҫ<
+��ʶ��>
+      @JsonValue
+                ^
+  E:\SourceCode\android\2026\ultrabarIntegrated\src\main\java\com\ultrabar\plugin\model\MessageType.java:40: ����: �˴��
+�Ҫö�ٳ���
+          ("query_modules_result", QueryModulesResultPayload.class),
+          ^
+  7 ������
+  3 ������
+
+* Try:
+> Check your code and dependencies to fix the compilation error(s)
+> Run with --scan to get full insights from a Build Scan (powered by Develocity).
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.3.0/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD FAILED in 7s
+1 actionable task: 1 executed
