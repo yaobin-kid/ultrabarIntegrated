@@ -24,6 +24,11 @@ public class ModuleEventPayload implements Payload {
     public String moduleId;
 
     /**
+     * 模块串号
+     */
+    private String sn;
+
+    /**
      * 模块内的事件动作，如 play / pause
      */
     public String action;

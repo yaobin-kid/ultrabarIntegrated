@@ -17,11 +17,7 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 /**
  * Ultrabar plugin protocol server. Sessions are unique by {@code packageName}.
@@ -146,7 +142,9 @@ public class PluginServer {
         return sessions.all();
     }
 
-    /** 返回所有声明了 supportsAGenUI=true 的在线插件会话。 */
+    /**
+     * 返回所有声明了 supportsAGenUI=true 的在线插件会话。
+     */
     public Collection<PluginSession> sessionsSupportingAGenUI() {
         java.util.List<PluginSession> result = new java.util.ArrayList<PluginSession>();
         for (PluginSession s : sessions.all()) {
@@ -157,7 +155,9 @@ public class PluginServer {
         return result;
     }
 
-    /** 返回服务端实际绑定的端口（start() 后可用；port=0 时由 OS 分配）。 */
+    /**
+     * 返回服务端实际绑定的端口（start() 后可用；port=0 时由 OS 分配）。
+     */
     public int getPort() {
         return boundPort > 0 ? boundPort : port;
     }
@@ -217,9 +217,9 @@ public class PluginServer {
      * 调用指定插件的 agenui action。
      * 插件必须在注册时声明 {@link RegisterPayload#supportsAGenUI} 为 true 才会被接受。
      *
-     * @param packageName  目标插件包名
-     * @param actionName 函数名
-     * @param context         调用参数 JSON 字符串（可为 null）
+     * @param packageName 目标插件包名
+     * @param actionName  函数名
+     * @param context     调用参数 JSON 字符串（可为 null）
      */
     public CompletableFuture<AGenUIActionCallResultPayload> callAGenUIAction(
             String packageName, String actionName, String context) {
@@ -250,16 +250,16 @@ public class PluginServer {
      * @param event    模块事件原始消息
      */
     public CompletableFuture<ModuleEventDispatchResult> sendModuleEvent(
-            ModuleType module, String moduleId, String action, Object event) {
-        return sendModuleEvent(module, moduleId, action, event, moduleEventTimeoutMs);
+            ModuleType module, String moduleId, String sn, String action, Object event) {
+        return sendModuleEvent(module, moduleId, sn, action, event, moduleEventTimeoutMs);
     }
 
     /**
-     * 同 {@link #sendModuleEvent(ModuleType, String, String, Object)}，
+     * 同 {@link #sendModuleEvent(ModuleType, String, String, String, Object)}，
      * 但可指定等待单个插件回复的超时时间（毫秒）。
      */
     public CompletableFuture<ModuleEventDispatchResult> sendModuleEvent(
-            ModuleType module, String moduleId, String action, Object event, long timeoutMs) {
+            ModuleType module, String moduleId, String sn, String action, Object event, long timeoutMs) {
         if (module == null) {
             return failedFuture(new IllegalArgumentException("module is required"));
         }
@@ -268,6 +268,7 @@ public class PluginServer {
         }
         ModuleEventPayload payload = new ModuleEventPayload();
         payload.module = module;
+        payload.sn = sn;
         payload.moduleId = moduleId;
         payload.action = action;
         payload.timestamp = System.currentTimeMillis();
