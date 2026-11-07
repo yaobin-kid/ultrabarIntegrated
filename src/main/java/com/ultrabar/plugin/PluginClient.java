@@ -183,7 +183,7 @@ public class PluginClient {
     }
 
     /**
-     * 上报 agenui 数据到服务端。服务端会将数据缓存到 PluginSession 中，
+     * 上报 a2ui 数据到服务端。服务端会将数据缓存到 PluginSession 中，
      * 并通过 {@link PluginServerListener#onA2UIData} 回调通知宿主。
      *
      * @param data 数据 JSON 字符串
@@ -194,7 +194,7 @@ public class PluginClient {
     }
 
     /**
-     * 上报 agenui updateDataModel 到服务端。服务端会将 dataModel 缓存到 PluginSession 中，
+     * 上报 a2ui updateDataModel 到服务端。服务端会将 dataModel 缓存到 PluginSession 中，
      * 并通过 {@link PluginServerListener#onA2UIUpdateDataModel} 回调通知宿主。
      *
      * @param dataModel dataModel JSON 字符串

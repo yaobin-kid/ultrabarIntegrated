@@ -29,12 +29,12 @@ public enum MessageType {
     MODULE_EVENT("module_event", ModuleEventPayload.class),
     MODULE_EVENT_RESULT("module_event_result", ModuleEventResultPayload.class),
 
-    A2UI_DATA("agenui_data", A2UIDataPayload.class),
-    A2UI_DATA_RESULT("agenui_data_result", A2UIDataResultPayload.class),
-    A2UI_UPDATE_DATA_MODEL("agenui_update_data_model", A2UIUpdateDataModelPayload.class),
-    A2UI_UPDATE_DATA_MODEL_RESULT("agenui_update_data_model_result", A2UIUpdateDataModelResultPayload.class),
-    A2UI_ACTION_CALL("agenui_action_call", A2UIActionCallPayload.class),
-    A2UI_ACTION_CALL_RESULT("agenui_action_call_result", A2UIActionCallResultPayload.class),
+    A2UI_DATA("a2ui_data", A2UIDataPayload.class),
+    A2UI_DATA_RESULT("a2ui_data_result", A2UIDataResultPayload.class),
+    A2UI_UPDATE_DATA_MODEL("a2ui_update_data_model", A2UIUpdateDataModelPayload.class),
+    A2UI_UPDATE_DATA_MODEL_RESULT("a2ui_update_data_model_result", A2UIUpdateDataModelResultPayload.class),
+    A2UI_ACTION_CALL("a2ui_action_call", A2UIActionCallPayload.class),
+    A2UI_ACTION_CALL_RESULT("a2ui_action_call_result", A2UIActionCallResultPayload.class),
 
     QUERY_MODULES("query_modules", QueryModulesPayload.class),
     QUERY_MODULES_RESULT("query_modules_result", QueryModulesResultPayload.class),

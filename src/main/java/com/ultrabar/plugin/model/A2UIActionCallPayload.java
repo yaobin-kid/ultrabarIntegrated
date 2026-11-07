@@ -3,7 +3,7 @@ package com.ultrabar.plugin.model;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
- * 服务端主动调用插件端的 agenui action。
+ * 服务端主动调用插件端的 a2ui action。
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class A2UIActionCallPayload implements Payload {

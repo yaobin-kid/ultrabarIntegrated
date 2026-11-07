@@ -3,7 +3,7 @@ package com.ultrabar.plugin.model;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
- * 服务端对 agenui_data 的响应。
+ * 服务端对 a2ui_data 的响应。
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class A2UIDataResultPayload extends ReplyPayload {

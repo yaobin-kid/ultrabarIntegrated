@@ -216,7 +216,7 @@ public class PluginServer {
     }
 
     /**
-     * 调用指定插件的 agenui action。
+     * 调用指定插件的 a2ui action。
      * 插件必须在注册时声明 {@link RegisterPayload#supportsA2UI} 为 true 才会被接受。
      *
      * @param packageName 目标插件包名
@@ -233,7 +233,7 @@ public class PluginServer {
         }
         if (!session.supportsA2UI()) {
             return failedFuture(new IllegalStateException(
-                    "package " + packageName + " does not support agenui"));
+                    "package " + packageName + " does not support a2ui"));
         }
         if (actionName == null || actionName.isEmpty()) {
             return failedFuture(new IllegalArgumentException("functionName must not be empty"));
@@ -737,7 +737,7 @@ public class PluginServer {
     private void handleA2UIData(Channel channel, Envelope envelope) {
         PluginSession session = sessions.resolve(channel, envelope.getSessionId());
         if (session == null) {
-            log.warn("agenui_data without session from {}", channel.remoteAddress());
+            log.warn("a2ui_data without session from {}", channel.remoteAddress());
             return;
         }
         session.touch();
@@ -771,7 +771,7 @@ public class PluginServer {
     private void handleA2UIUpdateDataModel(Channel channel, Envelope envelope) {
         PluginSession session = sessions.resolve(channel, envelope.getSessionId());
         if (session == null) {
-            log.warn("agenui_update_data_model without session from {}", channel.remoteAddress());
+            log.warn("a2ui_update_data_model without session from {}", channel.remoteAddress());
             return;
         }
         session.touch();

@@ -23,7 +23,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.Assert.*;
 
 /**
- * agenui 功能端到端集成测试：起真实 Netty server + client，覆盖
+ * a2ui 功能端到端集成测试：起真实 Netty server + client，覆盖
  * client.sendA2UIData / sendA2UIUpdateDataModel → server 存储 + 回调，
  * 以及 server.callA2UIAction → client.onA2UIActionCall → responder.sendSuccess。
  *
@@ -31,7 +31,7 @@ import static org.junit.Assert.*;
  */
 public class A2UIIntegrationTest {
 
-    private static final String PKG = "com.test.agenui";
+    private static final String PKG = "com.test.a2ui";
 
     private PluginServer server;
     private PluginClient client;
@@ -84,7 +84,7 @@ public class A2UIIntegrationTest {
 
         client = new PluginClient("127.0.0.1", serverPort);
         RegisterPayload rp = new RegisterPayload();
-        rp.name = "AgenuiTestPlugin";
+        rp.name = "A2UITestPlugin";
         rp.packageName = PKG;
         rp.supportsA2UI = supportsA2UI;
         client.setRegisterConfig(rp);
@@ -127,7 +127,7 @@ public class A2UIIntegrationTest {
         assertNotNull(receivedRef.get());
         assertEquals(dataJson, receivedRef.get().data);
 
-        assertEquals(dataJson, session.aGenUIData());
+        assertEquals(dataJson, session.a2uiData());
     }
 
     // ====== 2. client.sendA2UIUpdateDataModel → server 存储 + listener.onA2UIUpdateDataModel ======
@@ -161,7 +161,7 @@ public class A2UIIntegrationTest {
         assertEquals(modelJson, receivedRef.get().dataModel);
         assertFalse("非增量", receivedRef.get().incremental);
 
-        assertEquals(modelJson, session.aGenUIDataModel());
+        assertEquals(modelJson, session.a2uiDataModel());
     }
 
     @Test
@@ -215,14 +215,14 @@ public class A2UIIntegrationTest {
         params.put("prompt", "hello");
         String argsJson = Json.mapper().writeValueAsString(params);
 
-        A2UIActionCallResultPayload result = server.callA2UIAction(PKG, "agenui_chat", argsJson)
+        A2UIActionCallResultPayload result = server.callA2UIAction(PKG, "a2ui_chat", argsJson)
                 .get(3, TimeUnit.SECONDS);
 
         assertTrue("call 应成功", result.success);
         assertEquals("hello back", ((Map<?, ?>) result.result).get("reply"));
 
         assertTrue("client 应收到 action call", handled.await(3, TimeUnit.SECONDS));
-        assertEquals("agenui_chat", actionNameRef.get());
+        assertEquals("a2ui_chat", actionNameRef.get());
         assertEquals(argsJson, contextRef.get());
     }
 
@@ -242,7 +242,7 @@ public class A2UIIntegrationTest {
             }
         });
 
-        A2UIActionCallResultPayload result = server.callA2UIAction(PKG, "agenui_reset", null)
+        A2UIActionCallResultPayload result = server.callA2UIAction(PKG, "a2ui_reset", null)
                 .get(3, TimeUnit.SECONDS);
 
         assertFalse("客户端拒绝时 result.success 应为 false", result.success);
@@ -256,14 +256,14 @@ public class A2UIIntegrationTest {
         startClientWithSupportsA2UI(false);
 
         CompletableFuture<A2UIActionCallResultPayload> future =
-                server.callA2UIAction(PKG, "agenui_chat", null);
+                server.callA2UIAction(PKG, "a2ui_chat", null);
 
         try {
             future.get(1, TimeUnit.SECONDS);
             fail("supportsA2UI=false 时应抛 Exception");
         } catch (java.util.concurrent.ExecutionException ex) {
-            assertTrue("错误信息应包含 supports agenui",
-                    ex.getCause().getMessage().contains("does not support agenui"));
+            assertTrue("错误信息应包含 supports a2ui",
+                    ex.getCause().getMessage().contains("does not support a2ui"));
         }
     }
 
@@ -272,7 +272,7 @@ public class A2UIIntegrationTest {
         startClientWithSupportsA2UI(true);
 
         CompletableFuture<A2UIActionCallResultPayload> future =
-                server.callA2UIAction("com.unknown.pkg", "agenui_chat", null);
+                server.callA2UIAction("com.unknown.pkg", "a2ui_chat", null);
 
         try {
             future.get(1, TimeUnit.SECONDS);
@@ -295,7 +295,7 @@ public class A2UIIntegrationTest {
             // onA2UIActionCall 不实现，走 PluginListener 默认：responder.sendError(NO_HANDLER, ...)
         });
 
-        A2UIActionCallResultPayload result = server.callA2UIAction(PKG, "agenui_chat", null)
+        A2UIActionCallResultPayload result = server.callA2UIAction(PKG, "a2ui_chat", null)
                 .get(3, TimeUnit.SECONDS);
 
         assertFalse("默认 NO_HANDLER 应返回 false", result.success);

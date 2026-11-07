@@ -46,11 +46,11 @@ public interface PluginListener {
     }
 
     /**
-     * 收到服务端发起的 agenui action call。
+     * 收到服务端发起的 a2ui action call。
      * 需通过 {@link A2UIActionCallResponder#sendSuccess(Object)} 或
      * {@link A2UIActionCallResponder#sendError(String, String, boolean)} 响应。
      */
     default void onA2UIActionCall(A2UIActionCallPayload payload, A2UIActionCallResponder responder) {
-        responder.sendError(ErrorCodes.NO_HANDLER, "no agenui action handler registered", false);
+        responder.sendError(ErrorCodes.NO_HANDLER, "no a2ui action handler registered", false);
     }
 }

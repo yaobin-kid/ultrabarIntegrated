@@ -50,12 +50,12 @@
 | `MODULE_EVENT_UNREGISTER` | module_event_unregister | C→S | ModuleEventUnregisterPayload |
 | `MODULE_EVENT` | module_event | S→C | ModuleEventPayload |
 | `MODULE_EVENT_RESULT` | module_event_result | C→S | ModuleEventResultPayload |
-| `AGENUI_DATA` | agenui_data | C→S | A2UIDataPayload |
-| `AGENUI_DATA_RESULT` | agenui_data_result | S→C | A2UIDataResultPayload |
-| `AGENUI_UPDATE_DATA_MODEL` | agenui_update_data_model | C→S | A2UIUpdateDataModelPayload |
-| `AGENUI_UPDATE_DATA_MODEL_RESULT` | agenui_update_data_model_result | S→C | A2UIUpdateDataModelResultPayload |
-| `AGENUI_ACTION_CALL` | agenui_action_call | S→C | A2UIActionCallPayload |
-| `AGENUI_ACTION_CALL_RESULT` | agenui_action_call_result | C→S | A2UIActionCallResultPayload |
+| `A2UI_DATA` | a2ui_data | C→S | A2UIDataPayload |
+| `A2UI_DATA_RESULT` | a2ui_data_result | S→C | A2UIDataResultPayload |
+| `A2UI_UPDATE_DATA_MODEL` | a2ui_update_data_model | C→S | A2UIUpdateDataModelPayload |
+| `A2UI_UPDATE_DATA_MODEL_RESULT` | a2ui_update_data_model_result | S→C | A2UIUpdateDataModelResultPayload |
+| `A2UI_ACTION_CALL` | a2ui_action_call | S→C | A2UIActionCallPayload |
+| `A2UI_ACTION_CALL_RESULT` | a2ui_action_call_result | C→S | A2UIActionCallResultPayload |
 
 > **方向说明**：C→S = 客户端发给服务端；S→C = 服务端发给客户端；C↔S = 双向。
 
@@ -240,8 +240,8 @@ CompletableFuture<A2UIUpdateDataModelResultPayload> sendA2UIUpdateDataModel(Stri
 **服务端侧数据读取**（无需回调，随时可取）：
 ```java
 PluginSession session = server.getSession("com.ultrabar.music");
-String audioData = session.aGenUIData();          // 最近一次 data JSON 字符串
-String state     = session.aGenUIDataModel();     // 最近一次 dataModel JSON 字符串
+String audioData = session.a2uiData();          // 最近一次 data JSON 字符串
+String state     = session.a2uiDataModel();     // 最近一次 dataModel JSON 字符串
 ```
 
 **客户端注册时声明支持 A2UI**：
@@ -262,10 +262,10 @@ rp.supportsA2UI = true;   // 第 4 点
 服务端                                         客户端
   │  server.callA2UIAction(pkg, "chat", argsJson) │
   │  ① 校验 session.supportsA2UI()          │
-  │  ─── AGENUI_ACTION_CALL ───────────────► │
+  │  ─── A2UI_ACTION_CALL ───────────────► │
   │                                           │  InboundDispatcher.handleA2UIActionCall()
   │                                           │  ListenerNotifier → PluginListener.onA2UIActionCall()
-  │  ◄─── AGENUI_ACTION_CALL_RESULT ───────── │  responder.sendSuccess(...) / sendError(...)
+  │  ◄─── A2UI_ACTION_CALL_RESULT ───────── │  responder.sendSuccess(...) / sendError(...)
   │  future.complete(result)                  │
 ```
 
@@ -278,14 +278,14 @@ CompletableFuture<A2UIActionCallResultPayload> callA2UIAction(
 
 - `args` 为 JSON 字符串（可为 null），例如 `"{\"prompt\":\"hello\"}"`
 - 若 session 不存在 → Future 立即失败 `"no active session"`
-- 若 session 未声明 `supportsA2UI=true` → Future 立即失败 `"does not support agenui"`
+- 若 session 未声明 `supportsA2UI=true` → Future 立即失败 `"does not support a2ui"`
 - 若 `functionName` 为空 → Future 立即失败
 
 ### 5.3 客户端回调：PluginListener.onA2UIActionCall
 
 ```java
 default void onA2UIActionCall(A2UIActionCallPayload payload, A2UIActionCallResponder responder) {
-    responder.sendError(ErrorCodes.NO_HANDLER, "no agenui action handler registered", false);
+    responder.sendError(ErrorCodes.NO_HANDLER, "no a2ui action handler registered", false);
 }
 ```
 
@@ -398,8 +398,8 @@ server.setForegroundApp("com.ultrabar.music");           // 该插件前台，�
 | `moduleEvents()` | 当前订阅的 ModuleType 集合 |
 | `handlesModuleEvent(ModuleType)` | 是否订阅了该模块 |
 | `isForeground()` / `foregroundAtMillis()` | 前后台状态与切换时间 |
-| `aGenUIData()` | 最近一次 A2UI 数据 JSON 字符串 |
-| `aGenUIDataModel()` | 最近一次 A2UI dataModel JSON 字符串 |
+| `a2uiData()` | 最近一次 A2UI 数据 JSON 字符串 |
+| `a2uiDataModel()` | 最近一次 A2UI dataModel JSON 字符串 |
 | `lastSeenMillis()` | 最后一次通信时间 |
 
 ---
@@ -523,12 +523,12 @@ PluginClient         PluginServer          PluginServerListener
      ├── responder.consume() ──────────────────────►│
      │                    │                         │
      │                    │  (宿主想发 A2UI action)│
-     │◄── AGENUI_ACTION_CALL ──────────────────────►│
+     │◄── A2UI_ACTION_CALL ──────────────────────►│
      ├── responder.sendSuccess() ──────────────────►│
      │                    │                         │
      │  (插件上报 A2UI)  │                         │
-     ├── AGENUI_DATA ────►│                         │
-     │◄── AGENUI_DATA_RESULT │                      ├── onA2UIData()
+     ├── A2UI_DATA ────►│                         │
+     │◄── A2UI_DATA_RESULT │                      ├── onA2UIData()
      │                    │  (数据已存入 session)    │
      │                    │                         │
      │  (所有插件都没消费)  │                         │
@@ -634,7 +634,7 @@ public class HostApp {
             // —— A2UI 数据回调 —— //
             @Override
             public void onA2UIData(PluginSession session, A2UIDataPayload payload) {
-                // payload 此刻已存入 session.aGenUIData()；这里做业务分发即可
+                // payload 此刻已存入 session.a2uiData()；这里做业务分发即可
                 System.out.println("[host] A2UI data from " + session.packageName()
                         + " data=" + payload.data);
             }
@@ -699,14 +699,14 @@ public class HostApp {
         // ──────────────────────────────
         // 7. 调用插件的 A2UI action call（回传 A2UI v0.9 action）
         //    · session 不存在 → Future 立即失败 "no active session"
-        //    · session.supportsA2UI() == false → Future 立即失败 "does not support agenui"
+        //    · session.supportsA2UI() == false → Future 立即失败 "does not support a2ui"
         //    · functionName 为空 → Future 立即失败
         //    · functionName 即 A2UI action.name，args 即 action.context (JSON 字符串)
         // ──────────────────────────────
         String argsJson = Json.mapper().writeValueAsString(Map.of("question", "现在播放的是什么歌？"));
-        CompletableFuture<A2UIActionCallResultPayload> agenuiFut =
+        CompletableFuture<A2UIActionCallResultPayload> a2uiFut =
                 server.callA2UIAction("com.ultrabar.music", "chat", argsJson);
-        agenuiFut.whenComplete((result, err) -> {
+        a2uiFut.whenComplete((result, err) -> {
             if (err != null) {
                 System.out.println("[host] A2UI action failed: " + err.getMessage());
             } else {
@@ -741,8 +741,8 @@ public class HostApp {
         // ──────────────────────────────
         PluginSession musicSession = server.getSession("com.ultrabar.music");
         if (musicSession != null) {
-            String audioEvent = musicSession.aGenUIData();
-            String agentStateJson = musicSession.aGenUIDataModel();
+            String audioEvent = musicSession.a2uiData();
+            String agentStateJson = musicSession.a2uiDataModel();
             System.out.println("[host] cached audioEvent=" + audioEvent + " state=" + agentStateJson);
         }
 
@@ -991,7 +991,7 @@ public class MusicPlugin {
                     default: {
                         // 对于自己不认识的 A2UI action，沿用默认 NO_HANDLER 行为
                         responder.sendError(ErrorCodes.NO_HANDLER,
-                                "no handler for agenui function: " + functionName, false);
+                                "no handler for a2ui function: " + functionName, false);
                     }
                 }
             }

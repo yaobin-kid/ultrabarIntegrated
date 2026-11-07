@@ -3,7 +3,7 @@ package com.ultrabar.plugin.model;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
- * 插件端上报的 agenui updateDataModel 数据模型。
+ * 插件端上报的 a2ui updateDataModel 数据模型。
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class A2UIUpdateDataModelPayload implements Payload {

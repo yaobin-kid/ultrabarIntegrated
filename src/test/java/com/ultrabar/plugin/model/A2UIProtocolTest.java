@@ -9,7 +9,7 @@ import java.util.Map;
 import static org.junit.Assert.*;
 
 /**
- * agenui 协议载荷的构造与序列化单元测试。
+ * a2ui 协议载荷的构造与序列化单元测试。
  */
 public class A2UIProtocolTest {
 
@@ -67,19 +67,19 @@ public class A2UIProtocolTest {
     public void testA2UIActionCallPayloadFields() {
         String argsJson = "{\"prompt\":\"hello\"}";
 
-        A2UIActionCallPayload p = new A2UIActionCallPayload("agenui_chat", argsJson);
-        assertEquals("agenui_chat", p.actionName);
+        A2UIActionCallPayload p = new A2UIActionCallPayload("a2ui_chat", argsJson);
+        assertEquals("a2ui_chat", p.actionName);
         assertEquals(argsJson, p.context);
     }
 
     @Test
     public void testA2UIActionCallPayloadJson() throws Exception {
-        A2UIActionCallPayload p = new A2UIActionCallPayload("agenui_reset", null);
+        A2UIActionCallPayload p = new A2UIActionCallPayload("a2ui_reset", null);
         String json = mapper.writeValueAsString(p);
-        assertTrue(json.contains("agenui_reset"));
+        assertTrue(json.contains("a2ui_reset"));
 
         A2UIActionCallPayload round = mapper.readValue(json, A2UIActionCallPayload.class);
-        assertEquals("agenui_reset", round.actionName);
+        assertEquals("a2ui_reset", round.actionName);
         assertNull(round.context);
     }
 
@@ -97,7 +97,7 @@ public class A2UIProtocolTest {
 
     @Test
     public void testMessageTypeA2UIPayloadBindings() {
-        // 6 种 agenui 类型都注册了正确的 payload class
+        // 6 种 a2ui 类型都注册了正确的 payload class
         assertEquals(A2UIDataPayload.class, MessageType.A2UI_DATA.payloadType());
         assertEquals(A2UIDataResultPayload.class, MessageType.A2UI_DATA_RESULT.payloadType());
         assertEquals(A2UIUpdateDataModelPayload.class, MessageType.A2UI_UPDATE_DATA_MODEL.payloadType());
@@ -106,8 +106,8 @@ public class A2UIProtocolTest {
         assertEquals(A2UIActionCallResultPayload.class, MessageType.A2UI_ACTION_CALL_RESULT.payloadType());
 
         // wire 名字
-        assertEquals("agenui_data", MessageType.A2UI_DATA.wireName());
-        assertEquals("agenui_action_call", MessageType.A2UI_ACTION_CALL.wireName());
+        assertEquals("a2ui_data", MessageType.A2UI_DATA.wireName());
+        assertEquals("a2ui_action_call", MessageType.A2UI_ACTION_CALL.wireName());
     }
 
     @Test

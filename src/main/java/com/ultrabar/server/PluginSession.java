@@ -25,14 +25,14 @@ public final class PluginSession {
     private volatile long foregroundAtMillis;
 
     /**
-     * 最近一次收到的 agenui 数据 JSON 字符串
+     * 最近一次收到的 a2ui 数据 JSON 字符串
      */
-    private volatile String aGenUIData;
+    private volatile String a2uiData;
 
     /**
-     * 最近一次收到的 agenui dataModel JSON 字符串
+     * 最近一次收到的 a2ui dataModel JSON 字符串
      */
-    private volatile String aGenUIDataModel;
+    private volatile String a2uiDataModel;
 
     private final int port;
 
@@ -153,45 +153,45 @@ public final class PluginSession {
     }
 
     /**
-     * 注册时是否声明支持 agenui 功能
+     * 注册时是否声明支持 a2ui 功能
      */
     public boolean supportsA2UI() {
         return plugin != null && plugin.supportsA2UI;
     }
 
     /**
-     * 获取最近一次收到的 agenui 数据 JSON 字符串
+     * 获取最近一次收到的 a2ui 数据 JSON 字符串
      */
-    public String aGenUIData() {
-        return aGenUIData;
+    public String a2uiData() {
+        return a2uiData;
     }
 
     /**
-     * 存储一份 agenui 数据 JSON 字符串
+     * 存储一份 a2ui 数据 JSON 字符串
      */
     void setA2UIData(String data) {
         if (data == null) {
             return;
         }
-        this.aGenUIData = data;
+        this.a2uiData = data;
         touch();
     }
 
     /**
-     * 获取最近一次收到的 agenui dataModel JSON 字符串
+     * 获取最近一次收到的 a2ui dataModel JSON 字符串
      */
-    public String aGenUIDataModel() {
-        return aGenUIDataModel;
+    public String a2uiDataModel() {
+        return a2uiDataModel;
     }
 
     /**
-     * 存储一份 agenui dataModel JSON 字符串
+     * 存储一份 a2ui dataModel JSON 字符串
      */
     void setA2UIDataModel(String dataModel) {
         if (dataModel == null) {
             return;
         }
-        this.aGenUIDataModel = dataModel;
+        this.a2uiDataModel = dataModel;
         touch();
     }
 
@@ -246,7 +246,7 @@ public final class PluginSession {
 
 
     public String toSurfaceId() {
-        StringBuilder builder = new StringBuilder("agenui_");
+        StringBuilder builder = new StringBuilder("a2ui_");
         for (int i = 0; i < packageName.length(); i++) {
             char c = packageName.charAt(i);
             builder.append(Character.isLetterOrDigit(c) ? c : '_');
