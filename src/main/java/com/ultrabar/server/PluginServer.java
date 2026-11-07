@@ -221,10 +221,11 @@ public class PluginServer {
      *
      * @param packageName 目标插件包名
      * @param actionName  函数名
-     * @param context     调用参数 JSON 字符串（可为 null）
+     * @param context     调用参数字典（可为 null）
      * @param layoutId    布局 id（可为 null）
      */
-    public CompletableFuture<A2UIActionCallResultPayload> callA2UIAction(String packageName, String actionName, String context, String layoutId) {
+    public CompletableFuture<A2UIActionCallResultPayload> callA2UIAction(String packageName, String actionName,
+                                                                        Map<String, Object> context, String layoutId) {
         PluginSession session;
         try {
             session = getValidSession(packageName);

@@ -79,11 +79,12 @@ public class A2UIProtocolTest {
 
     @Test
     public void testA2UIActionCallPayloadFields() {
-        String argsJson = "{\"prompt\":\"hello\"}";
+        Map<String, Object> args = new HashMap<String, Object>();
+        args.put("prompt", "hello");
 
-        A2UIActionCallPayload p = new A2UIActionCallPayload("a2ui_chat", argsJson, "layout_music");
+        A2UIActionCallPayload p = new A2UIActionCallPayload("a2ui_chat", args, "layout_music");
         assertEquals("a2ui_chat", p.actionName);
-        assertEquals(argsJson, p.context);
+        assertEquals(args, p.context);
         assertEquals("layout_music", p.layoutId);
     }
 

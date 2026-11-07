@@ -326,7 +326,7 @@ public class A2UIIntegrationTest {
 
         final CountDownLatch handled = new CountDownLatch(1);
         final AtomicReference<String> actionNameRef = new AtomicReference<String>();
-        final AtomicReference<String> contextRef = new AtomicReference<String>();
+        final AtomicReference<Map<String, Object>> contextRef = new AtomicReference<Map<String, Object>>();
 
         client.setPluginListener(new PluginListener() {
             @Override public void onRegisterSuccess(RegisterResultPayload payload) {}
@@ -345,9 +345,8 @@ public class A2UIIntegrationTest {
 
         Map<String, Object> params = new HashMap<String, Object>();
         params.put("prompt", "hello");
-        String argsJson = Json.mapper().writeValueAsString(params);
 
-        A2UIActionCallResultPayload result = server.callA2UIAction(PKG, "a2ui_chat", argsJson, "layout_music")
+        A2UIActionCallResultPayload result = server.callA2UIAction(PKG, "a2ui_chat", params, "layout_music")
                 .get(3, TimeUnit.SECONDS);
 
         assertTrue("call 应成功", result.success);
@@ -355,7 +354,7 @@ public class A2UIIntegrationTest {
 
         assertTrue("client 应收到 action call", handled.await(3, TimeUnit.SECONDS));
         assertEquals("a2ui_chat", actionNameRef.get());
-        assertEquals(argsJson, contextRef.get());
+        assertEquals(params, contextRef.get());
     }
 
     @Test

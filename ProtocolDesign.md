@@ -261,7 +261,7 @@ rp.supportsA2UI = true;   // 第 4 点
 
 ```
 服务端                                         客户端
-  │  server.callA2UIAction(pkg, "chat", argsJson) │
+  │  server.callA2UIAction(pkg, "chat", paramsMap) │
   │  ① 校验 session.supportsA2UI()          │
   │  ─── A2UI_ACTION_CALL ───────────────► │
   │                                           │  InboundDispatcher.handleA2UIActionCall()
@@ -274,10 +274,10 @@ rp.supportsA2UI = true;   // 第 4 点
 
 ```java
 CompletableFuture<A2UIActionCallResultPayload> callA2UIAction(
-        String packageName, String functionName, String args, String layoutId)
+        String packageName, String functionName, Map<String, Object> context, String layoutId)
 ```
 
-- `args` 为 JSON 字符串（可为 null），例如 `"{\"prompt\":\"hello\"}"`
+- `context` 为调用参数字典（可为 null），例如 `{"prompt": "hello"}`
 - `layoutId` 为布局 id（可为 null）
 - 若 session 不存在 → Future 立即失败 `"no active session"`
 - 若 session 未声明 `supportsA2UI=true` → Future 立即失败 `"does not support a2ui"`
@@ -467,7 +467,7 @@ server.removeAllFallbacks(ModuleType module);
 | `setRegisterHandler(PluginRegisterHandler)` | 自定义注册逻辑 |
 | `setListener(PluginServerListener)` | 设置全局监听器 |
 | `call(String pkg, String actionId, Map params)` | 调用插件 Action |
-| `callA2UIAction(String pkg, String functionName, String args, String layoutId)` | 调用插件 A2UI Action |
+| `callA2UIAction(String pkg, String functionName, Map<String,Object> context, String layoutId)` | 调用插件 A2UI Action |
 | `setAppState(String pkg, boolean foreground)` | 设置插件前后台 |
 | `setForegroundApp(String pkg)` | 该插件前台，其余后台 |
 | `sendModuleEvent(ModuleType, String moduleId, String action, Object event)` | 触发模块事件 |
@@ -720,11 +720,12 @@ public class HostApp {
         //    · session 不存在 → Future 立即失败 "no active session"
         //    · session.supportsA2UI() == false → Future 立即失败 "does not support a2ui"
         //    · functionName 为空 → Future 立即失败
-        //    · functionName 即 A2UI action.name，args 即 action.context (JSON 字符串)
+        //    · functionName 即 A2UI action.name，context 为调用参数 Map
         // ──────────────────────────────
-        String argsJson = Json.mapper().writeValueAsString(Map.of("question", "现在播放的是什么歌？"));
+        Map<String, Object> params = new HashMap<>();
+        params.put("question", "现在播放的是什么歌？");
         CompletableFuture<A2UIActionCallResultPayload> a2uiFut =
-                server.callA2UIAction("com.ultrabar.music", "chat", argsJson, "layout_music");
+                server.callA2UIAction("com.ultrabar.music", "chat", params, "layout_music");
         a2uiFut.whenComplete((result, err) -> {
             if (err != null) {
                 System.out.println("[host] A2UI action failed: " + err.getMessage());
@@ -984,27 +985,21 @@ public class MusicPlugin {
             }
 
             // ==== A2UI action call（默认返回 NO_HANDLER，这里 override 真正实现） ====
-            // 对应 A2UI v0.9 action：functionName = action.name，args = action.context (JSON 字符串)
+            // 对应 A2UI v0.9 action：actionName = action.name，context = action.context
             @Override
             public void onA2UIActionCall(A2UIActionCallPayload payload,
                                             A2UIActionCallResponder responder) {
-                String functionName = payload.functionName;   // A2UI action.name
-                String argsJson = payload.args;               // A2UI action.context (JSON)
-                System.out.println("[music] A2UI function=" + functionName + " args=" + argsJson);
+                String functionName = payload.actionName;   // A2UI action.name
+                Map<String, Object> context = payload.context; // 调用参数
+                System.out.println("[music] A2UI function=" + functionName + " context=" + context);
 
                 switch (functionName) {
                     case "chat": {
-                        try {
-                            @SuppressWarnings("unchecked")
-                            Map<String, Object> args = Json.mapper().readValue(argsJson, Map.class);
-                            String question = (String) args.get("question");
-                            Map<String, Object> reply = new HashMap<>();
-                            reply.put("answer", "当前正在播放：周杰伦 - 晴天");
-                            reply.put("question", question);
-                            responder.sendSuccess(reply);
-                        } catch (Exception e) {
-                            responder.sendError(ErrorCodes.INTERNAL, "args json invalid: " + e.getMessage(), false);
-                        }
+                        String question = context == null ? null : (String) context.get("question");
+                        Map<String, Object> reply = new HashMap<>();
+                        reply.put("answer", "当前正在播放：周杰伦 - 晴天");
+                        reply.put("question", question);
+                        responder.sendSuccess(reply);
                         break;
                     }
                     default: {
