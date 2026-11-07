@@ -264,9 +264,12 @@ public class PluginServer {
         A2UIDataRequestPayload payload = new A2UIDataRequestPayload();
         return request(session, MessageType.A2UI_DATA_REQUEST, payload, A2UIDataRequestResultPayload.class)
                 .thenApply(result -> {
-                    if (result != null && result.success && result.items != null) {
-                        session.setA2UIData(result.items);
-                        A2UIDataPayload dataPayload = new A2UIDataPayload(result.items);
+                    if (result != null && result.success) {
+                        // 插件允许返回 null 表示无数据，归一化为 emptyList 保证 session.a2uiData() 非 null
+                        List<A2UIItem> items = result.items != null
+                                ? result.items : Collections.<A2UIItem>emptyList();
+                        session.setA2UIData(items);
+                        A2UIDataPayload dataPayload = new A2UIDataPayload(items);
                         try {
                             listener.onA2UIData(session, dataPayload);
                         } catch (Exception e) {

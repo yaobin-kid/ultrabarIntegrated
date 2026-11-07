@@ -559,12 +559,12 @@ public class A2UIIntegrationTest {
         PluginSession session = sessionRef.get();
         assertNotNull(session);
 
-        // 等待自动拉取完成
+        // a2uiData 初始为 emptyList，等待自动拉取填充实际数据
         long deadline = System.currentTimeMillis() + 3000;
-        while (System.currentTimeMillis() < deadline && session.a2uiData() == null) {
+        while (System.currentTimeMillis() < deadline && session.a2uiData().isEmpty()) {
             Thread.sleep(20);
         }
-        assertNotNull("注册后应自动拉取 a2ui 数据，session.a2uiData() 不应为 null", session.a2uiData());
+        assertFalse("注册后应自动拉取 a2ui 数据", session.a2uiData().isEmpty());
         assertEquals(1, session.a2uiData().size());
         assertEquals("layout_music", session.a2uiData().get(0).layoutId);
     }

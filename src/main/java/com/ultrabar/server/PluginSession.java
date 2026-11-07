@@ -25,9 +25,10 @@ public final class PluginSession {
     private volatile long foregroundAtMillis;
 
     /**
-     * 最近一次收到的 a2ui 布局项列表
+     * 最近一次收到的 a2ui 布局项列表。
+     * 初始为空列表，保证 a2uiData() 始终非 null。
      */
-    private volatile List<A2UIItem> a2uiData;
+    private volatile List<A2UIItem> a2uiData = Collections.emptyList();
 
     /**
      * 最近一次收到的 a2ui dataModel JSON 字符串
@@ -167,13 +168,10 @@ public final class PluginSession {
     }
 
     /**
-     * 存储一份 a2ui 布局项列表
+     * 存储一份 a2ui 布局项列表。传入 null 时清空为 emptyList，保证 a2uiData() 始终非 null。
      */
     void setA2UIData(List<A2UIItem> data) {
-        if (data == null) {
-            return;
-        }
-        this.a2uiData = data;
+        this.a2uiData = data == null ? Collections.emptyList() : data;
         touch();
     }
 
