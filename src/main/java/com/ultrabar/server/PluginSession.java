@@ -25,9 +25,9 @@ public final class PluginSession {
     private volatile long foregroundAtMillis;
 
     /**
-     * 最近一次收到的 a2ui 数据 JSON 字符串
+     * 最近一次收到的 a2ui 布局项列表
      */
-    private volatile String a2uiData;
+    private volatile List<A2UIItem> a2uiData;
 
     /**
      * 最近一次收到的 a2ui dataModel JSON 字符串
@@ -160,16 +160,16 @@ public final class PluginSession {
     }
 
     /**
-     * 获取最近一次收到的 a2ui 数据 JSON 字符串
+     * 获取最近一次收到的 a2ui 布局项列表
      */
-    public String a2uiData() {
+    public List<A2UIItem> a2uiData() {
         return a2uiData;
     }
 
     /**
-     * 存储一份 a2ui 数据 JSON 字符串
+     * 存储一份 a2ui 布局项列表
      */
-    void setA2UIData(String data) {
+    void setA2UIData(List<A2UIItem> data) {
         if (data == null) {
             return;
         }

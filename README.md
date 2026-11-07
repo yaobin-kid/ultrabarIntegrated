@@ -651,7 +651,7 @@ reg.supportsA2UI = true;   // ★ 关键开关
 
 ### 2. 插件端：上报 UI 结构（sendA2UIData）
 
-`sendA2UIData(String data)` 发送**完整的 A2UI v0.9 envelope**，用于 `createSurface` / `updateComponents` / `deleteSurface`。
+`sendA2UIData(List<A2UIItem> items)` 发送**完整的 A2UI v0.9 envelope**，用于 `createSurface` / `updateComponents` / `deleteSurface`。每个 `A2UIItem` 包含 `layoutId`（布局 id）和 `ui`（UI JSON 字符串）。
 
 **2.1 创建视图 伪代码**：
 
@@ -857,7 +857,7 @@ String ui = {
                }
             ]
          }
-client.sendA2UIData(ui);
+client.sendA2UIData(new A2UIItem("example-focus", ui));
 ```
 
  建议在 onRegisterSuccess 回调里调用  sendA2UIData 上报当前ui状态
@@ -879,7 +879,7 @@ String update = {
             }
  }
 
- client.sendA2UIUpdateDataModel(update);
+ client.sendA2UIUpdateDataModel("example-focus", update);
 
 ```
 

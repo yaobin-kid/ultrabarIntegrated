@@ -209,12 +209,13 @@ CompletableFuture<EventResultPayload> sendEvent(String eventId, Map<String, Obje
 > ⚠️ **协议版本**：`data` / `dataModel` 传输的均为 **[A2UI v0.9](https://a2ui.org/specification/v0.9-a2ui/)** 格式 JSON，envelope 必须带 `"version": "v0.9"`。不要使用 v0.8 的 `beginRendering` / `surfaceUpdate` / `dataModelUpdate` 消息名。
 
 ```java
-CompletableFuture<A2UIDataResultPayload> sendA2UIData(String data)
-CompletableFuture<A2UIUpdateDataModelResultPayload> sendA2UIUpdateDataModel(String dataModel)
-CompletableFuture<A2UIUpdateDataModelResultPayload> sendA2UIUpdateDataModel(String dataModel, boolean incremental)
+CompletableFuture<A2UIDataResultPayload> sendA2UIData(List<A2UIItem> items)
+CompletableFuture<A2UIDataResultPayload> sendA2UIData(A2UIItem... items)
+CompletableFuture<A2UIUpdateDataModelResultPayload> sendA2UIUpdateDataModel(String layoutId, String dataModel)
+CompletableFuture<A2UIUpdateDataModelResultPayload> sendA2UIUpdateDataModel(String layoutId, String dataModel, boolean incremental)
 ```
 
-**`sendA2UIData(data)`** — `data` 是完整的 A2UI v0.9 envelope，用于 `createSurface` / `updateComponents` / `deleteSurface`：
+**`sendA2UIData(items)`** — 每个 `A2UIItem` 包含 `layoutId`（布局 id）和 `ui`（完整的 A2UI v0.9 envelope），用于 `createSurface` / `updateComponents` / `deleteSurface`：
 
 ```json
 { "version": "v0.9", "createSurface": { "surfaceId": "main", "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json" } }
@@ -273,10 +274,11 @@ rp.supportsA2UI = true;   // 第 4 点
 
 ```java
 CompletableFuture<A2UIActionCallResultPayload> callA2UIAction(
-        String packageName, String functionName, String args)
+        String packageName, String functionName, String args, String layoutId)
 ```
 
 - `args` 为 JSON 字符串（可为 null），例如 `"{\"prompt\":\"hello\"}"`
+- `layoutId` 为布局 id（可为 null）
 - 若 session 不存在 → Future 立即失败 `"no active session"`
 - 若 session 未声明 `supportsA2UI=true` → Future 立即失败 `"does not support a2ui"`
 - 若 `functionName` 为空 → Future 立即失败
@@ -454,7 +456,7 @@ server.removeAllFallbacks(ModuleType module);
 | `setRegisterHandler(PluginRegisterHandler)` | 自定义注册逻辑 |
 | `setListener(PluginServerListener)` | 设置全局监听器 |
 | `call(String pkg, String actionId, Map params)` | 调用插件 Action |
-| `callA2UIAction(String pkg, String functionName, String args)` | 调用插件 A2UI Action |
+| `callA2UIAction(String pkg, String functionName, String args, String layoutId)` | 调用插件 A2UI Action |
 | `setAppState(String pkg, boolean foreground)` | 设置插件前后台 |
 | `setForegroundApp(String pkg)` | 该插件前台，其余后台 |
 | `sendModuleEvent(ModuleType, String moduleId, String action, Object event)` | 触发模块事件 |
@@ -478,9 +480,9 @@ server.removeAllFallbacks(ModuleType module);
 | `startAsync()` / `stop()` | 生命周期 |
 | `call(...)` | 服务端主动调我（被动，非主动发） |
 | `sendEvent(String eventId, Map params)` | 发 Event |
-| `sendA2UIData(String data)` | 上报 A2UI 数据 JSON 字符串 |
-| `sendA2UIUpdateDataModel(String dataModel)` | 上报 dataModel JSON 字符串 |
-| `sendA2UIUpdateDataModel(String dataModel, boolean incremental)` | 增量上报 |
+| `sendA2UIData(List<A2UIItem> items)` | 上报 A2UI 数据 JSON 字符串 |
+| `sendA2UIUpdateDataModel(String layoutId, String dataModel)` | 上报 dataModel JSON 字符串 |
+| `sendA2UIUpdateDataModel(String layoutId, String dataModel, boolean incremental)` | 增量上报 |
 | `subscribeModuleEvents(ModuleType... modules)` | 订阅模块事件（可一次多个） |
 | `unsubscribeModuleEvents(ModuleType... modules)` | 取消订阅（可一次多个） |
 
@@ -705,7 +707,7 @@ public class HostApp {
         // ──────────────────────────────
         String argsJson = Json.mapper().writeValueAsString(Map.of("question", "现在播放的是什么歌？"));
         CompletableFuture<A2UIActionCallResultPayload> a2uiFut =
-                server.callA2UIAction("com.ultrabar.music", "chat", argsJson);
+                server.callA2UIAction("com.ultrabar.music", "chat", argsJson, "layout_music");
         a2uiFut.whenComplete((result, err) -> {
             if (err != null) {
                 System.out.println("[host] A2UI action failed: " + err.getMessage());
@@ -1026,24 +1028,24 @@ public class MusicPlugin {
         String createSurfaceJson = "{\"version\":\"v0.9\",\"createSurface\":{"
                 + "\"surfaceId\":\"main\","
                 + "\"catalogId\":\"https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json\"}}";
-        client.sendA2UIData(createSurfaceJson);
+        client.sendA2UIData(new A2UIItem("layout_music", createSurfaceJson));
 
         // 7a'. 上报 A2UI v0.9 updateComponents envelope（定义组件树，component 为对象形式）
         String updateComponentsJson = "{\"version\":\"v0.9\",\"updateComponents\":{"
                 + "\"surfaceId\":\"main\",\"components\":["
                 + "{\"id\":\"root\",\"component\":{\"Text\":{\"text\":{\"path\":\"/track/name\"}}}}]}}";
-        client.sendA2UIData(updateComponentsJson);
+        client.sendA2UIData(new A2UIItem("layout_music", updateComponentsJson));
 
         // 7b. 全量 updateDataModel（path:"/" 替换整个数据模型）
         String fullDataModelJson = "{\"version\":\"v0.9\",\"updateDataModel\":{"
                 + "\"surfaceId\":\"main\",\"path\":\"/\","
                 + "\"contents\":{\"track\":{\"name\":\"晴天\",\"duration\":269}}}}";
-        client.sendA2UIUpdateDataModel(fullDataModelJson);
+        client.sendA2UIUpdateDataModel("layout_music", fullDataModelJson);
 
         // 7c. 局部 updateDataModel（path 指向具体节点，incremental=true）
         String deltaDataModelJson = "{\"version\":\"v0.9\",\"updateDataModel\":{"
                 + "\"surfaceId\":\"main\",\"path\":\"/track\",\"contents\":{\"name\":\"七里香\"}}}";
-        client.sendA2UIUpdateDataModel(deltaDataModelJson, true);  // incremental=true
+        client.sendA2UIUpdateDataModel("layout_music", deltaDataModelJson, true);  // incremental=true
 
         // ──────────────────────────────
         // 8. 订阅运行时变更 / 取消订阅
@@ -1079,4 +1081,4 @@ public class MusicPlugin {
 | `responder.sendError(code, msg, retryable)` | `retryable=true` 告诉服务端这个错误可能是临时的，可以稍后重试 |
 | `subscribeModuleEvents` | 可以在 `startAsync()` 前调用（先记录在本地），也可以在会话建立后调用（立即发送）。重连后 SDK 会自动重发 |
 | `Features.CALL` vs `Features.EVENT` | `CALL` 声明"我能被服务端主动调"；`EVENT` 声明"我能主动向服务端发 Event"。服务端收到 Event 时会校验该 eventId 是否注册了 Features.EVENT |
-| `sendA2UIUpdateDataModel(String json, boolean incremental)` | `incremental=true` 表示该 JSON 只包含变化字段；服务端仍按最近一次字符串直接覆盖（不再按 modelType 分类存，也不做增量合并） |
+| `sendA2UIUpdateDataModel(String layoutId, String json, boolean incremental)` | `incremental=true` 表示该 JSON 只包含变化字段；服务端仍按最近一次字符串直接覆盖（不再按 modelType 分类存，也不做增量合并） |

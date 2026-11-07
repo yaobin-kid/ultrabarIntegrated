@@ -13,6 +13,7 @@ import com.ultrabar.plugin.internal.SessionState;
 import com.ultrabar.plugin.model.ActionsPayload;
 import com.ultrabar.plugin.model.A2UIDataPayload;
 import com.ultrabar.plugin.model.A2UIDataResultPayload;
+import com.ultrabar.plugin.model.A2UIItem;
 import com.ultrabar.plugin.model.A2UIUpdateDataModelPayload;
 import com.ultrabar.plugin.model.A2UIUpdateDataModelResultPayload;
 import com.ultrabar.plugin.model.EventPayload;
@@ -32,6 +33,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -186,30 +188,38 @@ public class PluginClient {
      * 上报 a2ui 数据到服务端。服务端会将数据缓存到 PluginSession 中，
      * 并通过 {@link PluginServerListener#onA2UIData} 回调通知宿主。
      *
-     * @param data 数据 JSON 字符串
+     * @param items a2ui 布局项列表（每个 layoutId 对应一份 UI JSON）
      */
-    public CompletableFuture<A2UIDataResultPayload> sendA2UIData(String data) {
-        A2UIDataPayload payload = new A2UIDataPayload(data);
+    public CompletableFuture<A2UIDataResultPayload> sendA2UIData(List<A2UIItem> items) {
+        A2UIDataPayload payload = new A2UIDataPayload(items);
         return envelopes.request(MessageType.A2UI_DATA, payload, A2UIDataResultPayload.class);
+    }
+
+    /**
+     * 同 {@link #sendA2UIData(List)}，以可变参数形式传入。
+     */
+    public CompletableFuture<A2UIDataResultPayload> sendA2UIData(A2UIItem... items) {
+        return sendA2UIData(items == null ? null : Arrays.asList(items));
     }
 
     /**
      * 上报 a2ui updateDataModel 到服务端。服务端会将 dataModel 缓存到 PluginSession 中，
      * 并通过 {@link PluginServerListener#onA2UIUpdateDataModel} 回调通知宿主。
      *
+     * @param layoutId  布局 id
      * @param dataModel dataModel JSON 字符串
      */
     public CompletableFuture<A2UIUpdateDataModelResultPayload> sendA2UIUpdateDataModel(
-            String dataModel) {
-        return sendA2UIUpdateDataModel(dataModel, false);
+            String layoutId, String dataModel) {
+        return sendA2UIUpdateDataModel(layoutId, dataModel, false);
     }
 
     /**
-     * 同 {@link #sendA2UIUpdateDataModel(String)}，但可标记是否为增量更新。
+     * 同 {@link #sendA2UIUpdateDataModel(String, String)}，但可标记是否为增量更新。
      */
     public CompletableFuture<A2UIUpdateDataModelResultPayload> sendA2UIUpdateDataModel(
-            String dataModel, boolean incremental) {
-        A2UIUpdateDataModelPayload payload = new A2UIUpdateDataModelPayload(dataModel);
+            String layoutId, String dataModel, boolean incremental) {
+        A2UIUpdateDataModelPayload payload = new A2UIUpdateDataModelPayload(layoutId, dataModel);
         payload.incremental = incremental;
         return envelopes.request(MessageType.A2UI_UPDATE_DATA_MODEL, payload,
                 A2UIUpdateDataModelResultPayload.class);

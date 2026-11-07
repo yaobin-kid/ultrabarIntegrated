@@ -11,7 +11,9 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -119,15 +121,20 @@ public class A2UIIntegrationTest {
         data.put("status", "playing");
         data.put("volume", 80);
 
-        String dataJson = Json.mapper().writeValueAsString(data);
-        A2UIDataResultPayload ack = client.sendA2UIData(dataJson).get(3, TimeUnit.SECONDS);
+        String uiJson = Json.mapper().writeValueAsString(data);
+        List<A2UIItem> items = new ArrayList<A2UIItem>();
+        items.add(new A2UIItem("layout_music", uiJson));
+        A2UIDataResultPayload ack = client.sendA2UIData(items).get(3, TimeUnit.SECONDS);
         assertTrue("ack 应成功", ack.success);
 
         assertTrue("listener 应收到回调", latch.await(3, TimeUnit.SECONDS));
         assertNotNull(receivedRef.get());
-        assertEquals(dataJson, receivedRef.get().data);
+        assertEquals(1, receivedRef.get().data.size());
+        assertEquals("layout_music", receivedRef.get().data.get(0).layoutId);
+        assertEquals(uiJson, receivedRef.get().data.get(0).ui);
 
-        assertEquals(dataJson, session.a2uiData());
+        assertEquals(1, session.a2uiData().size());
+        assertEquals(uiJson, session.a2uiData().get(0).ui);
     }
 
     // ====== 2. client.sendA2UIUpdateDataModel → server 存储 + listener.onA2UIUpdateDataModel ======
@@ -152,12 +159,13 @@ public class A2UIIntegrationTest {
         model.put("text", "你好");
 
         String modelJson = Json.mapper().writeValueAsString(model);
-        A2UIUpdateDataModelResultPayload ack = client.sendA2UIUpdateDataModel(modelJson, false)
+        A2UIUpdateDataModelResultPayload ack = client.sendA2UIUpdateDataModel("layout_music", modelJson, false)
                 .get(3, TimeUnit.SECONDS);
         assertTrue("ack 应成功", ack.success);
 
         assertTrue("listener 应收到回调", latch.await(3, TimeUnit.SECONDS));
         assertNotNull(receivedRef.get());
+        assertEquals("layout_music", receivedRef.get().layoutId);
         assertEquals(modelJson, receivedRef.get().dataModel);
         assertFalse("非增量", receivedRef.get().incremental);
 
@@ -181,7 +189,7 @@ public class A2UIIntegrationTest {
 
         String incJson = Json.mapper().writeValueAsString(incrementalModel);
         A2UIUpdateDataModelResultPayload ack = client.sendA2UIUpdateDataModel(
-                incJson, true).get(3, TimeUnit.SECONDS);
+                "layout_music", incJson, true).get(3, TimeUnit.SECONDS);
         assertTrue(ack.success);
         assertTrue("listener 应收到回调", latch.await(3, TimeUnit.SECONDS));
     }
@@ -215,7 +223,7 @@ public class A2UIIntegrationTest {
         params.put("prompt", "hello");
         String argsJson = Json.mapper().writeValueAsString(params);
 
-        A2UIActionCallResultPayload result = server.callA2UIAction(PKG, "a2ui_chat", argsJson)
+        A2UIActionCallResultPayload result = server.callA2UIAction(PKG, "a2ui_chat", argsJson, "layout_music")
                 .get(3, TimeUnit.SECONDS);
 
         assertTrue("call 应成功", result.success);
@@ -242,7 +250,7 @@ public class A2UIIntegrationTest {
             }
         });
 
-        A2UIActionCallResultPayload result = server.callA2UIAction(PKG, "a2ui_reset", null)
+        A2UIActionCallResultPayload result = server.callA2UIAction(PKG, "a2ui_reset", null, "layout_music")
                 .get(3, TimeUnit.SECONDS);
 
         assertFalse("客户端拒绝时 result.success 应为 false", result.success);
@@ -256,7 +264,7 @@ public class A2UIIntegrationTest {
         startClientWithSupportsA2UI(false);
 
         CompletableFuture<A2UIActionCallResultPayload> future =
-                server.callA2UIAction(PKG, "a2ui_chat", null);
+                server.callA2UIAction(PKG, "a2ui_chat", null, "layout_music");
 
         try {
             future.get(1, TimeUnit.SECONDS);
@@ -272,7 +280,7 @@ public class A2UIIntegrationTest {
         startClientWithSupportsA2UI(true);
 
         CompletableFuture<A2UIActionCallResultPayload> future =
-                server.callA2UIAction("com.unknown.pkg", "a2ui_chat", null);
+                server.callA2UIAction("com.unknown.pkg", "a2ui_chat", null, "layout_music");
 
         try {
             future.get(1, TimeUnit.SECONDS);
@@ -295,7 +303,7 @@ public class A2UIIntegrationTest {
             // onA2UIActionCall 不实现，走 PluginListener 默认：responder.sendError(NO_HANDLER, ...)
         });
 
-        A2UIActionCallResultPayload result = server.callA2UIAction(PKG, "a2ui_chat", null)
+        A2UIActionCallResultPayload result = server.callA2UIAction(PKG, "a2ui_chat", null, "layout_music")
                 .get(3, TimeUnit.SECONDS);
 
         assertFalse("默认 NO_HANDLER 应返回 false", result.success);

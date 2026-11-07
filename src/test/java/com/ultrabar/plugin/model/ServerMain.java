@@ -33,7 +33,7 @@ public final class ServerMain {
                 result.configServer = new ConfigServer();
                 result.configServer.port = 100;
                 result.sessionToken = UUID.randomUUID().toString();
-                server.callA2UIAction()
+                // server.callA2UIAction(request.packageName, "reset", null, "layout_main");
                 return result;
             }
         });

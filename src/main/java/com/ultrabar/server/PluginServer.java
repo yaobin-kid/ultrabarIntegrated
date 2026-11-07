@@ -222,8 +222,9 @@ public class PluginServer {
      * @param packageName 目标插件包名
      * @param actionName  函数名
      * @param context     调用参数 JSON 字符串（可为 null）
+     * @param layoutId    布局 id（可为 null）
      */
-    public CompletableFuture<A2UIActionCallResultPayload> callA2UIAction(String packageName, String actionName, String context) {
+    public CompletableFuture<A2UIActionCallResultPayload> callA2UIAction(String packageName, String actionName, String context, String layoutId) {
         PluginSession session;
         try {
             session = getValidSession(packageName);
@@ -237,7 +238,7 @@ public class PluginServer {
         if (actionName == null || actionName.isEmpty()) {
             return failedFuture(new IllegalArgumentException("functionName must not be empty"));
         }
-        A2UIActionCallPayload payload = new A2UIActionCallPayload(actionName, context);
+        A2UIActionCallPayload payload = new A2UIActionCallPayload(actionName, context, layoutId);
         return request(session, MessageType.A2UI_ACTION_CALL, payload, A2UIActionCallResultPayload.class);
     }
 

@@ -12,7 +12,8 @@ public interface PluginListener {
      *
      * @param payload
      */
-    void onRegisterSuccess(RegisterResultPayload payload);
+    default void onRegisterSuccess(RegisterResultPayload payload) {
+    }
 
     default void onRegisterFailed(Throwable t) {
     }
@@ -24,14 +25,16 @@ public interface PluginListener {
     default void onActionsAck(ActionsResultPayload ack) {
     }
 
-    default void onActionsUpdate(ActionsPayload update){}
+    default void onActionsUpdate(ActionsPayload update) {
+    }
 
     // incoming describe from server -> plugin should respond via responder (similar to call)
     default void onDescribe(DescribePayload payload, DescribeResponder responder) {
     }
 
     // incoming call from server -> plugin should respond via responder
-    void onCall(CallPayload payload, CallResponder responder);
+    default void onCall(CallPayload payload, CallResponder responder) {
+    }
 
     /**
      * 收到服务端透传的模块事件。
