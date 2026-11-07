@@ -11,10 +11,10 @@ import com.ultrabar.plugin.internal.ListenerNotifier;
 import com.ultrabar.plugin.internal.RequestTable;
 import com.ultrabar.plugin.internal.SessionState;
 import com.ultrabar.plugin.model.ActionsPayload;
-import com.ultrabar.plugin.model.AGenUIDataPayload;
-import com.ultrabar.plugin.model.AGenUIDataResultPayload;
-import com.ultrabar.plugin.model.AGenUIUpdateDataModelPayload;
-import com.ultrabar.plugin.model.AGenUIUpdateDataModelResultPayload;
+import com.ultrabar.plugin.model.A2UIDataPayload;
+import com.ultrabar.plugin.model.A2UIDataResultPayload;
+import com.ultrabar.plugin.model.A2UIUpdateDataModelPayload;
+import com.ultrabar.plugin.model.A2UIUpdateDataModelResultPayload;
 import com.ultrabar.plugin.model.EventPayload;
 import com.ultrabar.plugin.model.EventResultPayload;
 import com.ultrabar.plugin.model.Json;
@@ -184,35 +184,35 @@ public class PluginClient {
 
     /**
      * 上报 agenui 数据到服务端。服务端会将数据缓存到 PluginSession 中，
-     * 并通过 {@link PluginServerListener#onAGenUIData} 回调通知宿主。
+     * 并通过 {@link PluginServerListener#onA2UIData} 回调通知宿主。
      *
      * @param data 数据 JSON 字符串
      */
-    public CompletableFuture<AGenUIDataResultPayload> sendAGenUIData(String data) {
-        AGenUIDataPayload payload = new AGenUIDataPayload(data);
-        return envelopes.request(MessageType.AGENUI_DATA, payload, AGenUIDataResultPayload.class);
+    public CompletableFuture<A2UIDataResultPayload> sendA2UIData(String data) {
+        A2UIDataPayload payload = new A2UIDataPayload(data);
+        return envelopes.request(MessageType.A2UI_DATA, payload, A2UIDataResultPayload.class);
     }
 
     /**
      * 上报 agenui updateDataModel 到服务端。服务端会将 dataModel 缓存到 PluginSession 中，
-     * 并通过 {@link PluginServerListener#onAGenUIUpdateDataModel} 回调通知宿主。
+     * 并通过 {@link PluginServerListener#onA2UIUpdateDataModel} 回调通知宿主。
      *
      * @param dataModel dataModel JSON 字符串
      */
-    public CompletableFuture<AGenUIUpdateDataModelResultPayload> sendAGenUIUpdateDataModel(
+    public CompletableFuture<A2UIUpdateDataModelResultPayload> sendA2UIUpdateDataModel(
             String dataModel) {
-        return sendAGenUIUpdateDataModel(dataModel, false);
+        return sendA2UIUpdateDataModel(dataModel, false);
     }
 
     /**
-     * 同 {@link #sendAGenUIUpdateDataModel(String)}，但可标记是否为增量更新。
+     * 同 {@link #sendA2UIUpdateDataModel(String)}，但可标记是否为增量更新。
      */
-    public CompletableFuture<AGenUIUpdateDataModelResultPayload> sendAGenUIUpdateDataModel(
+    public CompletableFuture<A2UIUpdateDataModelResultPayload> sendA2UIUpdateDataModel(
             String dataModel, boolean incremental) {
-        AGenUIUpdateDataModelPayload payload = new AGenUIUpdateDataModelPayload(dataModel);
+        A2UIUpdateDataModelPayload payload = new A2UIUpdateDataModelPayload(dataModel);
         payload.incremental = incremental;
-        return envelopes.request(MessageType.AGENUI_UPDATE_DATA_MODEL, payload,
-                AGenUIUpdateDataModelResultPayload.class);
+        return envelopes.request(MessageType.A2UI_UPDATE_DATA_MODEL, payload,
+                A2UIUpdateDataModelResultPayload.class);
     }
 
     /**

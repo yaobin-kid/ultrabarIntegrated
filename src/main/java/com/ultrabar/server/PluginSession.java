@@ -155,8 +155,8 @@ public final class PluginSession {
     /**
      * 注册时是否声明支持 agenui 功能
      */
-    public boolean supportsAGenUI() {
-        return plugin != null && plugin.supportsAGenUI;
+    public boolean supportsA2UI() {
+        return plugin != null && plugin.supportsA2UI;
     }
 
     /**
@@ -169,7 +169,7 @@ public final class PluginSession {
     /**
      * 存储一份 agenui 数据 JSON 字符串
      */
-    void setAGenUIData(String data) {
+    void setA2UIData(String data) {
         if (data == null) {
             return;
         }
@@ -187,7 +187,7 @@ public final class PluginSession {
     /**
      * 存储一份 agenui dataModel JSON 字符串
      */
-    void setAGenUIDataModel(String dataModel) {
+    void setA2UIDataModel(String dataModel) {
         if (dataModel == null) {
             return;
         }

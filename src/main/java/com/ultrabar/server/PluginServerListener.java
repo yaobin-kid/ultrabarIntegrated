@@ -1,7 +1,7 @@
 package com.ultrabar.server;
 
-import com.ultrabar.plugin.model.AGenUIDataPayload;
-import com.ultrabar.plugin.model.AGenUIUpdateDataModelPayload;
+import com.ultrabar.plugin.model.A2UIDataPayload;
+import com.ultrabar.plugin.model.A2UIUpdateDataModelPayload;
 import com.ultrabar.plugin.model.EventPayload;
 import com.ultrabar.plugin.model.ModuleEventPayload;
 import com.ultrabar.plugin.model.ModuleInfo;
@@ -31,17 +31,17 @@ public interface PluginServerListener {
     }
 
     /**
-     * 插件端上报 AGenUI 数据时触发。
+     * 插件端上报 A2UI 数据时触发。
      * 此时数据已存入 {@link PluginSession} 中。
      */
-    default void onAGenUIData(PluginSession session, AGenUIDataPayload payload) {
+    default void onA2UIData(PluginSession session, A2UIDataPayload payload) {
     }
 
     /**
-     * 插件端上报 AGenUI updateDataModel 时触发。
+     * 插件端上报 A2UI updateDataModel 时触发。
      * 此时 dataModel 已存入 {@link PluginSession} 中。
      */
-    default void onAGenUIUpdateDataModel(PluginSession session, AGenUIUpdateDataModelPayload payload) {
+    default void onA2UIUpdateDataModel(PluginSession session, A2UIUpdateDataModelPayload payload) {
     }
 
     /**

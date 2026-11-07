@@ -1,7 +1,7 @@
 package com.ultrabar.plugin.model;
 
 import com.ultrabar.plugin.PluginClient;
-import com.ultrabar.plugin.callback.AGenUIActionCallResponder;
+import com.ultrabar.plugin.callback.A2UIActionCallResponder;
 import com.ultrabar.plugin.callback.PluginListener;
 import com.ultrabar.server.PluginRegisterHandler;
 import com.ultrabar.server.PluginServer;
@@ -24,12 +24,12 @@ import static org.junit.Assert.*;
 
 /**
  * agenui 功能端到端集成测试：起真实 Netty server + client，覆盖
- * client.sendAGenUIData / sendAGenUIUpdateDataModel → server 存储 + 回调，
- * 以及 server.callAGenUIAction → client.onAGenUIActionCall → responder.sendSuccess。
+ * client.sendA2UIData / sendA2UIUpdateDataModel → server 存储 + 回调，
+ * 以及 server.callA2UIAction → client.onA2UIActionCall → responder.sendSuccess。
  *
  * 端口使用 0 让 OS 动态分配，避免并发测试端口冲突。
  */
-public class AGenUIIntegrationTest {
+public class A2UIIntegrationTest {
 
     private static final String PKG = "com.test.agenui";
 
@@ -70,8 +70,8 @@ public class AGenUIIntegrationTest {
         }
     }
 
-    /** 创建 client，连接已启动的 server，声明 supportsAGenUI，返回 session。 */
-    private PluginSession startClientWithSupportsAGenUI(boolean supportsAGenUI) throws Exception {
+    /** 创建 client，连接已启动的 server，声明 supportsA2UI，返回 session。 */
+    private PluginSession startClientWithSupportsA2UI(boolean supportsA2UI) throws Exception {
         final CountDownLatch registered = new CountDownLatch(1);
         final AtomicReference<PluginSession> sessionRef = new AtomicReference<PluginSession>();
         server.setListener(new PluginServerListener() {
@@ -86,7 +86,7 @@ public class AGenUIIntegrationTest {
         RegisterPayload rp = new RegisterPayload();
         rp.name = "AgenuiTestPlugin";
         rp.packageName = PKG;
-        rp.supportsAGenUI = supportsAGenUI;
+        rp.supportsA2UI = supportsA2UI;
         client.setRegisterConfig(rp);
         client.setPluginListener(new PluginListener() {
             @Override public void onRegisterSuccess(RegisterResultPayload payload) {}
@@ -99,17 +99,17 @@ public class AGenUIIntegrationTest {
         return sessionRef.get();
     }
 
-    // ====== 1. client.sendAGenUIData → server 存储 + listener.onAGenUIData ======
+    // ====== 1. client.sendA2UIData → server 存储 + listener.onA2UIData ======
 
     @Test
-    public void testSendAGenUIDataStoresAndNotifies() throws Exception {
-        PluginSession session = startClientWithSupportsAGenUI(true);
+    public void testSendA2UIDataStoresAndNotifies() throws Exception {
+        PluginSession session = startClientWithSupportsA2UI(true);
 
         final CountDownLatch latch = new CountDownLatch(1);
-        final AtomicReference<AGenUIDataPayload> receivedRef = new AtomicReference<AGenUIDataPayload>();
+        final AtomicReference<A2UIDataPayload> receivedRef = new AtomicReference<A2UIDataPayload>();
         server.setListener(new PluginServerListener() {
             @Override
-            public void onAGenUIData(PluginSession s, AGenUIDataPayload payload) {
+            public void onA2UIData(PluginSession s, A2UIDataPayload payload) {
                 receivedRef.set(payload);
                 latch.countDown();
             }
@@ -120,7 +120,7 @@ public class AGenUIIntegrationTest {
         data.put("volume", 80);
 
         String dataJson = Json.mapper().writeValueAsString(data);
-        AGenUIDataResultPayload ack = client.sendAGenUIData(dataJson).get(3, TimeUnit.SECONDS);
+        A2UIDataResultPayload ack = client.sendA2UIData(dataJson).get(3, TimeUnit.SECONDS);
         assertTrue("ack 应成功", ack.success);
 
         assertTrue("listener 应收到回调", latch.await(3, TimeUnit.SECONDS));
@@ -130,18 +130,18 @@ public class AGenUIIntegrationTest {
         assertEquals(dataJson, session.aGenUIData());
     }
 
-    // ====== 2. client.sendAGenUIUpdateDataModel → server 存储 + listener.onAGenUIUpdateDataModel ======
+    // ====== 2. client.sendA2UIUpdateDataModel → server 存储 + listener.onA2UIUpdateDataModel ======
 
     @Test
-    public void testSendAGenUIUpdateDataModelStoresAndNotifies() throws Exception {
-        PluginSession session = startClientWithSupportsAGenUI(true);
+    public void testSendA2UIUpdateDataModelStoresAndNotifies() throws Exception {
+        PluginSession session = startClientWithSupportsA2UI(true);
 
         final CountDownLatch latch = new CountDownLatch(1);
-        final AtomicReference<AGenUIUpdateDataModelPayload> receivedRef =
-                new AtomicReference<AGenUIUpdateDataModelPayload>();
+        final AtomicReference<A2UIUpdateDataModelPayload> receivedRef =
+                new AtomicReference<A2UIUpdateDataModelPayload>();
         server.setListener(new PluginServerListener() {
             @Override
-            public void onAGenUIUpdateDataModel(PluginSession s, AGenUIUpdateDataModelPayload payload) {
+            public void onA2UIUpdateDataModel(PluginSession s, A2UIUpdateDataModelPayload payload) {
                 receivedRef.set(payload);
                 latch.countDown();
             }
@@ -152,7 +152,7 @@ public class AGenUIIntegrationTest {
         model.put("text", "你好");
 
         String modelJson = Json.mapper().writeValueAsString(model);
-        AGenUIUpdateDataModelResultPayload ack = client.sendAGenUIUpdateDataModel(modelJson, false)
+        A2UIUpdateDataModelResultPayload ack = client.sendA2UIUpdateDataModel(modelJson, false)
                 .get(3, TimeUnit.SECONDS);
         assertTrue("ack 应成功", ack.success);
 
@@ -165,13 +165,13 @@ public class AGenUIIntegrationTest {
     }
 
     @Test
-    public void testSendAGenUIUpdateDataModelIncremental() throws Exception {
-        startClientWithSupportsAGenUI(true);
+    public void testSendA2UIUpdateDataModelIncremental() throws Exception {
+        startClientWithSupportsA2UI(true);
 
         final CountDownLatch latch = new CountDownLatch(1);
         server.setListener(new PluginServerListener() {
             @Override
-            public void onAGenUIUpdateDataModel(PluginSession s, AGenUIUpdateDataModelPayload payload) {
+            public void onA2UIUpdateDataModel(PluginSession s, A2UIUpdateDataModelPayload payload) {
                 latch.countDown();
             }
         });
@@ -180,17 +180,17 @@ public class AGenUIIntegrationTest {
         incrementalModel.put("phase", "acting");
 
         String incJson = Json.mapper().writeValueAsString(incrementalModel);
-        AGenUIUpdateDataModelResultPayload ack = client.sendAGenUIUpdateDataModel(
+        A2UIUpdateDataModelResultPayload ack = client.sendA2UIUpdateDataModel(
                 incJson, true).get(3, TimeUnit.SECONDS);
         assertTrue(ack.success);
         assertTrue("listener 应收到回调", latch.await(3, TimeUnit.SECONDS));
     }
 
-    // ====== 3. server.callAGenUIAction → client.onAGenUIActionCall → responder.sendSuccess ======
+    // ====== 3. server.callA2UIAction → client.onA2UIActionCall → responder.sendSuccess ======
 
     @Test
-    public void testCallAGenUIActionOk() throws Exception {
-        startClientWithSupportsAGenUI(true);
+    public void testCallA2UIActionOk() throws Exception {
+        startClientWithSupportsA2UI(true);
 
         final CountDownLatch handled = new CountDownLatch(1);
         final AtomicReference<String> actionNameRef = new AtomicReference<String>();
@@ -201,7 +201,7 @@ public class AGenUIIntegrationTest {
             @Override public void onCall(CallPayload payload, com.ultrabar.plugin.callback.CallResponder responder) {}
 
             @Override
-            public void onAGenUIActionCall(AGenUIActionCallPayload payload, AGenUIActionCallResponder responder) {
+            public void onA2UIActionCall(A2UIActionCallPayload payload, A2UIActionCallResponder responder) {
                 actionNameRef.set(payload.actionName);
                 contextRef.set(payload.context);
                 Map<String, Object> result = new HashMap<String, Object>();
@@ -215,7 +215,7 @@ public class AGenUIIntegrationTest {
         params.put("prompt", "hello");
         String argsJson = Json.mapper().writeValueAsString(params);
 
-        AGenUIActionCallResultPayload result = server.callAGenUIAction(PKG, "agenui_chat", argsJson)
+        A2UIActionCallResultPayload result = server.callA2UIAction(PKG, "agenui_chat", argsJson)
                 .get(3, TimeUnit.SECONDS);
 
         assertTrue("call 应成功", result.success);
@@ -227,8 +227,8 @@ public class AGenUIIntegrationTest {
     }
 
     @Test
-    public void testCallAGenUIActionClientRespondsError() throws Exception {
-        startClientWithSupportsAGenUI(true);
+    public void testCallA2UIActionClientRespondsError() throws Exception {
+        startClientWithSupportsA2UI(true);
 
         final CountDownLatch handled = new CountDownLatch(1);
         client.setPluginListener(new PluginListener() {
@@ -236,13 +236,13 @@ public class AGenUIIntegrationTest {
             @Override public void onCall(CallPayload payload, com.ultrabar.plugin.callback.CallResponder responder) {}
 
             @Override
-            public void onAGenUIActionCall(AGenUIActionCallPayload payload, AGenUIActionCallResponder responder) {
+            public void onA2UIActionCall(A2UIActionCallPayload payload, A2UIActionCallResponder responder) {
                 responder.sendError("NO_SUPPORT", "unknown action", false);
                 handled.countDown();
             }
         });
 
-        AGenUIActionCallResultPayload result = server.callAGenUIAction(PKG, "agenui_reset", null)
+        A2UIActionCallResultPayload result = server.callA2UIAction(PKG, "agenui_reset", null)
                 .get(3, TimeUnit.SECONDS);
 
         assertFalse("客户端拒绝时 result.success 应为 false", result.success);
@@ -252,15 +252,15 @@ public class AGenUIIntegrationTest {
     }
 
     @Test
-    public void testCallAGenUIActionRejectedWhenNotSupports() throws Exception {
-        startClientWithSupportsAGenUI(false);
+    public void testCallA2UIActionRejectedWhenNotSupports() throws Exception {
+        startClientWithSupportsA2UI(false);
 
-        CompletableFuture<AGenUIActionCallResultPayload> future =
-                server.callAGenUIAction(PKG, "agenui_chat", null);
+        CompletableFuture<A2UIActionCallResultPayload> future =
+                server.callA2UIAction(PKG, "agenui_chat", null);
 
         try {
             future.get(1, TimeUnit.SECONDS);
-            fail("supportsAGenUI=false 时应抛 Exception");
+            fail("supportsA2UI=false 时应抛 Exception");
         } catch (java.util.concurrent.ExecutionException ex) {
             assertTrue("错误信息应包含 supports agenui",
                     ex.getCause().getMessage().contains("does not support agenui"));
@@ -268,11 +268,11 @@ public class AGenUIIntegrationTest {
     }
 
     @Test
-    public void testCallAGenUIActionUnknownPackage() throws Exception {
-        startClientWithSupportsAGenUI(true);
+    public void testCallA2UIActionUnknownPackage() throws Exception {
+        startClientWithSupportsA2UI(true);
 
-        CompletableFuture<AGenUIActionCallResultPayload> future =
-                server.callAGenUIAction("com.unknown.pkg", "agenui_chat", null);
+        CompletableFuture<A2UIActionCallResultPayload> future =
+                server.callA2UIAction("com.unknown.pkg", "agenui_chat", null);
 
         try {
             future.get(1, TimeUnit.SECONDS);
@@ -284,18 +284,18 @@ public class AGenUIIntegrationTest {
     }
 
     @Test
-    public void testCallAGenUIActionTimeoutWhenClientSilent() throws Exception {
-        startClientWithSupportsAGenUI(true);
+    public void testCallA2UIActionTimeoutWhenClientSilent() throws Exception {
+        startClientWithSupportsA2UI(true);
 
-        // 不实现 onAGenUIActionCall，让插件默认返回 NO_HANDLER
+        // 不实现 onA2UIActionCall，让插件默认返回 NO_HANDLER
         // 但我们不期望默认处理——测试的是默认 NO_HANDLER 立即响应后 server 端 result.error 被设置
         client.setPluginListener(new PluginListener() {
             @Override public void onRegisterSuccess(RegisterResultPayload payload) {}
             @Override public void onCall(CallPayload payload, com.ultrabar.plugin.callback.CallResponder responder) {}
-            // onAGenUIActionCall 不实现，走 PluginListener 默认：responder.sendError(NO_HANDLER, ...)
+            // onA2UIActionCall 不实现，走 PluginListener 默认：responder.sendError(NO_HANDLER, ...)
         });
 
-        AGenUIActionCallResultPayload result = server.callAGenUIAction(PKG, "agenui_chat", null)
+        A2UIActionCallResultPayload result = server.callA2UIAction(PKG, "agenui_chat", null)
                 .get(3, TimeUnit.SECONDS);
 
         assertFalse("默认 NO_HANDLER 应返回 false", result.success);

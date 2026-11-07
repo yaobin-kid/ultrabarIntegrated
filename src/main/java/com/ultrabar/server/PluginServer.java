@@ -145,12 +145,12 @@ public class PluginServer {
     }
 
     /**
-     * 返回所有声明了 supportsAGenUI=true 的在线插件会话。
+     * 返回所有声明了 supportsA2UI=true 的在线插件会话。
      */
-    public Collection<PluginSession> sessionsSupportingAGenUI() {
+    public Collection<PluginSession> sessionsSupportingA2UI() {
         java.util.List<PluginSession> result = new java.util.ArrayList<PluginSession>();
         for (PluginSession s : sessions.all()) {
-            if (s.supportsAGenUI()) {
+            if (s.supportsA2UI()) {
                 result.add(s);
             }
         }
@@ -217,13 +217,13 @@ public class PluginServer {
 
     /**
      * 调用指定插件的 agenui action。
-     * 插件必须在注册时声明 {@link RegisterPayload#supportsAGenUI} 为 true 才会被接受。
+     * 插件必须在注册时声明 {@link RegisterPayload#supportsA2UI} 为 true 才会被接受。
      *
      * @param packageName 目标插件包名
      * @param actionName  函数名
      * @param context     调用参数 JSON 字符串（可为 null）
      */
-    public CompletableFuture<AGenUIActionCallResultPayload> callAGenUIAction(
+    public CompletableFuture<A2UIActionCallResultPayload> callA2UIAction(
             String packageName, String actionName, String context) {
         PluginSession session;
         try {
@@ -231,15 +231,15 @@ public class PluginServer {
         } catch (IllegalStateException e) {
             return failedFuture(e);
         }
-        if (!session.supportsAGenUI()) {
+        if (!session.supportsA2UI()) {
             return failedFuture(new IllegalStateException(
                     "package " + packageName + " does not support agenui"));
         }
         if (actionName == null || actionName.isEmpty()) {
             return failedFuture(new IllegalArgumentException("functionName must not be empty"));
         }
-        AGenUIActionCallPayload payload = new AGenUIActionCallPayload(actionName, context);
-        return request(session, MessageType.AGENUI_ACTION_CALL, payload, AGenUIActionCallResultPayload.class);
+        A2UIActionCallPayload payload = new A2UIActionCallPayload(actionName, context);
+        return request(session, MessageType.A2UI_ACTION_CALL, payload, A2UIActionCallResultPayload.class);
     }
 
     /**
@@ -523,7 +523,7 @@ public class PluginServer {
             case GET_OPTIONS_RESULT:
             case MODULE_EVENT_RESULT:
             case HEARTBEAT_ACK:
-            case AGENUI_ACTION_CALL_RESULT:
+            case A2UI_ACTION_CALL_RESULT:
                 pending.complete(envelope.getRequestId(), envelope.getPayload());
                 return;
             case EVENT:
@@ -535,11 +535,11 @@ public class PluginServer {
             case MODULE_EVENT_UNREGISTER:
                 handleModuleEventUnregister(channel, envelope);
                 return;
-            case AGENUI_DATA:
-                handleAGenUIData(channel, envelope);
+            case A2UI_DATA:
+                handleA2UIData(channel, envelope);
                 return;
-            case AGENUI_UPDATE_DATA_MODEL:
-                handleAGenUIUpdateDataModel(channel, envelope);
+            case A2UI_UPDATE_DATA_MODEL:
+                handleA2UIUpdateDataModel(channel, envelope);
                 return;
             case QUERY_MODULES:
                 handleQueryModules(channel, envelope);
@@ -734,22 +734,22 @@ public class PluginServer {
         session.unregisterModuleEvents(payload.modules);
     }
 
-    private void handleAGenUIData(Channel channel, Envelope envelope) {
+    private void handleA2UIData(Channel channel, Envelope envelope) {
         PluginSession session = sessions.resolve(channel, envelope.getSessionId());
         if (session == null) {
             log.warn("agenui_data without session from {}", channel.remoteAddress());
             return;
         }
         session.touch();
-        AGenUIDataPayload payload;
-        AGenUIDataResultPayload ack = new AGenUIDataResultPayload();
+        A2UIDataPayload payload;
+        A2UIDataResultPayload ack = new A2UIDataResultPayload();
         ack.success = true;
         try {
-            payload = envelope.payloadAs(AGenUIDataPayload.class);
+            payload = envelope.payloadAs(A2UIDataPayload.class);
         } catch (Exception e) {
             ack.success = false;
             ack.error = ErrorInfo.of(ErrorCodes.INVALID_PAYLOAD, e.getMessage(), false, null);
-            write(channel, Envelope.of(MessageType.AGENUI_DATA_RESULT, envelope.getRequestId(), ack)
+            write(channel, Envelope.of(MessageType.A2UI_DATA_RESULT, envelope.getRequestId(), ack)
                     .withSession(session.sessionId(), session.sessionToken()));
             return;
         }
@@ -757,33 +757,33 @@ public class PluginServer {
             if (payload.timestamp == null) {
                 payload.timestamp = System.currentTimeMillis();
             }
-            session.setAGenUIData(payload.data);
+            session.setA2UIData(payload.data);
             try {
-                listener.onAGenUIData(session, payload);
+                listener.onA2UIData(session, payload);
             } catch (Exception e) {
-                log.error("onAGenUIData listener failed packageName={}", session.packageName(), e);
+                log.error("onA2UIData listener failed packageName={}", session.packageName(), e);
             }
         }
-        write(channel, Envelope.of(MessageType.AGENUI_DATA_RESULT, envelope.getRequestId(), ack)
+        write(channel, Envelope.of(MessageType.A2UI_DATA_RESULT, envelope.getRequestId(), ack)
                 .withSession(session.sessionId(), session.sessionToken()));
     }
 
-    private void handleAGenUIUpdateDataModel(Channel channel, Envelope envelope) {
+    private void handleA2UIUpdateDataModel(Channel channel, Envelope envelope) {
         PluginSession session = sessions.resolve(channel, envelope.getSessionId());
         if (session == null) {
             log.warn("agenui_update_data_model without session from {}", channel.remoteAddress());
             return;
         }
         session.touch();
-        AGenUIUpdateDataModelPayload payload;
-        AGenUIUpdateDataModelResultPayload ack = new AGenUIUpdateDataModelResultPayload();
+        A2UIUpdateDataModelPayload payload;
+        A2UIUpdateDataModelResultPayload ack = new A2UIUpdateDataModelResultPayload();
         ack.success = true;
         try {
-            payload = envelope.payloadAs(AGenUIUpdateDataModelPayload.class);
+            payload = envelope.payloadAs(A2UIUpdateDataModelPayload.class);
         } catch (Exception e) {
             ack.success = false;
             ack.error = ErrorInfo.of(ErrorCodes.INVALID_PAYLOAD, e.getMessage(), false, null);
-            write(channel, Envelope.of(MessageType.AGENUI_UPDATE_DATA_MODEL_RESULT, envelope.getRequestId(), ack)
+            write(channel, Envelope.of(MessageType.A2UI_UPDATE_DATA_MODEL_RESULT, envelope.getRequestId(), ack)
                     .withSession(session.sessionId(), session.sessionToken()));
             return;
         }
@@ -794,14 +794,14 @@ public class PluginServer {
             if (payload.incremental == null) {
                 payload.incremental = false;
             }
-            session.setAGenUIDataModel(payload.dataModel);
+            session.setA2UIDataModel(payload.dataModel);
             try {
-                listener.onAGenUIUpdateDataModel(session, payload);
+                listener.onA2UIUpdateDataModel(session, payload);
             } catch (Exception e) {
-                log.error("onAGenUIUpdateDataModel listener failed packageName={}", session.packageName(), e);
+                log.error("onA2UIUpdateDataModel listener failed packageName={}", session.packageName(), e);
             }
         }
-        write(channel, Envelope.of(MessageType.AGENUI_UPDATE_DATA_MODEL_RESULT, envelope.getRequestId(), ack)
+        write(channel, Envelope.of(MessageType.A2UI_UPDATE_DATA_MODEL_RESULT, envelope.getRequestId(), ack)
                 .withSession(session.sessionId(), session.sessionToken()));
     }
 

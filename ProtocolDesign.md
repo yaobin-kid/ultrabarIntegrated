@@ -50,12 +50,12 @@
 | `MODULE_EVENT_UNREGISTER` | module_event_unregister | C→S | ModuleEventUnregisterPayload |
 | `MODULE_EVENT` | module_event | S→C | ModuleEventPayload |
 | `MODULE_EVENT_RESULT` | module_event_result | C→S | ModuleEventResultPayload |
-| `AGENUI_DATA` | agenui_data | C→S | AGenUIDataPayload |
-| `AGENUI_DATA_RESULT` | agenui_data_result | S→C | AGenUIDataResultPayload |
-| `AGENUI_UPDATE_DATA_MODEL` | agenui_update_data_model | C→S | AGenUIUpdateDataModelPayload |
-| `AGENUI_UPDATE_DATA_MODEL_RESULT` | agenui_update_data_model_result | S→C | AGenUIUpdateDataModelResultPayload |
-| `AGENUI_ACTION_CALL` | agenui_action_call | S→C | AGenUIActionCallPayload |
-| `AGENUI_ACTION_CALL_RESULT` | agenui_action_call_result | C→S | AGenUIActionCallResultPayload |
+| `AGENUI_DATA` | agenui_data | C→S | A2UIDataPayload |
+| `AGENUI_DATA_RESULT` | agenui_data_result | S→C | A2UIDataResultPayload |
+| `AGENUI_UPDATE_DATA_MODEL` | agenui_update_data_model | C→S | A2UIUpdateDataModelPayload |
+| `AGENUI_UPDATE_DATA_MODEL_RESULT` | agenui_update_data_model_result | S→C | A2UIUpdateDataModelResultPayload |
+| `AGENUI_ACTION_CALL` | agenui_action_call | S→C | A2UIActionCallPayload |
+| `AGENUI_ACTION_CALL_RESULT` | agenui_action_call_result | C→S | A2UIActionCallResultPayload |
 
 > **方向说明**：C→S = 客户端发给服务端；S→C = 服务端发给客户端；C↔S = 双向。
 
@@ -99,7 +99,7 @@
 | `PluginServer` | 对外门面；管理 SessionRegistry / 心跳定时 / 所有 request 分发 |
 | `ServerChannelHandler` | Netty inbound handler，把每行 JSON 交给 PluginServer.dispatch() |
 | `SessionRegistry` | `packageName → PluginSession`，替换会话时继承前后台状态 |
-| `PluginSession` | 一个在线插件的全部状态（register info / actions / 前后台 / module 订阅 / AGenUI 缓存） |
+| `PluginSession` | 一个在线插件的全部状态（register info / actions / 前后台 / module 订阅 / A2UI 缓存） |
 
 ### 2.3 客户端最小启动代码
 
@@ -109,7 +109,7 @@ PluginClient client = new PluginClient("127.0.0.1", 39001);
 RegisterPayload rp = new RegisterPayload();
 rp.name = "Music";
 rp.packageName = "com.ultrabar.music";
-rp.supportsAGenUI = true;           // 第 4 点：声明支持 AGenUI
+rp.supportsA2UI = true;           // 第 4 点：声明支持 A2UI
 client.setRegisterConfig(rp);
 
 client.setPluginListener(new PluginListener() {
@@ -204,17 +204,17 @@ CompletableFuture<EventResultPayload> sendEvent(String eventId, Map<String, Obje
 
 - 服务端回调：`PluginServerListener.onEventReceived(session, event)`
 
-### 4.2 AGenUI 数据上报（A2UI v0.9 协议）
+### 4.2 A2UI 数据上报（A2UI v0.9 协议）
 
 > ⚠️ **协议版本**：`data` / `dataModel` 传输的均为 **[A2UI v0.9](https://a2ui.org/specification/v0.9-a2ui/)** 格式 JSON，envelope 必须带 `"version": "v0.9"`。不要使用 v0.8 的 `beginRendering` / `surfaceUpdate` / `dataModelUpdate` 消息名。
 
 ```java
-CompletableFuture<AGenUIDataResultPayload> sendAGenUIData(String data)
-CompletableFuture<AGenUIUpdateDataModelResultPayload> sendAGenUIUpdateDataModel(String dataModel)
-CompletableFuture<AGenUIUpdateDataModelResultPayload> sendAGenUIUpdateDataModel(String dataModel, boolean incremental)
+CompletableFuture<A2UIDataResultPayload> sendA2UIData(String data)
+CompletableFuture<A2UIUpdateDataModelResultPayload> sendA2UIUpdateDataModel(String dataModel)
+CompletableFuture<A2UIUpdateDataModelResultPayload> sendA2UIUpdateDataModel(String dataModel, boolean incremental)
 ```
 
-**`sendAGenUIData(data)`** — `data` 是完整的 A2UI v0.9 envelope，用于 `createSurface` / `updateComponents` / `deleteSurface`：
+**`sendA2UIData(data)`** — `data` 是完整的 A2UI v0.9 envelope，用于 `createSurface` / `updateComponents` / `deleteSurface`：
 
 ```json
 { "version": "v0.9", "createSurface": { "surfaceId": "main", "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json" } }
@@ -226,15 +226,15 @@ CompletableFuture<AGenUIUpdateDataModelResultPayload> sendAGenUIUpdateDataModel(
 ```
 （注意 v0.9 的 `component` 是对象 `{"Text": {...}}`，不是 v0.8 的字符串 `"Text"`）
 
-**`sendAGenUIUpdateDataModel(dataModel)`** — `dataModel` 是 A2UI v0.9 `updateDataModel` 消息（`path` 为 JSON Pointer，`contents` 为写入数据）：
+**`sendA2UIUpdateDataModel(dataModel)`** — `dataModel` 是 A2UI v0.9 `updateDataModel` 消息（`path` 为 JSON Pointer，`contents` 为写入数据）：
 
 ```json
 { "version": "v0.9", "updateDataModel": { "surfaceId": "main", "path": "/", "contents": { "track": { "name": "晴天" } } } }
 ```
 
 **服务端行为**：收到后
-1. `session.setAGenUIData(data)` / `session.setAGenUIDataModel(dataModel)` — 存入 PluginSession（单值覆盖）
-2. `listener.onAGenUIData(session, payload)` / `listener.onAGenUIUpdateDataModel(session, payload)` — 回调宿主
+1. `session.setA2UIData(data)` / `session.setA2UIDataModel(dataModel)` — 存入 PluginSession（单值覆盖）
+2. `listener.onA2UIData(session, payload)` / `listener.onA2UIUpdateDataModel(session, payload)` — 回调宿主
 3. 回 ACK 给客户端
 
 **服务端侧数据读取**（无需回调，随时可取）：
@@ -244,27 +244,27 @@ String audioData = session.aGenUIData();          // 最近一次 data JSON 字�
 String state     = session.aGenUIDataModel();     // 最近一次 dataModel JSON 字符串
 ```
 
-**客户端注册时声明支持 AGenUI**：
+**客户端注册时声明支持 A2UI**：
 ```java
 RegisterPayload rp = new RegisterPayload();
-rp.supportsAGenUI = true;   // 第 4 点
+rp.supportsA2UI = true;   // 第 4 点
 ```
 
-> 如果客户端没声明 `supportsAGenUI=true`，服务端 `callAGenUIAction` 会立即拒绝；但客户端仍可上报 data（上报通道本身不强校验）。
+> 如果客户端没声明 `supportsA2UI=true`，服务端 `callA2UIAction` 会立即拒绝；但客户端仍可上报 data（上报通道本身不强校验）。
 
 ---
 
-## 5. 核心能力三：服务端向客户端发起 AGenUI Action Call（Server → Client）
+## 5. 核心能力三：服务端向客户端发起 A2UI Action Call（Server → Client）
 
 ### 5.1 流程
 
 ```
 服务端                                         客户端
-  │  server.callAGenUIAction(pkg, "chat", argsJson) │
-  │  ① 校验 session.supportsAGenUI()          │
+  │  server.callA2UIAction(pkg, "chat", argsJson) │
+  │  ① 校验 session.supportsA2UI()          │
   │  ─── AGENUI_ACTION_CALL ───────────────► │
-  │                                           │  InboundDispatcher.handleAGenUIActionCall()
-  │                                           │  ListenerNotifier → PluginListener.onAGenUIActionCall()
+  │                                           │  InboundDispatcher.handleA2UIActionCall()
+  │                                           │  ListenerNotifier → PluginListener.onA2UIActionCall()
   │  ◄─── AGENUI_ACTION_CALL_RESULT ───────── │  responder.sendSuccess(...) / sendError(...)
   │  future.complete(result)                  │
 ```
@@ -272,24 +272,24 @@ rp.supportsAGenUI = true;   // 第 4 点
 ### 5.2 服务端 API
 
 ```java
-CompletableFuture<AGenUIActionCallResultPayload> callAGenUIAction(
+CompletableFuture<A2UIActionCallResultPayload> callA2UIAction(
         String packageName, String functionName, String args)
 ```
 
 - `args` 为 JSON 字符串（可为 null），例如 `"{\"prompt\":\"hello\"}"`
 - 若 session 不存在 → Future 立即失败 `"no active session"`
-- 若 session 未声明 `supportsAGenUI=true` → Future 立即失败 `"does not support agenui"`
+- 若 session 未声明 `supportsA2UI=true` → Future 立即失败 `"does not support agenui"`
 - 若 `functionName` 为空 → Future 立即失败
 
-### 5.3 客户端回调：PluginListener.onAGenUIActionCall
+### 5.3 客户端回调：PluginListener.onA2UIActionCall
 
 ```java
-default void onAGenUIActionCall(AGenUIActionCallPayload payload, AGenUIActionCallResponder responder) {
+default void onA2UIActionCall(A2UIActionCallPayload payload, A2UIActionCallResponder responder) {
     responder.sendError(ErrorCodes.NO_HANDLER, "no agenui action handler registered", false);
 }
 ```
 
-**注意**：`PluginListener` 里只有 `onAGenUIActionCall` 是 default 实现（返回 NO_HANDLER 错误），其他 `onCall` / `onRegisterSuccess` 是 abstract，必须实现。
+**注意**：`PluginListener` 里只有 `onA2UIActionCall` 是 default 实现（返回 NO_HANDLER 错误），其他 `onCall` / `onRegisterSuccess` 是 abstract，必须实现。
 
 | Responder 方法 | 说明 |
 |----------------|------|
@@ -393,13 +393,13 @@ server.setForegroundApp("com.ultrabar.music");           // 该插件前台，�
 |------|------|
 | `packageName()` | 注册包名 |
 | `name()` | 注册名 |
-| `supportsAGenUI()` | 注册时是否声明支持 AGenUI |
+| `supportsA2UI()` | 注册时是否声明支持 A2UI |
 | `actions()` | 当前注册的 ActionSummary 集合 |
 | `moduleEvents()` | 当前订阅的 ModuleType 集合 |
 | `handlesModuleEvent(ModuleType)` | 是否订阅了该模块 |
 | `isForeground()` / `foregroundAtMillis()` | 前后台状态与切换时间 |
-| `aGenUIData()` | 最近一次 AGenUI 数据 JSON 字符串 |
-| `aGenUIDataModel()` | 最近一次 AGenUI dataModel JSON 字符串 |
+| `aGenUIData()` | 最近一次 A2UI 数据 JSON 字符串 |
+| `aGenUIDataModel()` | 最近一次 A2UI dataModel JSON 字符串 |
 | `lastSeenMillis()` | 最后一次通信时间 |
 
 ---
@@ -417,7 +417,7 @@ server.setForegroundApp("com.ultrabar.music");           // 该插件前台，�
 | `onDescribe(DescribePayload, DescribeResponder)` | S→C | ❌ | DescribeResponder | 参数描述查询 |
 | `onCall(CallPayload, CallResponder)` | S→C | ✅ | CallResponder | 被服务端调用 |
 | `onModuleEvent(ModuleEventPayload, ModuleEventResponder)` | S→C | ❌ | ModuleEventResponder | 模块事件 |
-| `onAGenUIActionCall(AGenUIActionCallPayload, AGenUIActionCallResponder)` | S→C | ❌ | AGenUIActionCallResponder | AGenUI action call（默认返回 NO_HANDLER） |
+| `onA2UIActionCall(A2UIActionCallPayload, A2UIActionCallResponder)` | S→C | ❌ | A2UIActionCallResponder | A2UI action call（默认返回 NO_HANDLER） |
 | `onOptions(GetOptionsPayload, OptionsResponder)` | S→C | ❌ | OptionsResponder | 动态参数选项查询 |
 
 ### 8.2 服务端：PluginServerListener
@@ -429,8 +429,8 @@ server.setForegroundApp("com.ultrabar.music");           // 该插件前台，�
 | `onActionsUpdated(PluginSession)` | 事件 | 空 | Actions 配置更新 |
 | `onEventReceived(PluginSession, EventPayload)` | C→S | 空 | 客户端发 Event |
 | `onModuleEventFallback(ModuleEventPayload)` | 兜底 | 空 | 模块事件全部未消费时兜底 |
-| `onAGenUIData(PluginSession, AGenUIDataPayload)` | C→S | 空 | 客户端上报 AGenUI 数据（已存入 session） |
-| `onAGenUIUpdateDataModel(PluginSession, AGenUIUpdateDataModelPayload)` | C→S | 空 | 客户端上报 AGenUI dataModel（已存入 session） |
+| `onA2UIData(PluginSession, A2UIDataPayload)` | C→S | 空 | 客户端上报 A2UI 数据（已存入 session） |
+| `onA2UIUpdateDataModel(PluginSession, A2UIUpdateDataModelPayload)` | C→S | 空 | 客户端上报 A2UI dataModel（已存入 session） |
 
 ### 8.3 服务端：registerFallback（注册式兜底，独立于 PluginServerListener）
 
@@ -454,7 +454,7 @@ server.removeAllFallbacks(ModuleType module);
 | `setRegisterHandler(PluginRegisterHandler)` | 自定义注册逻辑 |
 | `setListener(PluginServerListener)` | 设置全局监听器 |
 | `call(String pkg, String actionId, Map params)` | 调用插件 Action |
-| `callAGenUIAction(String pkg, String functionName, String args)` | 调用插件 AGenUI Action |
+| `callA2UIAction(String pkg, String functionName, String args)` | 调用插件 A2UI Action |
 | `setAppState(String pkg, boolean foreground)` | 设置插件前后台 |
 | `setForegroundApp(String pkg)` | 该插件前台，其余后台 |
 | `sendModuleEvent(ModuleType, String moduleId, String action, Object event)` | 触发模块事件 |
@@ -471,16 +471,16 @@ server.removeAllFallbacks(ModuleType module);
 | 方法 | 说明 |
 |------|------|
 | `PluginClient(String host, int port)` | 指定服务端地址 |
-| `setRegisterConfig(RegisterPayload)` | 注册信息（含 `supportsAGenUI`） |
+| `setRegisterConfig(RegisterPayload)` | 注册信息（含 `supportsA2UI`） |
 | `setActionsConfig(ActionsPayload)` | 声明支持的 Actions |
 | `updateActions(ActionsPayload)` | 运行时更新 Actions |
 | `setPluginListener(PluginListener)` | 设置回调 |
 | `startAsync()` / `stop()` | 生命周期 |
 | `call(...)` | 服务端主动调我（被动，非主动发） |
 | `sendEvent(String eventId, Map params)` | 发 Event |
-| `sendAGenUIData(String data)` | 上报 AGenUI 数据 JSON 字符串 |
-| `sendAGenUIUpdateDataModel(String dataModel)` | 上报 dataModel JSON 字符串 |
-| `sendAGenUIUpdateDataModel(String dataModel, boolean incremental)` | 增量上报 |
+| `sendA2UIData(String data)` | 上报 A2UI 数据 JSON 字符串 |
+| `sendA2UIUpdateDataModel(String dataModel)` | 上报 dataModel JSON 字符串 |
+| `sendA2UIUpdateDataModel(String dataModel, boolean incremental)` | 增量上报 |
 | `subscribeModuleEvents(ModuleType... modules)` | 订阅模块事件（可一次多个） |
 | `unsubscribeModuleEvents(ModuleType... modules)` | 取消订阅（可一次多个） |
 
@@ -494,13 +494,13 @@ server.removeAllFallbacks(ModuleType module);
 | `packageName` | String | — | 包名（服务端以此为 session key） |
 | `isConfig` | boolean | true | 是否有配置页面 |
 | `configBtnName` | String | — | 配置按钮名 |
-| **`supportsAGenUI`** | **boolean** | **false** | **是否声明支持 AGenUI（影响服务端 callAGenUIAction 校验）** |
+| **`supportsA2UI`** | **boolean** | **false** | **是否声明支持 A2UI（影响服务端 callA2UIAction 校验）** |
 
 ---
 
 ## 12. 典型时序图
 
-### 12.1 完整注册 → 调用 → AGenUI 上报 → 兜底
+### 12.1 完整注册 → 调用 → A2UI 上报 → 兜底
 
 ```
 PluginClient         PluginServer          PluginServerListener
@@ -522,13 +522,13 @@ PluginClient         PluginServer          PluginServerListener
      │◄── MODULE_EVENT ──►│                         │
      ├── responder.consume() ──────────────────────►│
      │                    │                         │
-     │                    │  (宿主想发 AGenUI action)│
+     │                    │  (宿主想发 A2UI action)│
      │◄── AGENUI_ACTION_CALL ──────────────────────►│
      ├── responder.sendSuccess() ──────────────────►│
      │                    │                         │
-     │  (插件上报 AGenUI)  │                         │
+     │  (插件上报 A2UI)  │                         │
      ├── AGENUI_DATA ────►│                         │
-     │◄── AGENUI_DATA_RESULT │                      ├── onAGenUIData()
+     │◄── AGENUI_DATA_RESULT │                      ├── onA2UIData()
      │                    │  (数据已存入 session)    │
      │                    │                         │
      │  (所有插件都没消费)  │                         │
@@ -553,15 +553,15 @@ PluginClient         PluginServer          PluginServerListener
 
 | 测试类 | 内容 |
 |--------|------|
-| `AGenUIProtocolTest` | AGenUI payload 构造 / JSON 序列化 / MessageType 绑定 |
-| `PluginSessionAGenUITest` | PluginSession 的 AGenUI 存储方法 |
-| `AGenUIIntegrationTest` | 端到端：起真实 Netty server + client，覆盖上报 / 回调 / action call / supportsAGenUI 校验 / 默认 NO_HANDLER |
+| `A2UIProtocolTest` | A2UI payload 构造 / JSON 序列化 / MessageType 绑定 |
+| `PluginSessionA2UITest` | PluginSession 的 A2UI 存储方法 |
+| `A2UIIntegrationTest` | 端到端：起真实 Netty server + client，覆盖上报 / 回调 / action call / supportsA2UI 校验 / 默认 NO_HANDLER |
 
 ---
 
 ## 14. 服务端完整代码示例
 
-> 下面这段是一个典型宿主 App 的完整骨架：启动 server、自定义注册校验、管理前后台、调用插件 action、分发模块事件、触发 AGenUI action call，并从 PluginSession 里读取 AGenUI 数据快照。可直接放在 `main()` 里运行。
+> 下面这段是一个典型宿主 App 的完整骨架：启动 server、自定义注册校验、管理前后台、调用插件 action、分发模块事件、触发 A2UI action call，并从 PluginSession 里读取 A2UI 数据快照。可直接放在 `main()` 里运行。
 
 ```java
 package com.example.host;
@@ -609,7 +609,7 @@ public class HostApp {
             public void onRegistered(PluginSession session) {
                 System.out.println("[host] plugin online name=" + session.name()
                         + " pkg=" + session.packageName()
-                        + " supportsAGenUI=" + session.supportsAGenUI());
+                        + " supportsA2UI=" + session.supportsA2UI());
                 // 第一个上线的插件默认前台；后续可按应用状态手动调整
                 server.setForegroundApp(session.packageName());
             }
@@ -631,17 +631,17 @@ public class HostApp {
                         + " eventId=" + event.eventId + " params=" + event.params);
             }
 
-            // —— AGenUI 数据回调 —— //
+            // —— A2UI 数据回调 —— //
             @Override
-            public void onAGenUIData(PluginSession session, AGenUIDataPayload payload) {
+            public void onA2UIData(PluginSession session, A2UIDataPayload payload) {
                 // payload 此刻已存入 session.aGenUIData()；这里做业务分发即可
-                System.out.println("[host] AGenUI data from " + session.packageName()
+                System.out.println("[host] A2UI data from " + session.packageName()
                         + " data=" + payload.data);
             }
 
             @Override
-            public void onAGenUIUpdateDataModel(PluginSession session, AGenUIUpdateDataModelPayload payload) {
-                System.out.println("[host] AGenUI dataModel from " + session.packageName()
+            public void onA2UIUpdateDataModel(PluginSession session, A2UIUpdateDataModelPayload payload) {
+                System.out.println("[host] A2UI dataModel from " + session.packageName()
                         + " incremental=" + payload.incremental
                         + " model=" + payload.dataModel);
             }
@@ -697,20 +697,20 @@ public class HostApp {
         });
 
         // ──────────────────────────────
-        // 7. 调用插件的 AGenUI action call（回传 A2UI v0.9 action）
+        // 7. 调用插件的 A2UI action call（回传 A2UI v0.9 action）
         //    · session 不存在 → Future 立即失败 "no active session"
-        //    · session.supportsAGenUI() == false → Future 立即失败 "does not support agenui"
+        //    · session.supportsA2UI() == false → Future 立即失败 "does not support agenui"
         //    · functionName 为空 → Future 立即失败
         //    · functionName 即 A2UI action.name，args 即 action.context (JSON 字符串)
         // ──────────────────────────────
         String argsJson = Json.mapper().writeValueAsString(Map.of("question", "现在播放的是什么歌？"));
-        CompletableFuture<AGenUIActionCallResultPayload> agenuiFut =
-                server.callAGenUIAction("com.ultrabar.music", "chat", argsJson);
+        CompletableFuture<A2UIActionCallResultPayload> agenuiFut =
+                server.callA2UIAction("com.ultrabar.music", "chat", argsJson);
         agenuiFut.whenComplete((result, err) -> {
             if (err != null) {
-                System.out.println("[host] AGenUI action failed: " + err.getMessage());
+                System.out.println("[host] A2UI action failed: " + err.getMessage());
             } else {
-                System.out.println("[host] AGenUI action result success=" + result.success);
+                System.out.println("[host] A2UI action result success=" + result.success);
             }
         });
 
@@ -737,7 +737,7 @@ public class HostApp {
         server.setAppState("com.ultrabar.smart_home", false);  // 单独把某个插件置为后台
 
         // ──────────────────────────────
-        // 10. 直接从 PluginSession 读取 AGenUI 数据（无需回调）
+        // 10. 直接从 PluginSession 读取 A2UI 数据（无需回调）
         // ──────────────────────────────
         PluginSession musicSession = server.getSession("com.ultrabar.music");
         if (musicSession != null) {
@@ -766,7 +766,7 @@ public class HostApp {
 
 ## 15. 客户端完整代码示例
 
-> 下面是一个典型音乐插件的完整骨架：注册支持 AGenUI、声明 play/pause/stop 三个 action、订阅 DOT_KEY 模块事件、实现 `onCall` / `onModuleEvent` / `onAGenUIActionCall`、主动上报 AGenUI 数据。可直接作为插件的入口类。
+> 下面是一个典型音乐插件的完整骨架：注册支持 A2UI、声明 play/pause/stop 三个 action、订阅 DOT_KEY 模块事件、实现 `onCall` / `onModuleEvent` / `onA2UIActionCall`、主动上报 A2UI 数据。可直接作为插件的入口类。
 
 ```java
 package com.ultrabar.music;
@@ -792,7 +792,7 @@ public class MusicPlugin {
         rp.packageName = "com.ultrabar.music";
         rp.isConfig = true;
         rp.configBtnName = "调试 Music";
-        rp.supportsAGenUI = true;   // ⚠️ 不写这行，服务端 callAGenUIAction 会立即拒绝
+        rp.supportsA2UI = true;   // ⚠️ 不写这行，服务端 callA2UIAction 会立即拒绝
 
         // ──────────────────────────────
         // 2. 声明支持的 Actions
@@ -964,14 +964,14 @@ public class MusicPlugin {
                 }
             }
 
-            // ==== AGenUI action call（默认返回 NO_HANDLER，这里 override 真正实现） ====
+            // ==== A2UI action call（默认返回 NO_HANDLER，这里 override 真正实现） ====
             // 对应 A2UI v0.9 action：functionName = action.name，args = action.context (JSON 字符串)
             @Override
-            public void onAGenUIActionCall(AGenUIActionCallPayload payload,
-                                            AGenUIActionCallResponder responder) {
+            public void onA2UIActionCall(A2UIActionCallPayload payload,
+                                            A2UIActionCallResponder responder) {
                 String functionName = payload.functionName;   // A2UI action.name
                 String argsJson = payload.args;               // A2UI action.context (JSON)
-                System.out.println("[music] AGenUI function=" + functionName + " args=" + argsJson);
+                System.out.println("[music] A2UI function=" + functionName + " args=" + argsJson);
 
                 switch (functionName) {
                     case "chat": {
@@ -989,7 +989,7 @@ public class MusicPlugin {
                         break;
                     }
                     default: {
-                        // 对于自己不认识的 AGenUI action，沿用默认 NO_HANDLER 行为
+                        // 对于自己不认识的 A2UI action，沿用默认 NO_HANDLER 行为
                         responder.sendError(ErrorCodes.NO_HANDLER,
                                 "no handler for agenui function: " + functionName, false);
                     }
@@ -1018,7 +1018,7 @@ public class MusicPlugin {
               });
 
         // ──────────────────────────────
-        // 7. 主动上报 AGenUI 数据（无论 supportsAGenUI=true/false 都可以上报）
+        // 7. 主动上报 A2UI 数据（无论 supportsA2UI=true/false 都可以上报）
         //    所有 JSON 均为 A2UI v0.9 协议格式，envelope 必须带 "version":"v0.9"
         // ──────────────────────────────
 
@@ -1026,24 +1026,24 @@ public class MusicPlugin {
         String createSurfaceJson = "{\"version\":\"v0.9\",\"createSurface\":{"
                 + "\"surfaceId\":\"main\","
                 + "\"catalogId\":\"https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json\"}}";
-        client.sendAGenUIData(createSurfaceJson);
+        client.sendA2UIData(createSurfaceJson);
 
         // 7a'. 上报 A2UI v0.9 updateComponents envelope（定义组件树，component 为对象形式）
         String updateComponentsJson = "{\"version\":\"v0.9\",\"updateComponents\":{"
                 + "\"surfaceId\":\"main\",\"components\":["
                 + "{\"id\":\"root\",\"component\":{\"Text\":{\"text\":{\"path\":\"/track/name\"}}}}]}}";
-        client.sendAGenUIData(updateComponentsJson);
+        client.sendA2UIData(updateComponentsJson);
 
         // 7b. 全量 updateDataModel（path:"/" 替换整个数据模型）
         String fullDataModelJson = "{\"version\":\"v0.9\",\"updateDataModel\":{"
                 + "\"surfaceId\":\"main\",\"path\":\"/\","
                 + "\"contents\":{\"track\":{\"name\":\"晴天\",\"duration\":269}}}}";
-        client.sendAGenUIUpdateDataModel(fullDataModelJson);
+        client.sendA2UIUpdateDataModel(fullDataModelJson);
 
         // 7c. 局部 updateDataModel（path 指向具体节点，incremental=true）
         String deltaDataModelJson = "{\"version\":\"v0.9\",\"updateDataModel\":{"
                 + "\"surfaceId\":\"main\",\"path\":\"/track\",\"contents\":{\"name\":\"七里香\"}}}";
-        client.sendAGenUIUpdateDataModel(deltaDataModelJson, true);  // incremental=true
+        client.sendA2UIUpdateDataModel(deltaDataModelJson, true);  // incremental=true
 
         // ──────────────────────────────
         // 8. 订阅运行时变更 / 取消订阅
@@ -1074,9 +1074,9 @@ public class MusicPlugin {
 
 | 项 | 说明 |
 |----|------|
-| `supportsAGenUI = true` | **必须**在注册时声明，否则服务端 `callAGenUIAction()` 立即失败。但客户端仍可上报 AGenUI 数据（上报通道不强校验） |
-| `onCall` / `onModuleEvent` / `onAGenUIActionCall` 的 Responder | **务必且只能调用一次**。忘了调 → 服务端超时；调两次 → 第二次会被底层 `AtomicBoolean` 拒绝 |
+| `supportsA2UI = true` | **必须**在注册时声明，否则服务端 `callA2UIAction()` 立即失败。但客户端仍可上报 A2UI 数据（上报通道不强校验） |
+| `onCall` / `onModuleEvent` / `onA2UIActionCall` 的 Responder | **务必且只能调用一次**。忘了调 → 服务端超时；调两次 → 第二次会被底层 `AtomicBoolean` 拒绝 |
 | `responder.sendError(code, msg, retryable)` | `retryable=true` 告诉服务端这个错误可能是临时的，可以稍后重试 |
 | `subscribeModuleEvents` | 可以在 `startAsync()` 前调用（先记录在本地），也可以在会话建立后调用（立即发送）。重连后 SDK 会自动重发 |
 | `Features.CALL` vs `Features.EVENT` | `CALL` 声明"我能被服务端主动调"；`EVENT` 声明"我能主动向服务端发 Event"。服务端收到 Event 时会校验该 eventId 是否注册了 Features.EVENT |
-| `sendAGenUIUpdateDataModel(String json, boolean incremental)` | `incremental=true` 表示该 JSON 只包含变化字段；服务端仍按最近一次字符串直接覆盖（不再按 modelType 分类存，也不做增量合并） |
+| `sendA2UIUpdateDataModel(String json, boolean incremental)` | `incremental=true` 表示该 JSON 只包含变化字段；服务端仍按最近一次字符串直接覆盖（不再按 modelType 分类存，也不做增量合并） |

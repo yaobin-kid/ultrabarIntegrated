@@ -12,7 +12,7 @@ public class RegisterPayload implements Payload {
     public String configBtnName;
 
     /** 是否支持 agenui 功能 */
-    public boolean supportsAGenUI = false;
+    public boolean supportsA2UI = false;
 
     public RegisterPayload() {
     }

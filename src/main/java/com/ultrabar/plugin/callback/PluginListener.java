@@ -47,10 +47,10 @@ public interface PluginListener {
 
     /**
      * 收到服务端发起的 agenui action call。
-     * 需通过 {@link AGenUIActionCallResponder#sendSuccess(Object)} 或
-     * {@link AGenUIActionCallResponder#sendError(String, String, boolean)} 响应。
+     * 需通过 {@link A2UIActionCallResponder#sendSuccess(Object)} 或
+     * {@link A2UIActionCallResponder#sendError(String, String, boolean)} 响应。
      */
-    default void onAGenUIActionCall(AGenUIActionCallPayload payload, AGenUIActionCallResponder responder) {
+    default void onA2UIActionCall(A2UIActionCallPayload payload, A2UIActionCallResponder responder) {
         responder.sendError(ErrorCodes.NO_HANDLER, "no agenui action handler registered", false);
     }
 }

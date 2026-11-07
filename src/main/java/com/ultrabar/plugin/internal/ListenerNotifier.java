@@ -2,7 +2,7 @@ package com.ultrabar.plugin.internal;
 
 import com.ultrabar.plugin.callback.PluginListener;
 import com.ultrabar.plugin.model.*;
-import com.ultrabar.plugin.callback.AGenUIActionCallResponder;
+import com.ultrabar.plugin.callback.A2UIActionCallResponder;
 import com.ultrabar.plugin.callback.CallResponder;
 import com.ultrabar.plugin.callback.DescribeResponder;
 import com.ultrabar.plugin.callback.ModuleEventResponder;
@@ -143,7 +143,7 @@ public final class ListenerNotifier {
         });
     }
 
-    void onAGenUIActionCall(final AGenUIActionCallPayload payload, final AGenUIActionCallResponder responder) {
+    void onA2UIActionCall(final A2UIActionCallPayload payload, final A2UIActionCallResponder responder) {
         PluginListener current = listener;
         if (current == null) {
             responder.sendError(ErrorCodes.NO_HANDLER, "No PluginListener registered", false);
@@ -157,7 +157,7 @@ public final class ListenerNotifier {
         }, new ListenerAction() {
             @Override
             public void run(PluginListener l) {
-                l.onAGenUIActionCall(payload, responder);
+                l.onA2UIActionCall(payload, responder);
             }
         });
     }

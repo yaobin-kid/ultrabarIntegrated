@@ -615,9 +615,9 @@ server.call("com.ultrabar.music", "music.play", params);
 // server.stop();
 ```
 
-## AGenUI 功能（A2UI v0.9 协议）
+## A2UI 功能（A2UI v0.9 协议）
 
-AGenUI 基于 **[A2UI v0.9 协议](https://a2ui.org/specification/v0.9-a2ui/)**，是插件（Agent）↔ 主 App（Renderer）之间的生成式 UI 通道：
+A2UI 基于 **[A2UI v0.9 协议](https://a2ui.org/specification/v0.9-a2ui/)**，是插件（Agent）↔ 主 App（Renderer）之间的生成式 UI 通道：
 
 - **插件 → 主 App**：上报 A2UI envelope 消息（创建 surface、更新组件树、更新数据模型），主 App 缓存到 `PluginSession` 并通过 `PluginServerListener` 回调通知
 - **主 App → 插件**：用户在 UI 上的交互以 action 形式回传给插件处理
@@ -628,15 +628,15 @@ AGenUI 基于 **[A2UI v0.9 协议](https://a2ui.org/specification/v0.9-a2ui/)**�
 
 | Envelope key       | 方向      | 对应 API                      | 用途            |
 | ------------------ | ------- | --------------------------- | ------------- |
-| `createSurface`    | 插件→主App | `sendAGenUIData`            | 创建 UI surface |
-| `updateComponents` | 插件→主App | `sendAGenUIData`            | 定义/更新组件树      |
-| `updateDataModel`  | 插件→主App | `sendAGenUIUpdateDataModel` | 写入/更新数据模型     |
-| `deleteSurface`    | 插件→主App | `sendAGenUIData`            | 删除 surface    |
-| `action`           | 主App→插件 | `callAGenUIAction`          | 用户交互回传        |
+| `createSurface`    | 插件→主App | `sendA2UIData`            | 创建 UI surface |
+| `updateComponents` | 插件→主App | `sendA2UIData`            | 定义/更新组件树      |
+| `updateDataModel`  | 插件→主App | `sendA2UIUpdateDataModel` | 写入/更新数据模型     |
+| `deleteSurface`    | 插件→主App | `sendA2UIData`            | 删除 surface    |
+| `action`           | 主App→插件 | `callA2UIAction`          | 用户交互回传        |
 
-### 1. 启用 AGenUI
+### 1. 启用 A2UI
 
-插件注册时声明 `supportsAGenUI = true`（**必须**，否则主 App 调用会被服务端拒绝）：
+插件注册时声明 `supportsA2UI = true`（**必须**，否则主 App 调用会被服务端拒绝）：
 
 ```java
 RegisterPayload reg = new RegisterPayload();
@@ -645,13 +645,13 @@ reg.name = "示例插件";
 reg.versionCode = 1;
 reg.versionName = "1.0.0";
 reg.protocolVersion = 1;
-reg.supportsAGenUI = true;   // ★ 关键开关
+reg.supportsA2UI = true;   // ★ 关键开关
 // ... 其他字段
 ```
 
-### 2. 插件端：上报 UI 结构（sendAGenUIData）
+### 2. 插件端：上报 UI 结构（sendA2UIData）
 
-`sendAGenUIData(String data)` 发送**完整的 A2UI v0.9 envelope**，用于 `createSurface` / `updateComponents` / `deleteSurface`。
+`sendA2UIData(String data)` 发送**完整的 A2UI v0.9 envelope**，用于 `createSurface` / `updateComponents` / `deleteSurface`。
 
 **2.1 创建视图 伪代码**：
 
@@ -848,8 +848,8 @@ String ui = {
                      "value": {
                         "eyebrow": "今日重点Change",
                         "progress": "1 / 3",
-                        "body": "通过 RecyclerView + AGenUI，把服务端下发的 JSON 直接渲染成原生卡片。",
-                        "headline": "完成 AGenUI 接入",
+                        "body": "通过 RecyclerView + A2UI，把服务端下发的 JSON 直接渲染成原生卡片。",
+                        "headline": "完成 A2UI 接入",
                         "buttonLabel": "打卡"
                      }
                   },
@@ -857,10 +857,10 @@ String ui = {
                }
             ]
          }
-client.sendAGenUIData(ui);
+client.sendA2UIData(ui);
 ```
 
- 建议在 onRegisterSuccess 回调里调用  sendAGenUIData 上报当前ui状态
+ 建议在 onRegisterSuccess 回调里调用  sendA2UIData 上报当前ui状态
 
 **2.2 更新视图状态值 伪代码**：
 
@@ -871,15 +871,15 @@ String update = {
                 "surfaceId": "example-focus",
                 "value": {
                     "eyebrow": "今日重点",
-                    "headline": "完成 AGenUI 接入",
-                    "body": "通过 RecyclerView + AGenUI，把服务端下发的 JSON 直接渲染成原生卡片。",
+                    "headline": "完成 A2UI 接入",
+                    "body": "通过 RecyclerView + A2UI，把服务端下发的 JSON 直接渲染成原生卡片。",
                     "progress": "1 / 3",
                     "buttonLabel": "打PC卡"
                 }
             }
  }
 
- client.sendAGenUIUpdateDataModel(update);
+ client.sendA2UIUpdateDataModel(update);
 
 ```
 
@@ -903,7 +903,7 @@ String update = {
                            "child": "button-label"
                         },
 
- functionCall 对象里的call属性取值 handleWidgetAction  点击时会把args 参数透传到 PluginListener.onAGenUIActionCall 回调
+ functionCall 对象里的call属性取值 handleWidgetAction  点击时会把args 参数透传到 PluginListener.onA2UIActionCall 回调
 ```
 
 <br />

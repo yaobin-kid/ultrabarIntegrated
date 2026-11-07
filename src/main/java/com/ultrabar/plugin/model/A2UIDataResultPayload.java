@@ -6,12 +6,12 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * 服务端对 agenui_data 的响应。
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class AGenUIDataResultPayload extends ReplyPayload {
+public class A2UIDataResultPayload extends ReplyPayload {
 
-    public AGenUIDataResultPayload() {
+    public A2UIDataResultPayload() {
     }
 
-    public AGenUIDataResultPayload(boolean success) {
+    public A2UIDataResultPayload(boolean success) {
         this.success = success;
     }
 }

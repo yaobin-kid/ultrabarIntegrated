@@ -1,15 +1,15 @@
 package com.ultrabar.plugin.internal;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ultrabar.plugin.callback.AGenUIActionCallResponder;
+import com.ultrabar.plugin.callback.A2UIActionCallResponder;
 import com.ultrabar.plugin.callback.CallResponder;
 import com.ultrabar.plugin.callback.DescribeResponder;
 import com.ultrabar.plugin.callback.ModuleEventResponder;
 import com.ultrabar.plugin.callback.OptionsResponder;
 import com.ultrabar.plugin.model.ActionsPayload;
-import com.ultrabar.plugin.model.AGenUIActionCallPayload;
-import com.ultrabar.plugin.model.AGenUIDataResultPayload;
-import com.ultrabar.plugin.model.AGenUIUpdateDataModelResultPayload;
+import com.ultrabar.plugin.model.A2UIActionCallPayload;
+import com.ultrabar.plugin.model.A2UIDataResultPayload;
+import com.ultrabar.plugin.model.A2UIUpdateDataModelResultPayload;
 import com.ultrabar.plugin.model.CallPayload;
 import com.ultrabar.plugin.model.DescribePayload;
 import com.ultrabar.plugin.model.Envelope;
@@ -63,9 +63,9 @@ public final class InboundDispatcher {
             case CALL_RESULT:
             case HEARTBEAT_ACK:
             case EVENT_RESULT:
-            case AGENUI_DATA_RESULT:
-            case AGENUI_UPDATE_DATA_MODEL_RESULT:
-            case AGENUI_ACTION_CALL_RESULT:
+            case A2UI_DATA_RESULT:
+            case A2UI_UPDATE_DATA_MODEL_RESULT:
+            case A2UI_ACTION_CALL_RESULT:
             case QUERY_MODULES_RESULT:
                 if (!requests.complete(envelope.getRequestId(), envelope.getPayload())) {
                     log.debug("no pending request for type={} requestId={}", type, envelope.getRequestId());
@@ -86,8 +86,8 @@ public final class InboundDispatcher {
             case MODULE_EVENT:
                 handleModuleEvent(channel, envelope);
                 return;
-            case AGENUI_ACTION_CALL:
-                handleAGenUIActionCall(channel, envelope);
+            case A2UI_ACTION_CALL:
+                handleA2UIActionCall(channel, envelope);
                 return;
             default:
                 log.info("ignored inbound type={} requestId={}", type, envelope.getRequestId());
@@ -144,13 +144,13 @@ public final class InboundDispatcher {
         notifier.onModuleEvent(payload, responder);
     }
 
-    private void handleAGenUIActionCall(Channel channel, Envelope envelope) {
-        AGenUIActionCallResponder responder = new AGenUIActionCallResponder(
+    private void handleA2UIActionCall(Channel channel, Envelope envelope) {
+        A2UIActionCallResponder responder = new A2UIActionCallResponder(
                 channel, envelope.getRequestId(), mapper,
                 session.sessionId(), session.sessionToken());
         try {
-            AGenUIActionCallPayload payload = envelope.payloadAs(AGenUIActionCallPayload.class);
-            notifier.onAGenUIActionCall(payload, responder);
+            A2UIActionCallPayload payload = envelope.payloadAs(A2UIActionCallPayload.class);
+            notifier.onA2UIActionCall(payload, responder);
         } catch (Exception e) {
             responder.sendError(ErrorCodes.INVALID_PAYLOAD, e.getMessage(), false);
         }
