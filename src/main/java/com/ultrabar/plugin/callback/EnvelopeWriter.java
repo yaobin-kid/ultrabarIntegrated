@@ -6,12 +6,12 @@ import io.netty.channel.Channel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-final class EnvelopeWriter {
+public final class EnvelopeWriter {
     private static final Logger log = LoggerFactory.getLogger(EnvelopeWriter.class);
 
     private EnvelopeWriter() {}
 
-    static void write(Channel channel, ObjectMapper mapper, Envelope envelope) {
+    public static void write(Channel channel, ObjectMapper mapper, Envelope envelope) {
         try {
             channel.writeAndFlush(mapper.writeValueAsString(envelope) + "\n");
         } catch (Exception e) {

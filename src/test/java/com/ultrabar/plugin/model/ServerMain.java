@@ -106,8 +106,7 @@ public final class ServerMain {
             @Override
             public void onModuleEventFallback(ModuleEventPayload event) {
                 //所有订阅了该模块的插件都没有消费，进入兜底处理。
-                log.info("module event fallback module={} action={} appState={}",
-                        event.module, event.action, event.appState);
+                log.info("module event fallback module={} action={} appState={}", event.module, event.action, event.appState);
             }
         });
 

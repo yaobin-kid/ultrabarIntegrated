@@ -243,6 +243,41 @@ public class PluginServer {
     }
 
     /**
+     * 主动向插件拉取当前 a2ui 数据。
+     * 服务端发送 {@code a2ui_data_request}，插件通过
+     * {@link com.ultrabar.plugin.callback.PluginListener#onA2UIDataRequest()} 返回布局列表。
+     * 拉取成功后会自动缓存到 session 并触发 {@link PluginServerListener#onA2UIData}。
+     *
+     * @param packageName 目标插件包名
+     */
+    public CompletableFuture<A2UIDataRequestResultPayload> queryA2UIData(String packageName) {
+        PluginSession session;
+        try {
+            session = getValidSession(packageName);
+        } catch (IllegalStateException e) {
+            return failedFuture(e);
+        }
+        if (!session.supportsA2UI()) {
+            return failedFuture(new IllegalStateException(
+                    "package " + packageName + " does not support a2ui"));
+        }
+        A2UIDataRequestPayload payload = new A2UIDataRequestPayload();
+        return request(session, MessageType.A2UI_DATA_REQUEST, payload, A2UIDataRequestResultPayload.class)
+                .thenApply(result -> {
+                    if (result != null && result.success && result.items != null) {
+                        session.setA2UIData(result.items);
+                        A2UIDataPayload dataPayload = new A2UIDataPayload(result.items);
+                        try {
+                            listener.onA2UIData(session, dataPayload);
+                        } catch (Exception e) {
+                            log.error("onA2UIData listener failed packageName={}", packageName, e);
+                        }
+                    }
+                    return result;
+                });
+    }
+
+    /**
      * 透传一个模块事件：按“前台优先、后台其次”的顺序分发给已订阅该模块的插件。
      * 所有插件都未消费时调用 {@link PluginServerListener#onModuleEventFallback}。
      *
@@ -524,6 +559,7 @@ public class PluginServer {
             case MODULE_EVENT_RESULT:
             case HEARTBEAT_ACK:
             case A2UI_ACTION_CALL_RESULT:
+            case A2UI_DATA_REQUEST_RESULT:
                 pending.complete(envelope.getRequestId(), envelope.getPayload());
                 return;
             case EVENT:

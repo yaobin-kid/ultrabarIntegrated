@@ -10,6 +10,8 @@ import com.ultrabar.plugin.callback.OptionsResponder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 
@@ -160,6 +162,24 @@ public final class ListenerNotifier {
                 l.onA2UIActionCall(payload, responder);
             }
         });
+    }
+
+    /**
+     * 同步调用 {@link PluginListener#onA2UIDataRequest()} 并返回结果。
+     * 必须在调用线程同步执行，以便 InboundDispatcher 立即回包。
+     */
+    List<A2UIItem> onA2UIDataRequest() {
+        PluginListener current = listener;
+        if (current == null) {
+            return Collections.emptyList();
+        }
+        try {
+            List<A2UIItem> result = current.onA2UIDataRequest();
+            return result == null ? Collections.<A2UIItem>emptyList() : result;
+        } catch (Exception e) {
+            log.error("onA2UIDataRequest listener failed", e);
+            return Collections.emptyList();
+        }
     }
 
     private ErrorSink responderGuard(final DescribeResponder responder) {

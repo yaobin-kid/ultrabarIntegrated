@@ -2,6 +2,9 @@ package com.ultrabar.plugin.callback;
 
 import com.ultrabar.plugin.model.*;
 
+import java.util.Collections;
+import java.util.List;
+
 /**
  * Single global listener interface for plugin events.
  * Implement this to receive register/actions/describe failures and incoming calls.
@@ -55,5 +58,13 @@ public interface PluginListener {
      */
     default void onA2UIActionCall(A2UIActionCallPayload payload, A2UIActionCallResponder responder) {
         responder.sendError(ErrorCodes.NO_HANDLER, "no a2ui action handler registered", false);
+    }
+
+    /**
+     * 服务端主动拉取 a2ui 数据时触发。
+     * 返回当前插件持有的 a2ui 布局列表；返回 null 或空列表表示没有数据。
+     */
+    default List<A2UIItem> onA2UIDataRequest() {
+        return Collections.emptyList();
     }
 }

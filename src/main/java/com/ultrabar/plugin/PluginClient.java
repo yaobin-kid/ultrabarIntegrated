@@ -33,7 +33,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -185,21 +184,30 @@ public class PluginClient {
     }
 
     /**
-     * 上报 a2ui 数据到服务端。服务端会将数据缓存到 PluginSession 中，
+     * 主动上报（刷新）单个 a2ui 布局到服务端。
+     * 服务端会将数据缓存到 PluginSession 中，
      * 并通过 {@link PluginServerListener#onA2UIData} 回调通知宿主。
      *
-     * @param items a2ui 布局项列表（每个 layoutId 对应一份 UI JSON）
+     * <p>若需要服务端主动拉取当前全部 a2ui 数据，服务端可调用
+     * {@code PluginServer.queryA2UIData(packageName)}，此时插件通过
+     * {@link PluginListener#onA2UIDataRequest()} 返回数据。</p>
+     *
+     * @param item a2ui 布局项（layoutId + ui JSON）
      */
-    public CompletableFuture<A2UIDataResultPayload> sendA2UIData(List<A2UIItem> items) {
+    public CompletableFuture<A2UIDataResultPayload> sendA2UIData(A2UIItem item) {
+        List<A2UIItem> items = item == null
+                ? Collections.<A2UIItem>emptyList()
+                : Collections.singletonList(item);
         A2UIDataPayload payload = new A2UIDataPayload(items);
         return envelopes.request(MessageType.A2UI_DATA, payload, A2UIDataResultPayload.class);
     }
 
     /**
-     * 同 {@link #sendA2UIData(List)}，以可变参数形式传入。
+     * 同 {@link #sendA2UIData(A2UIItem)}，批量上报多个布局。
      */
-    public CompletableFuture<A2UIDataResultPayload> sendA2UIData(A2UIItem... items) {
-        return sendA2UIData(items == null ? null : Arrays.asList(items));
+    public CompletableFuture<A2UIDataResultPayload> sendA2UIData(List<A2UIItem> items) {
+        A2UIDataPayload payload = new A2UIDataPayload(items);
+        return envelopes.request(MessageType.A2UI_DATA, payload, A2UIDataResultPayload.class);
     }
 
     /**

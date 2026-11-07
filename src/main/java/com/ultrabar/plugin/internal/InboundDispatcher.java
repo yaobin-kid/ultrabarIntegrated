@@ -4,16 +4,19 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ultrabar.plugin.callback.A2UIActionCallResponder;
 import com.ultrabar.plugin.callback.CallResponder;
 import com.ultrabar.plugin.callback.DescribeResponder;
+import com.ultrabar.plugin.callback.EnvelopeWriter;
 import com.ultrabar.plugin.callback.ModuleEventResponder;
 import com.ultrabar.plugin.callback.OptionsResponder;
 import com.ultrabar.plugin.model.ActionsPayload;
 import com.ultrabar.plugin.model.A2UIActionCallPayload;
+import com.ultrabar.plugin.model.A2UIDataRequestResultPayload;
 import com.ultrabar.plugin.model.A2UIDataResultPayload;
 import com.ultrabar.plugin.model.A2UIUpdateDataModelResultPayload;
 import com.ultrabar.plugin.model.CallPayload;
 import com.ultrabar.plugin.model.DescribePayload;
 import com.ultrabar.plugin.model.Envelope;
 import com.ultrabar.plugin.model.ErrorCodes;
+import com.ultrabar.plugin.model.ErrorInfo;
 import com.ultrabar.plugin.model.GetOptionsPayload;
 import com.ultrabar.plugin.model.MessageType;
 import com.ultrabar.plugin.model.ModuleEventPayload;
@@ -64,6 +67,7 @@ public final class InboundDispatcher {
             case HEARTBEAT_ACK:
             case EVENT_RESULT:
             case A2UI_DATA_RESULT:
+            case A2UI_DATA_REQUEST_RESULT:
             case A2UI_UPDATE_DATA_MODEL_RESULT:
             case A2UI_ACTION_CALL_RESULT:
             case QUERY_MODULES_RESULT:
@@ -88,6 +92,9 @@ public final class InboundDispatcher {
                 return;
             case A2UI_ACTION_CALL:
                 handleA2UIActionCall(channel, envelope);
+                return;
+            case A2UI_DATA_REQUEST:
+                handleA2UIDataRequest(channel, envelope);
                 return;
             default:
                 log.info("ignored inbound type={} requestId={}", type, envelope.getRequestId());
@@ -154,5 +161,19 @@ public final class InboundDispatcher {
         } catch (Exception e) {
             responder.sendError(ErrorCodes.INVALID_PAYLOAD, e.getMessage(), false);
         }
+    }
+
+    private void handleA2UIDataRequest(Channel channel, Envelope envelope) {
+        A2UIDataRequestResultPayload result = new A2UIDataRequestResultPayload();
+        try {
+            result.items = notifier.onA2UIDataRequest();
+            result.success = true;
+        } catch (Exception e) {
+            result.success = false;
+            result.error = ErrorInfo.of(ErrorCodes.HANDLER_EXCEPTION, e.getMessage(), false, null);
+        }
+        EnvelopeWriter.write(channel, mapper,
+                Envelope.of(MessageType.A2UI_DATA_REQUEST_RESULT, envelope.getRequestId(), result)
+                        .withSession(session.sessionId(), session.sessionToken()));
     }
 }

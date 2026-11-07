@@ -137,6 +137,63 @@ public class A2UIIntegrationTest {
         assertEquals(uiJson, session.a2uiData().get(0).ui);
     }
 
+    // ====== 1b. server.queryA2UIData → 触发 plugin.onA2UIDataRequest → 回传数据 ======
+
+    @Test
+    public void testQueryA2UIDataPullsFromPlugin() throws Exception {
+        final CountDownLatch registered = new CountDownLatch(1);
+        final AtomicReference<PluginSession> sessionRef = new AtomicReference<PluginSession>();
+        server.setListener(new PluginServerListener() {
+            @Override
+            public void onRegistered(PluginSession session) {
+                sessionRef.set(session);
+                registered.countDown();
+            }
+        });
+
+        client = new PluginClient("127.0.0.1", serverPort);
+        RegisterPayload rp = new RegisterPayload();
+        rp.name = "A2UITestPlugin";
+        rp.packageName = PKG;
+        rp.supportsA2UI = true;
+        client.setRegisterConfig(rp);
+
+        final List<A2UIItem> pluginData = new ArrayList<A2UIItem>();
+        pluginData.add(new A2UIItem("layout_music", "{\"status\":\"playing\"}"));
+        client.setPluginListener(new PluginListener() {
+            @Override public void onRegisterSuccess(RegisterResultPayload payload) {}
+            @Override public void onCall(CallPayload payload, com.ultrabar.plugin.callback.CallResponder responder) {}
+            @Override
+            public List<A2UIItem> onA2UIDataRequest() {
+                return pluginData;
+            }
+        });
+
+        assertTrue("client 启动超时", client.startAsync().get(5, TimeUnit.SECONDS) == null);
+        assertTrue("client 注册超时", registered.await(5, TimeUnit.SECONDS));
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<A2UIDataPayload> notifyRef = new AtomicReference<A2UIDataPayload>();
+        server.setListener(new PluginServerListener() {
+            @Override
+            public void onA2UIData(PluginSession s, A2UIDataPayload payload) {
+                notifyRef.set(payload);
+                latch.countDown();
+            }
+        });
+
+        A2UIDataRequestResultPayload result = server.queryA2UIData(PKG).get(3, TimeUnit.SECONDS);
+        assertTrue("query 应成功", result.success);
+        assertEquals(1, result.items.size());
+        assertEquals("layout_music", result.items.get(0).layoutId);
+
+        assertTrue("onA2UIData 应被触发", latch.await(2, TimeUnit.SECONDS));
+        assertNotNull(notifyRef.get());
+        assertEquals("layout_music", notifyRef.get().data.get(0).layoutId);
+
+        assertEquals(1, sessionRef.get().a2uiData().size());
+    }
+
     // ====== 2. client.sendA2UIUpdateDataModel → server 存储 + listener.onA2UIUpdateDataModel ======
 
     @Test

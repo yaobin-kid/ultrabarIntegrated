@@ -651,7 +651,9 @@ reg.supportsA2UI = true;   // ★ 关键开关
 
 ### 2. 插件端：上报 UI 结构（sendA2UIData）
 
-`sendA2UIData(List<A2UIItem> items)` 发送**完整的 A2UI v0.9 envelope**，用于 `createSurface` / `updateComponents` / `deleteSurface`。每个 `A2UIItem` 包含 `layoutId`（布局 id）和 `ui`（UI JSON 字符串）。
+`sendA2UIData(A2UIItem item)` 发送**完整的 A2UI v0.9 envelope**，用于 `createSurface` / `updateComponents` / `deleteSurface`。每个 `A2UIItem` 包含 `layoutId`（布局 id）和 `ui`（UI JSON 字符串）。
+
+> 另有 `sendA2UIData(List<A2UIItem> items)` 重载可批量上报多个布局。
 
 **2.1 创建视图 伪代码**：
 
@@ -905,6 +907,37 @@ String update = {
 
  functionCall 对象里的call属性取值 handleWidgetAction  点击时会把args 参数透传到 PluginListener.onA2UIActionCall 回调
 ```
+
+<br />
+
+**2.4 服务端主动拉取数据（queryA2UIData）**
+
+除了插件主动 `sendA2UIData` 推送，主 App 也可以主动拉取插件当前的 a2ui 数据：
+
+```Java
+// 主 App 端：发起拉取
+server.queryA2UIData("com.example.plugin").thenAccept(result -> {
+    if (result.success) {
+        for (A2UIItem item : result.items) {
+            // item.layoutId / item.ui
+        }
+    }
+});
+```
+
+```Java
+// 插件端：实现回调返回当前数据
+client.setPluginListener(new PluginListener() {
+    @Override
+    public List<A2UIItem> onA2UIDataRequest() {
+        List<A2UIItem> items = new ArrayList<>();
+        items.add(new A2UIItem("example-focus", currentUiJson));
+        return items;   // 返回 null 或空列表表示无数据
+    }
+});
+```
+
+拉取成功后，服务端会自动将数据缓存到 `PluginSession` 并触发 `PluginServerListener.onA2UIData` 回调（与 `sendA2UIData` 推送走同一通知通道）。
 
 <br />
 

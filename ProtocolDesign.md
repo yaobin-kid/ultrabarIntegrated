@@ -209,8 +209,8 @@ CompletableFuture<EventResultPayload> sendEvent(String eventId, Map<String, Obje
 > ⚠️ **协议版本**：`data` / `dataModel` 传输的均为 **[A2UI v0.9](https://a2ui.org/specification/v0.9-a2ui/)** 格式 JSON，envelope 必须带 `"version": "v0.9"`。不要使用 v0.8 的 `beginRendering` / `surfaceUpdate` / `dataModelUpdate` 消息名。
 
 ```java
+CompletableFuture<A2UIDataResultPayload> sendA2UIData(A2UIItem item)
 CompletableFuture<A2UIDataResultPayload> sendA2UIData(List<A2UIItem> items)
-CompletableFuture<A2UIDataResultPayload> sendA2UIData(A2UIItem... items)
 CompletableFuture<A2UIUpdateDataModelResultPayload> sendA2UIUpdateDataModel(String layoutId, String dataModel)
 CompletableFuture<A2UIUpdateDataModelResultPayload> sendA2UIUpdateDataModel(String layoutId, String dataModel, boolean incremental)
 ```
@@ -282,6 +282,13 @@ CompletableFuture<A2UIActionCallResultPayload> callA2UIAction(
 - 若 session 不存在 → Future 立即失败 `"no active session"`
 - 若 session 未声明 `supportsA2UI=true` → Future 立即失败 `"does not support a2ui"`
 - 若 `functionName` 为空 → Future 立即失败
+
+```java
+CompletableFuture<A2UIDataRequestResultPayload> queryA2UIData(String packageName)
+```
+
+- 向插件主动拉取当前 a2ui 数据，触发插件端 `PluginListener.onA2UIDataRequest()`
+- 成功后自动缓存到 `PluginSession` 并触发 `PluginServerListener.onA2UIData`
 
 ### 5.3 客户端回调：PluginListener.onA2UIActionCall
 
@@ -480,7 +487,7 @@ server.removeAllFallbacks(ModuleType module);
 | `startAsync()` / `stop()` | 生命周期 |
 | `call(...)` | 服务端主动调我（被动，非主动发） |
 | `sendEvent(String eventId, Map params)` | 发 Event |
-| `sendA2UIData(List<A2UIItem> items)` | 上报 A2UI 数据 JSON 字符串 |
+| `sendA2UIData(A2UIItem item)` | 上报（刷新）单个 A2UI 布局 |
 | `sendA2UIUpdateDataModel(String layoutId, String dataModel)` | 上报 dataModel JSON 字符串 |
 | `sendA2UIUpdateDataModel(String layoutId, String dataModel, boolean incremental)` | 增量上报 |
 | `subscribeModuleEvents(ModuleType... modules)` | 订阅模块事件（可一次多个） |
