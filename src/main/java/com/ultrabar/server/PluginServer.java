@@ -223,8 +223,7 @@ public class PluginServer {
      * @param actionName  函数名
      * @param context     调用参数 JSON 字符串（可为 null）
      */
-    public CompletableFuture<A2UIActionCallResultPayload> callA2UIAction(
-            String packageName, String actionName, String context) {
+    public CompletableFuture<A2UIActionCallResultPayload> callA2UIAction(String packageName, String actionName, String context) {
         PluginSession session;
         try {
             session = getValidSession(packageName);
