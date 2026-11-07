@@ -235,7 +235,7 @@ CompletableFuture<A2UIUpdateDataModelResultPayload> sendA2UIUpdateDataModel(Stri
 
 **服务端行为**：收到后
 1. `session.setA2UIData(data)` / `session.setA2UIDataModel(dataModel)` — 存入 PluginSession（单值覆盖）
-2. `listener.onA2UIData(session, payload)` / `listener.onA2UIUpdateDataModel(session, payload)` — 回调宿主
+2. `listener.onA2UIData(session, payload)` / `listener.onA2UIUpdateDataModel(session, payload)` — 回调宿主，返回值作为 ack 回传插件（null 视为成功）
 3. 回 ACK 给客户端
 
 **服务端侧数据读取**（无需回调，随时可取）：
@@ -289,6 +289,10 @@ CompletableFuture<A2UIDataRequestResultPayload> queryA2UIData(String packageName
 
 - 向插件主动拉取当前 a2ui 数据，触发插件端 `PluginListener.onA2UIDataRequest()`
 - 成功后自动缓存到 `PluginSession` 并触发 `PluginServerListener.onA2UIData`
+
+**注册后自动拉取**：插件注册成功且声明 `supportsA2UI=true` 时，服务端会自动调用一次 `queryA2UIData`，
+将插件当前的 a2ui 数据缓存到 `PluginSession`。这样注册完成后即可通过 `session.a2uiData()` 直接拿到数据，
+无需宿主主动调用。可通过 `server.setAutoPullA2UIDataOnRegister(false)` 关闭此行为。
 
 ### 5.3 客户端回调：PluginListener.onA2UIActionCall
 
@@ -438,8 +442,8 @@ server.setForegroundApp("com.ultrabar.music");           // 该插件前台，�
 | `onActionsUpdated(PluginSession)` | 事件 | 空 | Actions 配置更新 |
 | `onEventReceived(PluginSession, EventPayload)` | C→S | 空 | 客户端发 Event |
 | `onModuleEventFallback(ModuleEventPayload)` | 兜底 | 空 | 模块事件全部未消费时兜底 |
-| `onA2UIData(PluginSession, A2UIDataPayload)` | C→S | 空 | 客户端上报 A2UI 数据（已存入 session） |
-| `onA2UIUpdateDataModel(PluginSession, A2UIUpdateDataModelPayload)` | C→S | 空 | 客户端上报 A2UI dataModel（已存入 session） |
+| `onA2UIData(PluginSession, A2UIDataPayload)` | C→S | `A2UIDataResultPayload` | 客户端上报 A2UI 数据（已存入 session）；返回值作为 ack 回传，null 视为成功 |
+| `onA2UIUpdateDataModel(PluginSession, A2UIUpdateDataModelPayload)` | C→S | `A2UIUpdateDataModelResultPayload` | 客户端上报 A2UI dataModel（已存入 session）；返回值作为 ack 回传，null 视为成功 |
 
 ### 8.3 服务端：registerFallback（注册式兜底，独立于 PluginServerListener）
 
@@ -642,17 +646,23 @@ public class HostApp {
 
             // —— A2UI 数据回调 —— //
             @Override
-            public void onA2UIData(PluginSession session, A2UIDataPayload payload) {
+            public A2UIDataResultPayload onA2UIData(PluginSession session, A2UIDataPayload payload) {
                 // payload 此刻已存入 session.a2uiData()；这里做业务分发即可
                 System.out.println("[host] A2UI data from " + session.packageName()
                         + " data=" + payload.data);
+                A2UIDataResultPayload r = new A2UIDataResultPayload();
+                r.success = true;
+                return r; // 返回 null 也视为成功
             }
 
             @Override
-            public void onA2UIUpdateDataModel(PluginSession session, A2UIUpdateDataModelPayload payload) {
+            public A2UIUpdateDataModelResultPayload onA2UIUpdateDataModel(PluginSession session, A2UIUpdateDataModelPayload payload) {
                 System.out.println("[host] A2UI dataModel from " + session.packageName()
                         + " incremental=" + payload.incremental
                         + " model=" + payload.dataModel);
+                A2UIUpdateDataModelResultPayload r = new A2UIUpdateDataModelResultPayload();
+                r.success = true;
+                return r; // 宿主处理失败时可返回 success=false 告知插件
             }
 
             // —— 模块事件兜底（仅当该 ModuleType 未注册 registerFallback 时才会走到这里）—— //

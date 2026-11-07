@@ -42,6 +42,8 @@ public class A2UIIntegrationTest {
     @Before
     public void setUp() throws Exception {
         server = new PluginServer(0);
+        // 测试中默认关闭注册后自动拉取，避免与显式 sendA2UIData/queryA2UIData 产生竞态
+        server.setAutoPullA2UIDataOnRegister(false);
         server.setRegisterHandler(new PluginRegisterHandler() {
             @Override
             public RegisterResultPayload handleRegister(RegisterPayload request) {
@@ -111,9 +113,12 @@ public class A2UIIntegrationTest {
         final AtomicReference<A2UIDataPayload> receivedRef = new AtomicReference<A2UIDataPayload>();
         server.setListener(new PluginServerListener() {
             @Override
-            public void onA2UIData(PluginSession s, A2UIDataPayload payload) {
+            public A2UIDataResultPayload onA2UIData(PluginSession s, A2UIDataPayload payload) {
                 receivedRef.set(payload);
                 latch.countDown();
+                A2UIDataResultPayload r = new A2UIDataResultPayload();
+                r.success = true;
+                return r;
             }
         });
 
@@ -176,9 +181,12 @@ public class A2UIIntegrationTest {
         final AtomicReference<A2UIDataPayload> notifyRef = new AtomicReference<A2UIDataPayload>();
         server.setListener(new PluginServerListener() {
             @Override
-            public void onA2UIData(PluginSession s, A2UIDataPayload payload) {
+            public A2UIDataResultPayload onA2UIData(PluginSession s, A2UIDataPayload payload) {
                 notifyRef.set(payload);
                 latch.countDown();
+                A2UIDataResultPayload r = new A2UIDataResultPayload();
+                r.success = true;
+                return r;
             }
         });
 
@@ -205,9 +213,12 @@ public class A2UIIntegrationTest {
                 new AtomicReference<A2UIUpdateDataModelPayload>();
         server.setListener(new PluginServerListener() {
             @Override
-            public void onA2UIUpdateDataModel(PluginSession s, A2UIUpdateDataModelPayload payload) {
+            public A2UIUpdateDataModelResultPayload onA2UIUpdateDataModel(PluginSession s, A2UIUpdateDataModelPayload payload) {
                 receivedRef.set(payload);
                 latch.countDown();
+                A2UIUpdateDataModelResultPayload r = new A2UIUpdateDataModelResultPayload();
+                r.success = true;
+                return r;
             }
         });
 
@@ -236,8 +247,11 @@ public class A2UIIntegrationTest {
         final CountDownLatch latch = new CountDownLatch(1);
         server.setListener(new PluginServerListener() {
             @Override
-            public void onA2UIUpdateDataModel(PluginSession s, A2UIUpdateDataModelPayload payload) {
+            public A2UIUpdateDataModelResultPayload onA2UIUpdateDataModel(PluginSession s, A2UIUpdateDataModelPayload payload) {
                 latch.countDown();
+                A2UIUpdateDataModelResultPayload r = new A2UIUpdateDataModelResultPayload();
+                r.success = true;
+                return r;
             }
         });
 
@@ -249,6 +263,59 @@ public class A2UIIntegrationTest {
                 "layout_music", incJson, true).get(3, TimeUnit.SECONDS);
         assertTrue(ack.success);
         assertTrue("listener 应收到回调", latch.await(3, TimeUnit.SECONDS));
+    }
+
+    // ====== 2b. listener 返回 success=false 时应原样回传给插件 ======
+
+    @Test
+    public void testSendA2UIUpdateDataModelListenerFailurePropagates() throws Exception {
+        startClientWithSupportsA2UI(true);
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        server.setListener(new PluginServerListener() {
+            @Override
+            public A2UIUpdateDataModelResultPayload onA2UIUpdateDataModel(PluginSession s, A2UIUpdateDataModelPayload payload) {
+                latch.countDown();
+                A2UIUpdateDataModelResultPayload r = new A2UIUpdateDataModelResultPayload();
+                r.success = false;
+                r.error = ErrorInfo.of(ErrorCodes.HANDLER_EXCEPTION, "render failed", false, null);
+                return r;
+            }
+        });
+
+        A2UIUpdateDataModelResultPayload ack = client.sendA2UIUpdateDataModel(
+                "layout_music", "{\"phase\":\"thinking\"}", false).get(3, TimeUnit.SECONDS);
+
+        assertTrue("listener 应收到回调", latch.await(3, TimeUnit.SECONDS));
+        assertFalse("宿主失败时 ack.success 应为 false", ack.success);
+        assertNotNull(ack.error);
+        assertEquals(ErrorCodes.HANDLER_EXCEPTION, ack.error.code);
+        assertEquals("render failed", ack.error.message);
+    }
+
+    // ====== 2c. listener 抛异常时服务端应返回 HANDLER_EXCEPTION ======
+
+    @Test
+    public void testSendA2UIDataListenerExceptionPropagates() throws Exception {
+        startClientWithSupportsA2UI(true);
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        server.setListener(new PluginServerListener() {
+            @Override
+            public A2UIDataResultPayload onA2UIData(PluginSession s, A2UIDataPayload payload) {
+                latch.countDown();
+                throw new RuntimeException("boom");
+            }
+        });
+
+        List<A2UIItem> items = new ArrayList<A2UIItem>();
+        items.add(new A2UIItem("layout_music", "{\"status\":\"playing\"}"));
+        A2UIDataResultPayload ack = client.sendA2UIData(items).get(3, TimeUnit.SECONDS);
+
+        assertTrue("listener 应收到回调", latch.await(3, TimeUnit.SECONDS));
+        assertFalse("listener 抛异常时 ack.success 应为 false", ack.success);
+        assertNotNull(ack.error);
+        assertEquals(ErrorCodes.HANDLER_EXCEPTION, ack.error.code);
     }
 
     // ====== 3. server.callA2UIAction → client.onA2UIActionCall → responder.sendSuccess ======
@@ -366,6 +433,140 @@ public class A2UIIntegrationTest {
         assertFalse("默认 NO_HANDLER 应返回 false", result.success);
         assertNotNull(result.error);
         assertEquals("NO_HANDLER", result.error.code);
+    }
+
+    // ====== 1c. sendA2UIData 批量推送多个 layout ======
+
+    @Test
+    public void testSendA2UIDataMultipleItems() throws Exception {
+        PluginSession session = startClientWithSupportsA2UI(true);
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<A2UIDataPayload> receivedRef = new AtomicReference<A2UIDataPayload>();
+        server.setListener(new PluginServerListener() {
+            @Override
+            public A2UIDataResultPayload onA2UIData(PluginSession s, A2UIDataPayload payload) {
+                receivedRef.set(payload);
+                latch.countDown();
+                A2UIDataResultPayload r = new A2UIDataResultPayload();
+                r.success = true;
+                return r;
+            }
+        });
+
+        List<A2UIItem> items = new ArrayList<A2UIItem>();
+        items.add(new A2UIItem("layout_a", "{\"status\":\"playing\"}"));
+        items.add(new A2UIItem("layout_b", "{\"status\":\"paused\"}"));
+        A2UIDataResultPayload ack = client.sendA2UIData(items).get(3, TimeUnit.SECONDS);
+        assertTrue("ack 应成功", ack.success);
+
+        assertTrue("listener 应收到回调", latch.await(3, TimeUnit.SECONDS));
+        assertNotNull(receivedRef.get());
+        assertEquals(2, receivedRef.get().data.size());
+        assertEquals("layout_a", receivedRef.get().data.get(0).layoutId);
+        assertEquals("layout_b", receivedRef.get().data.get(1).layoutId);
+
+        assertEquals(2, session.a2uiData().size());
+    }
+
+    // ====== 1d. queryA2UIData 插件返回空列表 ======
+
+    @Test
+    public void testQueryA2UIDataEmptyList() throws Exception {
+        final CountDownLatch registered = new CountDownLatch(1);
+        server.setListener(new PluginServerListener() {
+            @Override
+            public void onRegistered(PluginSession session) {
+                registered.countDown();
+            }
+        });
+
+        client = new PluginClient("127.0.0.1", serverPort);
+        RegisterPayload rp = new RegisterPayload();
+        rp.name = "A2UITestPlugin";
+        rp.packageName = PKG;
+        rp.supportsA2UI = true;
+        client.setRegisterConfig(rp);
+        client.setPluginListener(new PluginListener() {
+            @Override public void onRegisterSuccess(RegisterResultPayload payload) {}
+            @Override public void onCall(CallPayload payload, com.ultrabar.plugin.callback.CallResponder responder) {}
+            // onA2UIDataRequest 不实现 → 默认返回空列表
+        });
+
+        assertTrue("client 启动超时", client.startAsync().get(5, TimeUnit.SECONDS) == null);
+        assertTrue("client 注册超时", registered.await(5, TimeUnit.SECONDS));
+
+        A2UIDataRequestResultPayload result = server.queryA2UIData(PKG).get(3, TimeUnit.SECONDS);
+        assertTrue("query 应成功", result.success);
+        assertNotNull(result.items);
+        assertEquals(0, result.items.size());
+    }
+
+    // ====== 1e. queryA2UIData 对未声明 supportsA2UI 的插件拒绝 ======
+
+    @Test
+    public void testQueryA2UIDataRejectedWhenNotSupports() throws Exception {
+        startClientWithSupportsA2UI(false);
+
+        try {
+            server.queryA2UIData(PKG).get(3, TimeUnit.SECONDS);
+            fail("应抛出异常");
+        } catch (java.util.concurrent.ExecutionException e) {
+            Throwable cause = e.getCause();
+            assertTrue("应为 IllegalStateException", cause instanceof IllegalStateException);
+            assertTrue("错误信息应包含 does not support",
+                    cause.getMessage().contains("does not support a2ui"));
+        }
+    }
+
+    // ====== 1f. 注册成功后自动拉取 a2ui 数据到 PluginSession ======
+
+    @Test
+    public void testAutoPullA2UIDataOnRegisterPopulatesSession() throws Exception {
+        server.setAutoPullA2UIDataOnRegister(true);
+
+        final CountDownLatch registered = new CountDownLatch(1);
+        final AtomicReference<PluginSession> sessionRef = new AtomicReference<PluginSession>();
+        server.setListener(new PluginServerListener() {
+            @Override
+            public void onRegistered(PluginSession session) {
+                sessionRef.set(session);
+                registered.countDown();
+            }
+        });
+
+        client = new PluginClient("127.0.0.1", serverPort);
+        RegisterPayload rp = new RegisterPayload();
+        rp.name = "A2UITestPlugin";
+        rp.packageName = PKG;
+        rp.supportsA2UI = true;
+        client.setRegisterConfig(rp);
+
+        final List<A2UIItem> pluginData = new ArrayList<A2UIItem>();
+        pluginData.add(new A2UIItem("layout_music", "{\"status\":\"playing\"}"));
+        client.setPluginListener(new PluginListener() {
+            @Override public void onRegisterSuccess(RegisterResultPayload payload) {}
+            @Override public void onCall(CallPayload payload, com.ultrabar.plugin.callback.CallResponder responder) {}
+            @Override
+            public List<A2UIItem> onA2UIDataRequest() {
+                return pluginData;
+            }
+        });
+
+        assertTrue("client 启动超时", client.startAsync().get(5, TimeUnit.SECONDS) == null);
+        assertTrue("client 注册超时", registered.await(5, TimeUnit.SECONDS));
+
+        PluginSession session = sessionRef.get();
+        assertNotNull(session);
+
+        // 等待自动拉取完成
+        long deadline = System.currentTimeMillis() + 3000;
+        while (System.currentTimeMillis() < deadline && session.a2uiData() == null) {
+            Thread.sleep(20);
+        }
+        assertNotNull("注册后应自动拉取 a2ui 数据，session.a2uiData() 不应为 null", session.a2uiData());
+        assertEquals(1, session.a2uiData().size());
+        assertEquals("layout_music", session.a2uiData().get(0).layoutId);
     }
 }
 

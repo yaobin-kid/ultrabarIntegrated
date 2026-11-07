@@ -55,6 +55,12 @@ public class PluginServer {
     };
     private volatile PluginRegisterHandler registerHandler = new DefaultRegisterHandler();
 
+    /**
+     * 注册成功后是否主动向插件拉取一次 a2ui 数据并缓存到 PluginSession。
+     * 默认开启，确保 supportsA2UI 的插件注册后 session.a2uiData() 立即可用。
+     */
+    private volatile boolean autoPullA2UIDataOnRegister = true;
+
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
     private Channel bindChannel;
@@ -88,6 +94,13 @@ public class PluginServer {
 
     public void setRegisterHandler(PluginRegisterHandler registerHandler) {
         this.registerHandler = registerHandler == null ? new DefaultRegisterHandler() : registerHandler;
+    }
+
+    /**
+     * 设置注册成功后是否主动拉取 a2ui 数据。默认开启。
+     */
+    public void setAutoPullA2UIDataOnRegister(boolean autoPull) {
+        this.autoPullA2UIDataOnRegister = autoPull;
     }
 
     public synchronized void start() throws InterruptedException {
@@ -142,19 +155,6 @@ public class PluginServer {
 
     public Collection<PluginSession> sessions() {
         return sessions.all();
-    }
-
-    /**
-     * 返回所有声明了 supportsA2UI=true 的在线插件会话。
-     */
-    public Collection<PluginSession> sessionsSupportingA2UI() {
-        java.util.List<PluginSession> result = new java.util.ArrayList<PluginSession>();
-        for (PluginSession s : sessions.all()) {
-            if (s.supportsA2UI()) {
-                result.add(s);
-            }
-        }
-        return result;
     }
 
     /**
@@ -653,6 +653,19 @@ public class PluginServer {
         write(channel, Envelope.of(MessageType.REGISTER_RESULT, envelope.getRequestId(), result));
         log.info("registered packageName={} sessionId={}", session.packageName(), session.sessionId());
         listener.onRegistered(session);
+        if (autoPullA2UIDataOnRegister && session.supportsA2UI()) {
+            autoPullA2UIData(session);
+        }
+    }
+
+    private void autoPullA2UIData(final PluginSession session) {
+        queryA2UIData(session.packageName()).whenComplete((result, error) -> {
+            if (error != null) {
+                log.warn("auto pull a2ui data failed on register packageName={}", session.packageName(), error);
+            } else if (result == null || !result.success) {
+                log.warn("auto pull a2ui data returned non-success packageName={}", session.packageName());
+            }
+        });
     }
 
     private void fillRegisterDefaults(RegisterResultPayload result) {
@@ -795,9 +808,15 @@ public class PluginServer {
             }
             session.setA2UIData(payload.data);
             try {
-                listener.onA2UIData(session, payload);
+                A2UIDataResultPayload result = listener.onA2UIData(session, payload);
+                if (result != null) {
+                    ack = result;
+                }
             } catch (Exception e) {
                 log.error("onA2UIData listener failed packageName={}", session.packageName(), e);
+                ack = new A2UIDataResultPayload();
+                ack.success = false;
+                ack.error = ErrorInfo.of(ErrorCodes.HANDLER_EXCEPTION, e.getMessage(), false, null);
             }
         }
         write(channel, Envelope.of(MessageType.A2UI_DATA_RESULT, envelope.getRequestId(), ack)
@@ -832,9 +851,15 @@ public class PluginServer {
             }
             session.setA2UIDataModel(payload.dataModel);
             try {
-                listener.onA2UIUpdateDataModel(session, payload);
+                A2UIUpdateDataModelResultPayload result = listener.onA2UIUpdateDataModel(session, payload);
+                if (result != null) {
+                    ack = result;
+                }
             } catch (Exception e) {
                 log.error("onA2UIUpdateDataModel listener failed packageName={}", session.packageName(), e);
+                ack = new A2UIUpdateDataModelResultPayload();
+                ack.success = false;
+                ack.error = ErrorInfo.of(ErrorCodes.HANDLER_EXCEPTION, e.getMessage(), false, null);
             }
         }
         write(channel, Envelope.of(MessageType.A2UI_UPDATE_DATA_MODEL_RESULT, envelope.getRequestId(), ack)
