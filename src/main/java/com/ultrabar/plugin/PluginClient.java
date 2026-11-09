@@ -360,7 +360,7 @@ public class PluginClient {
     }
 
     /**
-     * 向指定实例发送文本消息（仅支持文本），默认透传到 PC 端。
+     * 向指定实例发送文本消息（仅支持文本），默认透传到 Ultra WorkSpace PLUGIN 端。
      * 服务端收到后回调 {@code PluginServerListener#onMessage}，
      * 返回值中的 success=false 表示处理失败。
      *
@@ -369,7 +369,7 @@ public class PluginClient {
      */
     public CompletableFuture<MessageResultPayload> sendMessage(String instanceId,
                                                                String message) {
-        return sendMessage(MessageDestination.PC, instanceId, message);
+        return sendMessage(MessageDestination.ULTRA_WORKSPACE_PLUGIN, instanceId, message);
     }
 
     /**

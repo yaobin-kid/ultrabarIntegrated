@@ -8,8 +8,9 @@ import com.fasterxml.jackson.annotation.JsonValue;
  */
 public enum MessageDestination {
 
-    /** PC 端（默认） */
-    PC("pc");
+    /** Ultra WorkSpace PLUGIN 端（默认） */
+    ULTRA_WORKSPACE_PLUGIN("ultra_workspace_plugin");
+
 
     private final String wireName;
 

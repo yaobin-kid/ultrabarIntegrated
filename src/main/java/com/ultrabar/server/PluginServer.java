@@ -1001,7 +1001,7 @@ public class PluginServer {
             ack.error = ErrorInfo.of(ErrorCodes.INVALID_PAYLOAD, "instanceId/message is required", false, null);
         } else {
             if (payload.destination == null) {
-                payload.destination = MessageDestination.PC;
+                payload.destination = MessageDestination.ULTRA_WORKSPACE_PLUGIN;
             }
             try {
                 MessageResultPayload result = listener.onMessage(session, payload);

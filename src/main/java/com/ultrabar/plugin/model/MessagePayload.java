@@ -5,7 +5,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 /**
  * 消息上报：插件 → 服务端，由宿主按目的地透传。仅支持文本消息。
  * <p>
- * {@link #destination} 为消息透传的目的地，默认 {@link MessageDestination#PC}；
+ * {@link #destination} 为消息透传的目的地，默认 {@link MessageDestination#ULTRA_WORKSPACE_PLUGIN}；
  * 其他透传场景只需换 destination 参数。
  * <p>
  * {@link #instanceId} 标识目标实例（由接收端定义与解释，如某个界面/场景实例），
@@ -16,7 +16,7 @@ public class MessagePayload implements Payload {
 
     /**
      * 消息透传目的地。仅插件→服务端方向使用：
-     * 通过构造器创建时默认 {@link MessageDestination#PC}；
+     * 通过构造器创建时默认 {@link MessageDestination#ULTRA_WORKSPACE_PLUGIN}；
      * 服务端→插件方向为 null。
      */
     public MessageDestination destination;
@@ -33,7 +33,7 @@ public class MessagePayload implements Payload {
     }
 
     public MessagePayload(String instanceId, String message) {
-        this(MessageDestination.PC, instanceId, message);
+        this(MessageDestination.ULTRA_WORKSPACE_PLUGIN, instanceId, message);
     }
 
     public MessagePayload(MessageDestination destination, String instanceId, String message) {

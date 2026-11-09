@@ -99,7 +99,7 @@ public interface PluginServerListener {
      * 插件向指定实例发送文本消息时触发（{@code PluginClient.sendMessage}）。
      * <p>
      * {@code payload.destination} 为消息透传目的地（{@code MessageDestination} 枚举，
-     * 默认 PC，即透传到 PC 端；其他透传场景由插件在 payload 中指定）；
+     * 默认 ULTRA_WORKSPACE_PLUGIN，即透传到 Ultra WorkSpace PLUGIN 端；其他透传场景由插件在 payload 中指定）；
      * {@code payload.instanceId} 为目标实例 id（由接收端定义与解释），
      * {@code payload.message} 为文本内容（协议仅支持文本）。
      * <p>

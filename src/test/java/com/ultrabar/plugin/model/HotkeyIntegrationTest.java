@@ -285,7 +285,7 @@ public class HotkeyIntegrationTest {
         assertTrue(ack.success);
         assertTrue("server 应收到消息", latch.await(3, TimeUnit.SECONDS));
         MessagePayload received = ref.get();
-        assertEquals(MessageDestination.PC, received.destination);
+        assertEquals(MessageDestination.ULTRA_WORKSPACE_PLUGIN, received.destination);
         assertEquals("instance-001", received.instanceId);
         assertEquals("开始播放", received.message);
         assertNotNull(received.timestamp);
@@ -308,12 +308,12 @@ public class HotkeyIntegrationTest {
         });
 
         MessageResultPayload ack = client
-                .sendMessage(MessageDestination.PC, "instance-002", "切换频道")
+                .sendMessage(MessageDestination.ULTRA_WORKSPACE_PLUGIN, "instance-002", "切换频道")
                 .get(3, TimeUnit.SECONDS);
 
         assertTrue(ack.success);
         assertTrue(latch.await(3, TimeUnit.SECONDS));
-        assertEquals(MessageDestination.PC, ref.get().destination);
+        assertEquals(MessageDestination.ULTRA_WORKSPACE_PLUGIN, ref.get().destination);
         assertEquals("instance-002", ref.get().instanceId);
         assertEquals("切换频道", ref.get().message);
     }

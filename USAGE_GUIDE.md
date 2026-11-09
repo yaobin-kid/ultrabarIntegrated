@@ -14,8 +14,9 @@
 4. [场景应用能力（动作注册与执行）](#4-场景应用能力动作注册与执行)
 5. [A2UI 生成式 UI](#5-a2ui-生成式-ui)
 6. [模块事件（DOT_KEY / KNOB_KEY）](#6-模块事件dot_key--knob_key)
-7. [回调速查表](#7-回调速查表)
-8. [注意事项与常见问题](#8-注意事项与常见问题)
+7. [热键与文本消息](#7-热键与文本消息)
+8. [回调速查表](#8-回调速查表)
+9. [注意事项与常见问题](#9-注意事项与常见问题)
 
 ---
 
@@ -30,11 +31,12 @@ Ultrabar 插件 SDK 基于 Netty 实现插件 App 与 LineOS 之间的双向通�
 
 **作为第三方开发者，你只需要集成 `PluginClient`。** LineOS 会定期扫描 `AndroidManifest.xml` 中声明的插件服务并自动启动（已启动则跳过）。
 
-插件 SDK 提供三大能力：
+插件 SDK 提供四大能力：
 
 1. **场景应用能力**：插件向LineOS 声明"我能做什么"（如播放、暂停），LineOS 在用户触发时回调插件执行。
 2. **A2UI 生成式 UI**：插件用 JSON 描述 UI 结构与数据，LineOS 渲染为原生界面，用户交互回传给插件。
 3. **模块事件**：接收LineOS 硬件模块（DOT_KEY 按键、KNOB_KEY 旋钮等）的实时事件。
+4. **热键与文本消息**：向 PC 端注入按键（单键/组合键/长按），或与 LineOS 双向传递文本消息。
 
 ---
 
@@ -831,7 +833,120 @@ client.queryModules().thenAccept(result -> {
 
 ---
 
-## 7. 回调速查表
+## 7. 热键与文本消息
+
+本章介绍两种插件 ↔ PC 端的直通能力：
+
+- **热键**：向 PC 端注入键盘按键，支持单键、组合键与长按（如模拟 Windows 的 Ctrl+C 复制）；
+- **文本消息**：插件与 LineOS 之间双向传递文本消息（按实例 id 寻址）。
+
+### 7.1 按键码约定
+
+热键 API 的参数是**原始按键码（int）**，与宿主平台一致——PC 端即 Windows VK 虚拟键码。常用值：
+
+| 按键 | 按键码 | 按键 | 按键码 |
+| ---- | ------ | ---- | ------ |
+| Ctrl | `0x11` | Alt | `0x12` |
+| Shift | `0x10` | `]` | `0xDD`（VK_OEM_6） |
+| `C` | `0x43` | F1 | `0x70` |
+
+完整 VK 码表参考 [Microsoft 文档](https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes)。
+
+### 7.2 短按 sendHotkey
+
+`sendHotkey(int... keys)` 表示一次完整的"按下并抬起"，**SDK 内部自动补齐 down + up**，无需配对调用：
+
+```java
+// 单键：按一下 F1
+client.sendHotkey(0x70);
+
+// 组合键：模拟 Windows 复制 Ctrl+C（修饰键在前）
+client.sendHotkey(0x11, 0x43).thenAccept(ack -> {
+    if (!ack.success) {
+        Log.e(TAG, "热键执行失败: " + ack.error.message);
+    }
+});
+```
+
+语义规则：
+
+- 组合键 down 按参数顺序发送、up 按**逆序**发送（修饰键先按后抬，与真实键盘一致）；
+- 每个按键在服务端至少产生 2 次回调（down + up），消息 `pressType = short`；
+- 返回的 `CompletableFuture` 是最后一个 up 的回执（channel 写有序，前面的消息均已送达）；`success=false` 表示宿主执行失败。
+
+### 7.3 长按 hotkeyDown / hotkeyUp
+
+需要"按住"语义时，使用 `hotkeyDown` / `hotkeyUp` 显式配对，消息 `pressType = long`：
+
+```java
+client.hotkeyDown(0x5E);   // 按下（不抬起）
+// ...长按中...
+client.hotkeyUp(0x5E);     // 抬起
+```
+
+**自动补发保护**：`hotkeyDown` 后若超过 3000ms（可用 `client.setHotkeyAutoReleaseMs(...)` 调整，设 0 关闭）仍未调用 `hotkeyUp`，SDK 会自动补发一次 up，防止按键在系统侧卡死。显式 `hotkeyUp` 会取消该任务。
+
+**持续生效场景**（如 PS 中 Ctrl+] 按住时画笔持续线性放大）：真实键盘的"持续生效"来自硬件自动重复——按住不放会不断产生 down 事件。SDK 注入只发一次 down 不会自动重复，需要以固定间隔重复发送：
+
+```java
+client.setHotkeyAutoReleaseMs(0);          // 按住期间关闭自动补发
+client.hotkeyDown(0x11);                   // 1. Ctrl 按下，只发一次
+
+while (holding) {                          // 2. 按住期间：每 80ms 重复发送 ] 的 down
+    client.hotkeyDown(0xDD);               //    模拟键盘自动重复 → 画笔持续放大
+    Thread.sleep(80);
+}
+
+client.hotkeyUp(0x11, 0xDD);               // 3. 结束：传参与 down 同序，SDK 内部逆序抬起（先 ] 后 Ctrl）
+```
+
+> 重复 `hotkeyDown` 同一个键会**重置**自动补发计时——只要重复间隔小于补发阈值，默认配置下也不会误触发补发。
+
+### 7.4 发送文本消息 sendMessage
+
+向指定实例发送文本消息（仅支持文本），默认透传到 PC 端：
+
+```java
+// 默认目的地 PC
+client.sendMessage("instance-001", "开始播放")
+      .thenAccept(ack -> {
+          if (!ack.success) {
+              Log.e(TAG, "消息投递失败: " + ack.error.message);
+          }
+      });
+
+// 显式指定透传目的地（MessageDestination 枚举）
+client.sendMessage(MessageDestination.ULTRA_WORKSPACE_PLUGIN, "instance-002", "切换频道");
+```
+
+- `destination` 为 `MessageDestination` 枚举（当前含 `ULTRA_WORKSPACE_PLUGIN`），后续新增目的地只需扩展枚举，API 不变；
+- `instanceId` / `message` 为空、`destination` 为 null 会在客户端本地抛 `IllegalArgumentException`，不发起请求；
+- 服务端收到后回调 `PluginServerListener.onMessage`，其返回值作为 ack 回传——`success=false` 表示宿主处理失败。
+
+### 7.5 接收 LineOS 下发的消息 onMessage
+
+消息通道是双向的。LineOS 侧调用 `PluginServer.sendMessage(packageName, instanceId, message)` 时，插件通过 `PluginListener.onMessage` 接收：
+
+```java
+client.setPluginListener(new PluginListener() {
+    @Override
+    public void onMessage(MessagePayload payload, MessageResponder responder) {
+        String instanceId = payload.instanceId;   // 目标实例 id
+        String text = payload.message;            // 文本内容
+        // payload.destination 在此方向为 null（仅插件→LineOS 方向使用）
+
+        // 处理后必须响应，二选一：
+        responder.sendSuccess();
+        // responder.sendError("NOT_SUPPORTED", "该实例不支持消息", false);
+    }
+});
+```
+
+> 默认实现回 `NO_HANDLER` 错误；不需要此能力时可不 override。
+
+---
+
+## 8. 回调速查表
 
 `PluginListener` 所有方法均为 `default` 空实现，按需 override：
 
@@ -848,6 +963,7 @@ client.queryModules().thenAccept(result -> {
 | `onModuleEvent(ModuleEventPayload, ModuleEventResponder)`          | 模块硬件事件                                      | 订阅了模块则必须   |
 | `onA2UIActionCall(A2UIActionCallPayload, A2UIActionCallResponder)` | A2UI 用户交互回传（默认回 NO_HANDLER）            | 有交互组件则必须   |
 | `onA2UIDataRequest()`                                              | LineOS 主动拉取 A2UI 数据（默认返回空列表）       | A2UI 插件建议      |
+| `onMessage(MessagePayload, MessageResponder)`                      | LineOS 下发文本消息（默认回 NO_HANDLER）          | 可选               |
 
 **Responder 通用约定：**
 
@@ -856,22 +972,23 @@ client.queryModules().thenAccept(result -> {
 
 ---
 
-## 8. 注意事项与常见问题
+## 9. 注意事项与常见问题
 
-### 8.1 构建与集成
+### 9.1 构建与集成
 
 1. **`packagingOptions` 必须排除 Netty 元文件**（见 2.1），否则打包冲突。
 2. `meta-data` 的 `android:value` **必须等于 `applicationId`**，它是LineOS 识别插件的唯一标识，不一致将导致注册后会话对不上。
 3. 服务必须 `android:exported="true"` 并带固定 permission，二者缺一不可。
 
-### 8.2 运行时行为
+### 9.2 运行时行为
 
 4. **前台服务要求**：`onCreate()` 中必须在数秒内调用 `startForeground()`，否则系统 ANR/杀进程。
 5. **回调线程非主线程**：`PluginListener` 所有回调运行在 SDK 线程池，UI 操作请自行 `Looper.getMainLooper()` 切换。
 6. **断线自动重连**：SDK 自动重连并重新注册 + 重新上报 Actions；但 **A2UI 的 UI 数据不会自动重发**——LineOS 会在注册成功后主动拉取一次（通过 `onA2UIDataRequest`），所以实现好该回调即可保证重连后 UI 数据恢复。
 7. **sessionToken 需自行校验**：它是调试会话凭证，不要在 HTTP 接口中无校验信任。
+8. **热键 down/up 必须配对**：`hotkeyDown` 后忘记 `hotkeyUp` 会由 SDK 在超时后自动补发 up（默认 3000ms），但补发时序不受你控制；需要精确长按语义时请自行保证配对，见 [7.3](#73-长按-hotkeydown--hotkeyup)。
 
-### 8.3 协议契约
+### 9.3 协议契约
 
 8. **参数 id 一致性**：`onDescribe` 的 `ParameterSpec.id` 即 `onCall` 中 `params` 的 key，两端必须一致。
 9. **A2UI 版本必须为 v0.9.1**：每条 envelope 带 `"version": "v0.9.1"`。
@@ -879,7 +996,7 @@ client.queryModules().thenAccept(result -> {
 11. **检查上报结果的 ack**：`sendA2UIData` / `sendA2UIUpdateDataModel` 的返回值中 `success=false` 表示LineOS 处理失败，插件侧应有日志或重试策略。
 12. **模块事件是串行单播，不回复等于放弃**：`onModuleEvent` 中既不 `consume()` 也不 `ignore()` 时，会白白占用 1 秒超时后才轮到下一个插件——不打算处理时请**显式 `ignore()`**。详细分发规则见 [6.2](#62-分发规则重点)。
 
-### 8.4 常见问题（FAQ）
+### 9.4 常见问题（FAQ）
 
 **Q：`onRegisterSuccess` 后为什么LineOS 看不到我的 Action？**
 A：检查 `setActionsConfig` 是否在 `startAsync()` 之前调用；查看 `onActionsAck` 的 `receivedCount` 是否与预期一致。
