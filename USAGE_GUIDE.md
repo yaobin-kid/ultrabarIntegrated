@@ -23,10 +23,10 @@
 
 Ultrabar 插件 SDK 基于 Netty 实现插件 App 与 LineOS 之间的双向通信。传输协议为**一行一条 UTF-8 JSON**（`\n` 分帧），所有请求/响应均为异步模型（`CompletableFuture`）。
 
-| 角色                | 类                                 | 职责                                                                   |
-| ------------------- | ---------------------------------- | ---------------------------------------------------------------------- |
-| 插件侧（你的 App）  | `com.ultrabar.plugin.PluginClient` | 注册、上报 Actions、处理 describe / get_options / call、上报 A2UI 数据 |
-| LineOS 侧 | `com.ultrabar.server.PluginServer` | 管理插件会话、向插件发起调用、缓存 A2UI 数据                           |
+| 角色               | 类                                 | 职责                                                                   |
+| ------------------ | ---------------------------------- | ---------------------------------------------------------------------- |
+| 插件侧（你的 App） | `com.ultrabar.plugin.PluginClient` | 注册、上报 Actions、处理 describe / get_options / call、上报 A2UI 数据 |
+| LineOS 侧          | `com.ultrabar.server.PluginServer` | 管理插件会话、向插件发起调用、缓存 A2UI 数据                           |
 
 **作为第三方开发者，你只需要集成 `PluginClient`。** LineOS 会定期扫描 `AndroidManifest.xml` 中声明的插件服务并自动启动（已启动则跳过）。
 
@@ -435,13 +435,13 @@ client.setRegisterConfig(rp);
 
 ### 5.2 A2UI 消息类型对照
 
-| Envelope key | 方向 | SDK API | 用途 |
-| --- | --- | --- | --- |
-| `createSurface` | 插件→LineOS | `sendA2UIData` | 创建 UI surface |
-| `updateComponents` | 插件→LineOS | `sendA2UIData` | 定义/更新组件树 |
-| `updateDataModel` | 插件→LineOS | `sendA2UIUpdateDataModel` | 写入/更新/删除数据模型 |
-| `deleteSurface` | 插件→LineOS | `sendA2UIData` | 删除 surface |
-| `action`（event） | LineOS→插件 | 回调 `onA2UIActionCall` | 用户交互回传 |
+| Envelope key       | 方向        | SDK API                   | 用途                   |
+| ------------------ | ----------- | ------------------------- | ---------------------- |
+| `createSurface`    | 插件→LineOS | `sendA2UIData`            | 创建 UI surface        |
+| `updateComponents` | 插件→LineOS | `sendA2UIData`            | 定义/更新组件树        |
+| `updateDataModel`  | 插件→LineOS | `sendA2UIUpdateDataModel` | 写入/更新/删除数据模型 |
+| `deleteSurface`    | 插件→LineOS | `sendA2UIData`            | 删除 surface           |
+| `action`（event）  | LineOS→插件 | 回调 `onA2UIActionCall`   | 用户交互回传           |
 
 ### 5.3 上报 UI 结构 sendA2UIData
 
@@ -490,21 +490,21 @@ client.sendA2UIData(new A2UIItem("example-focus", ui))
 
 **path 遵循 [RFC 6901 JSON Pointer](https://tools.ietf.org/html/rfc6901)：**
 
-| 写法 | 含义 |
-| --- | --- |
-| `"/message"` | 根对象的 `message` 字段 |
-| `"/user/name"` | `user` 对象下的 `name` 字段 |
+| 写法               | 含义                           |
+| ------------------ | ------------------------------ |
+| `"/message"`       | 根对象的 `message` 字段        |
+| `"/user/name"`     | `user` 对象下的 `name` 字段    |
 | `"/items/0/title"` | 数组 `items` 第 0 项的 `title` |
-| `"/items/-"` | 数组末尾追加位置（仅写入时） |
+| `"/items/-"`       | 数组末尾追加位置（仅写入时）   |
 
 转义规则：`~` 写成 `~0`，`/` 写成 `~1`。
 
 **两种绑定写法（注意使用场景区分）：**
 
-| 写法 | 形式 | 适用位置 |
-| --- | --- | --- |
-| 对象形式 | `{ "path": "/form/email" }` | 组件属性（`Text.text`、`Image.url`、`Slider.value` 等） |
-| 字符串简写 | `"#/form/email"` | **仅限** `action.event.context` 和 `action.functionCall.args` |
+| 写法       | 形式                        | 适用位置                                                      |
+| ---------- | --------------------------- | ------------------------------------------------------------- |
+| 对象形式   | `{ "path": "/form/email" }` | 组件属性（`Text.text`、`Image.url`、`Slider.value` 等）       |
+| 字符串简写 | `"#/form/email"`            | **仅限** `action.event.context` 和 `action.functionCall.args` |
 
 **列表动态渲染：** `Row`/`Column`/`List` 的 `children` 支持 `{ "path": "/数组路径", "componentId": "模板组件ID" }`，引擎遍历数组为每项生成模板实例；模板组件内部可写**相对路径**（不带 `/`），自动拼接到当前数组项路径前。
 
@@ -551,11 +551,11 @@ client.sendA2UIUpdateDataModel("example-focus", update).thenAccept(ack -> {
 
 A2UI 组件的 `action` 有**三种形式**，只有 `event` 形式会回传到插件：
 
-| 形式 | 触发组件 | 执行方 | 是否回传插件 |
-| --- | --- | --- | --- |
-| `event` | Button / Modal trigger | 宿主 → **转发给插件** | ✅ 走 `onA2UIActionCall` |
-| `functionCall` | Button / 任意组件 | Surface 内置/注册函数（如 `formatString`、`formatCurrency`） | ❌ 在渲染层内部执行 |
-| `input` | TextField / CheckBox / Slider 等输入控件 | Surface 内部（写回 dataModel） | ❌ 自动写回 dataModel |
+| 形式           | 触发组件                                 | 执行方                                                       | 是否回传插件            |
+| -------------- | ---------------------------------------- | ------------------------------------------------------------ | ----------------------- |
+| `event`        | Button / Modal trigger                   | LIneOS → **转发给插件**                                      | ✅ 走 `onA2UIActionCall` |
+| `functionCall` | Button / 任意组件                        | Surface 内置/注册函数（如 `formatString`、`formatCurrency`） | ❌ 在渲染层内部执行      |
+| `input`        | TextField / CheckBox / Slider 等输入控件 | Surface 内部（写回 dataModel）                               | ❌ 自动写回 dataModel    |
 
 **插件要接收用户交互，必须使用 `event` 形式：**
 
@@ -579,11 +579,11 @@ A2UI 组件的 `action` 有**三种形式**，只有 `event` 形式会回传到�
 
 **字段映射关系（event → A2UIActionCallPayload）：**
 
-| A2UI event 字段 | 插件侧 payload 字段 | 说明 |
-| --- | --- | --- |
-| `event.name` | `payload.actionName` | 事件名，如 `"submitForm"` |
-| `event.context` | `payload.context` | `Map<String, Object>`；其中 `#/path` 引用**已被替换为 dataModel 实际值**，无需二次解析 |
-| `surfaceId` | `payload.layoutId` | 事件来源的布局 id |
+| A2UI event 字段 | 插件侧 payload 字段  | 说明                                                                                   |
+| --------------- | -------------------- | -------------------------------------------------------------------------------------- |
+| `event.name`    | `payload.actionName` | 事件名，如 `"submitForm"`                                                              |
+| `event.context` | `payload.context`    | `Map<String, Object>`；其中 `#/path` 引用**已被替换为 dataModel 实际值**，无需二次解析 |
+| `surfaceId`     | `payload.layoutId`   | 事件来源的布局 id                                                                      |
 
 插件端接收：
 
@@ -631,11 +631,11 @@ public List<A2UIItem> onA2UIDataRequest() {
 
 ### 5.8 参考资料
 
-| 资料 | 链接 | 说明 |
-| --- | --- | --- |
-| a2ui-android 渲染库 | [github.com/yaobin-kid/a2ui-android](https://github.com/yaobin-kid/a2ui-android) | **A2UI JSON 书写权威文档**：组件目录、样式、数据绑定、Action、函数 |
-| A2UI 官方规范 | [a2ui.org/specification/v0.9-a2ui](https://a2ui.org/specification/v0.9-a2ui/) | 协议规范原文 |
-| RFC 6901 JSON Pointer | [tools.ietf.org/html/rfc6901](https://tools.ietf.org/html/rfc6901) | 数据绑定 path 语法 |
+| 资料                  | 链接                                                                             | 说明                                                               |
+| --------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| a2ui-android 渲染库   | [github.com/yaobin-kid/a2ui-android](https://github.com/yaobin-kid/a2ui-android) | **A2UI JSON 书写权威文档**：组件目录、样式、数据绑定、Action、函数 |
+| A2UI 官方规范         | [a2ui.org/specification/v0.9-a2ui](https://a2ui.org/specification/v0.9-a2ui/)    | 协议规范原文                                                       |
+| RFC 6901 JSON Pointer | [tools.ietf.org/html/rfc6901](https://tools.ietf.org/html/rfc6901)               | 数据绑定 path 语法                                                 |
 
 ---
 
@@ -696,14 +696,14 @@ client.subscribeModuleEvents(ModuleType.DOT_KEY, ModuleType.KNOB_KEY);
 
 **规则要点：**
 
-| 规则 | 说明 |
-| --- | --- |
-| 单播而非广播 | 一个事件最多只被一个插件消费；排在前面的插件 `consume()` 后，后面的插件**收不到**该事件 |
-| 优先级 | 前台 > 后台；同类中最近前台/最近活跃者优先。LineOS 通过 `setAppState(pkg, foreground)` / `setForegroundApp(pkg)` 维护前后台状态 |
-| appState 语义 | 事件里的 `appState` 是**接收方自己的状态**（foreground/background），不是事件源的状态；兜底时为 `none` |
-| 不回复 = ignore | `onModuleEvent` 中既不 `consume()` 也不 `ignore()`，超时（默认 1s）后自动视为放弃，事件流向下一候选 |
-| 超时配置 | LineOS 侧 `server.setModuleEventTimeoutMs(ms)` 调整单个候选的等待时长；也可在 `sendModuleEvent(..., timeoutMs)` 单次指定 |
-| 兜底互斥 | 某 ModuleType 一旦通过 `registerFallback` 注册了兜底回调，`PluginServerListener.onModuleEventFallback` 对该模块**不再生效**；未注册任何回调的模块才走 listener 兜底 |
+| 规则            | 说明                                                                                                                                                                |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 单播而非广播    | 一个事件最多只被一个插件消费；排在前面的插件 `consume()` 后，后面的插件**收不到**该事件                                                                             |
+| 优先级          | 前台 > 后台；同类中最近前台/最近活跃者优先。LineOS 通过 `setAppState(pkg, foreground)` / `setForegroundApp(pkg)` 维护前后台状态                                     |
+| appState 语义   | 事件里的 `appState` 是**接收方自己的状态**（foreground/background），不是事件源的状态；兜底时为 `none`                                                              |
+| 不回复 = ignore | `onModuleEvent` 中既不 `consume()` 也不 `ignore()`，超时（默认 1s）后自动视为放弃，事件流向下一候选                                                                 |
+| 超时配置        | LineOS 侧 `server.setModuleEventTimeoutMs(ms)` 调整单个候选的等待时长；也可在 `sendModuleEvent(..., timeoutMs)` 单次指定                                            |
+| 兜底互斥        | 某 ModuleType 一旦通过 `registerFallback` 注册了兜底回调，`PluginServerListener.onModuleEventFallback` 对该模块**不再生效**；未注册任何回调的模块才走 listener 兜底 |
 
 **分发结果（LineOS 侧）** `ModuleEventDispatchResult`：
 

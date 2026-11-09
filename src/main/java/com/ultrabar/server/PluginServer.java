@@ -584,6 +584,12 @@ public class PluginServer {
             case QUERY_MODULES:
                 handleQueryModules(channel, envelope);
                 return;
+            case HOTKEY:
+                handleHotkey(channel, envelope);
+                return;
+            case MESSAGE:
+                handleMessage(channel, envelope);
+                return;
 
             default:
                 log.info("ignored plugin message type={} from {}", envelope.getType(), channel.remoteAddress());
@@ -897,6 +903,89 @@ public class PluginServer {
             result.error = ErrorInfo.of(ErrorCodes.HANDLER_EXCEPTION, e.getMessage(), false, null);
         }
         write(channel, Envelope.of(MessageType.QUERY_MODULES_RESULT, envelope.getRequestId(), result)
+                .withSession(session.sessionId(), session.sessionToken()));
+    }
+
+    private void handleHotkey(Channel channel, Envelope envelope) {
+        PluginSession session = sessions.resolve(channel, envelope.getSessionId());
+        if (session == null) {
+            log.warn("hotkey without session from {}", channel.remoteAddress());
+            return;
+        }
+        session.touch();
+        HotkeyPayload payload;
+        HotkeyResultPayload ack = new HotkeyResultPayload();
+        ack.success = true;
+        try {
+            payload = envelope.payloadAs(HotkeyPayload.class);
+        } catch (Exception e) {
+            ack.success = false;
+            ack.error = ErrorInfo.of(ErrorCodes.INVALID_PAYLOAD, e.getMessage(), false, null);
+            write(channel, Envelope.of(MessageType.HOTKEY_RESULT, envelope.getRequestId(), ack)
+                    .withSession(session.sessionId(), session.sessionToken()));
+            return;
+        }
+        if (payload == null || payload.keys == null || payload.keys.isEmpty()
+                || payload.action == null) {
+            ack.success = false;
+            ack.error = ErrorInfo.of(ErrorCodes.INVALID_PAYLOAD, "keys/action is required", false, null);
+        } else {
+            try {
+                HotkeyResultPayload result = listener.onHotkey(session, payload);
+                if (result != null) {
+                    ack = result;
+                }
+            } catch (Exception e) {
+                log.error("onHotkey listener failed packageName={}", session.packageName(), e);
+                ack = new HotkeyResultPayload();
+                ack.success = false;
+                ack.error = ErrorInfo.of(ErrorCodes.HANDLER_EXCEPTION, e.getMessage(), false, null);
+            }
+        }
+        write(channel, Envelope.of(MessageType.HOTKEY_RESULT, envelope.getRequestId(), ack)
+                .withSession(session.sessionId(), session.sessionToken()));
+    }
+
+    private void handleMessage(Channel channel, Envelope envelope) {
+        PluginSession session = sessions.resolve(channel, envelope.getSessionId());
+        if (session == null) {
+            log.warn("message without session from {}", channel.remoteAddress());
+            return;
+        }
+        session.touch();
+        MessagePayload payload;
+        MessageResultPayload ack = new MessageResultPayload();
+        ack.success = true;
+        try {
+            payload = envelope.payloadAs(MessagePayload.class);
+        } catch (Exception e) {
+            ack.success = false;
+            ack.error = ErrorInfo.of(ErrorCodes.INVALID_PAYLOAD, e.getMessage(), false, null);
+            write(channel, Envelope.of(MessageType.MESSAGE_RESULT, envelope.getRequestId(), ack)
+                    .withSession(session.sessionId(), session.sessionToken()));
+            return;
+        }
+        if (payload == null || payload.instanceId == null || payload.instanceId.isEmpty()
+                || payload.message == null || payload.message.isEmpty()) {
+            ack.success = false;
+            ack.error = ErrorInfo.of(ErrorCodes.INVALID_PAYLOAD, "instanceId/message is required", false, null);
+        } else {
+            if (payload.destination == null) {
+                payload.destination = MessageDestination.PC;
+            }
+            try {
+                MessageResultPayload result = listener.onMessage(session, payload);
+                if (result != null) {
+                    ack = result;
+                }
+            } catch (Exception e) {
+                log.error("onMessage listener failed packageName={}", session.packageName(), e);
+                ack = new MessageResultPayload();
+                ack.success = false;
+                ack.error = ErrorInfo.of(ErrorCodes.HANDLER_EXCEPTION, e.getMessage(), false, null);
+            }
+        }
+        write(channel, Envelope.of(MessageType.MESSAGE_RESULT, envelope.getRequestId(), ack)
                 .withSession(session.sessionId(), session.sessionToken()));
     }
 

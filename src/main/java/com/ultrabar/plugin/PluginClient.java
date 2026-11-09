@@ -18,7 +18,12 @@ import com.ultrabar.plugin.model.A2UIUpdateDataModelPayload;
 import com.ultrabar.plugin.model.A2UIUpdateDataModelResultPayload;
 import com.ultrabar.plugin.model.EventPayload;
 import com.ultrabar.plugin.model.EventResultPayload;
+import com.ultrabar.plugin.model.HotkeyPayload;
+import com.ultrabar.plugin.model.HotkeyResultPayload;
 import com.ultrabar.plugin.model.Json;
+import com.ultrabar.plugin.model.MessageDestination;
+import com.ultrabar.plugin.model.MessagePayload;
+import com.ultrabar.plugin.model.MessageResultPayload;
 import com.ultrabar.plugin.model.MessageType;
 import com.ultrabar.plugin.model.ModuleEventRegisterPayload;
 import com.ultrabar.plugin.model.ModuleEventUnregisterPayload;
@@ -42,7 +47,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import io.netty.channel.Channel;
@@ -65,7 +72,14 @@ public class PluginClient {
     private final ExecutorService callbackExecutor;
     private final Set<ModuleType> moduleEvents = Collections.newSetFromMap(
             new ConcurrentHashMap<ModuleType, Boolean>());
+    /** 已 down 尚未 up 的按键码 → 自动补发 up 的定时任务 */
+    private final Map<Integer, ScheduledFuture<?>> pendingHotkeyUps =
+            new ConcurrentHashMap<Integer, ScheduledFuture<?>>();
+    /** hotkeyDown 后未配对 up 时，自动补发 up 的延迟（毫秒） */
+    private volatile long hotkeyAutoReleaseMs = DEFAULT_HOTKEY_AUTO_RELEASE_MS;
     private volatile boolean stopped;
+
+    private static final long DEFAULT_HOTKEY_AUTO_RELEASE_MS = 3000L;
 
     public PluginClient() {
         this("127.0.0.1", 39001);
@@ -234,6 +248,156 @@ public class PluginClient {
     }
 
     /**
+     * 短按热键：SDK 自动补齐 down + up，无需配对调用。支持单键与组合键。
+     * <p>
+     * 每个按键在服务端至少产生 2 次回调（down + up）：
+     * down 按参数顺序发送，up 按<b>逆序</b>发送（修饰键先按后抬）。
+     * 消息 {@code pressType = short}。
+     * <p>
+     * 示例（Windows VK 码）：复制 {@code sendHotkey(0x11, 0x43)}（Ctrl+C）；
+     * PS 放大画笔一次 {@code sendHotkey(0x11, 0xDD)}（Ctrl+]）。
+     *
+     * @param keys 原始按键码，组合键按按下顺序排列（修饰键在前）
+     * @return 最后一个 up 消息的回执（channel 写有序，前面的 down/up 均已送达）
+     */
+    public CompletableFuture<HotkeyResultPayload> sendHotkey(int... keys) {
+        if (keys == null || keys.length == 0) {
+            throw new IllegalArgumentException("keys must not be empty");
+        }
+        for (int key : keys) {
+            doSendHotkey(HotkeyPayload.ACTION_DOWN, HotkeyPayload.PRESS_TYPE_SHORT, key);
+        }
+        CompletableFuture<HotkeyResultPayload> result = null;
+        for (int i = keys.length - 1; i >= 0; i--) {
+            result = doSendHotkey(HotkeyPayload.ACTION_UP, HotkeyPayload.PRESS_TYPE_SHORT, keys[i]);
+        }
+        return result;
+    }
+
+    /**
+     * 长按按下（不抬起），必须与 {@link #hotkeyUp(int...)} 配对。
+     * 消息 {@code pressType = long}。
+     * <p>
+     * 需要"按住持续生效"的效果（如 PS 中 Ctrl+] 持续线性放大画笔）时，
+     * 按住期间以固定间隔（如 80ms）重复调用本方法发送同一个键的 down，
+     * 模拟键盘硬件自动重复；结束时调用 {@code hotkeyUp} 收尾。
+     * <p>
+     * 若在 {@link #setHotkeyAutoReleaseMs(long)} 设定的时长内（默认 3000ms，
+     * 设为 0 可关闭）仍未调用 {@code hotkeyUp}，SDK 会自动补发一次 up，防止按键卡死。
+     *
+     * @param keys 原始按键码；多键时按参数顺序逐个 down
+     * @return 最后一个 down 消息的回执
+     */
+    public CompletableFuture<HotkeyResultPayload> hotkeyDown(int... keys) {
+        if (keys == null || keys.length == 0) {
+            throw new IllegalArgumentException("keys must not be empty");
+        }
+        CompletableFuture<HotkeyResultPayload> result = null;
+        for (int key : keys) {
+            result = doSendHotkey(HotkeyPayload.ACTION_DOWN, HotkeyPayload.PRESS_TYPE_LONG, key);
+            scheduleHotkeyAutoRelease(key);
+        }
+        return result;
+    }
+
+    /**
+     * 长按抬起，与 {@link #hotkeyDown(int...)} 配对。消息 {@code pressType = long}。
+     * 多键时按<b>逆序</b>逐个 up（与短按一致的释放语义），并取消各键的自动补发任务。
+     *
+     * @param keys 原始按键码，传参与对应 {@code hotkeyDown} 相同即可（内部自动逆序）
+     * @return 最后一个 up 消息的回执
+     */
+    public CompletableFuture<HotkeyResultPayload> hotkeyUp(int... keys) {
+        if (keys == null || keys.length == 0) {
+            throw new IllegalArgumentException("keys must not be empty");
+        }
+        CompletableFuture<HotkeyResultPayload> result = null;
+        for (int i = keys.length - 1; i >= 0; i--) {
+            cancelHotkeyAutoRelease(keys[i]);
+            result = doSendHotkey(HotkeyPayload.ACTION_UP, HotkeyPayload.PRESS_TYPE_LONG, keys[i]);
+        }
+        return result;
+    }
+
+    /**
+     * 设置 {@code hotkeyDown} 后自动补发 up 的延迟毫秒数（默认 3000ms）。
+     * 设为 0 或负数则关闭自动补发（用于需要长时间按住的场景）。
+     */
+    public void setHotkeyAutoReleaseMs(long autoReleaseMs) {
+        this.hotkeyAutoReleaseMs = autoReleaseMs;
+    }
+
+    private CompletableFuture<HotkeyResultPayload> doSendHotkey(String action, String pressType, int key) {
+        HotkeyPayload payload = new HotkeyPayload(action, pressType,
+                Collections.singletonList(key));
+        return envelopes.request(MessageType.HOTKEY, payload, HotkeyResultPayload.class);
+    }
+
+    /** 为 down 的按键登记自动补发 up；重复 down 同一键会重置计时。 */
+    private void scheduleHotkeyAutoRelease(final Integer key) {
+        if (key == null || hotkeyAutoReleaseMs <= 0) {
+            return;
+        }
+        cancelHotkeyAutoRelease(key);
+        ScheduledFuture<?> future = scheduler.schedule(new Runnable() {
+            @Override
+            public void run() {
+                if (pendingHotkeyUps.remove(key) != null && !stopped) {
+                    log.warn("hotkey 0x{} down without up for {}ms, auto releasing",
+                            Integer.toHexString(key).toUpperCase(), hotkeyAutoReleaseMs);
+                    doSendHotkey(HotkeyPayload.ACTION_UP, HotkeyPayload.PRESS_TYPE_LONG, key);
+                }
+            }
+        }, hotkeyAutoReleaseMs, TimeUnit.MILLISECONDS);
+        pendingHotkeyUps.put(key, future);
+    }
+
+    private void cancelHotkeyAutoRelease(Integer key) {
+        ScheduledFuture<?> future = pendingHotkeyUps.remove(key);
+        if (future != null) {
+            future.cancel(false);
+        }
+    }
+
+    /**
+     * 向指定实例发送文本消息（仅支持文本），默认透传到 PC 端。
+     * 服务端收到后回调 {@code PluginServerListener#onMessage}，
+     * 返回值中的 success=false 表示处理失败。
+     *
+     * @param instanceId 目标实例 id（由接收端定义与解释）
+     * @param message    文本消息内容，不能为空
+     */
+    public CompletableFuture<MessageResultPayload> sendMessage(String instanceId,
+                                                               String message) {
+        return sendMessage(MessageDestination.PC, instanceId, message);
+    }
+
+    /**
+     * 向指定实例发送文本消息（仅支持文本），可指定透传目的地。
+     * 其他透传场景换 destination 参数即可。
+     *
+     * @param destination 消息透传目的地，见 {@link MessageDestination}
+     * @param instanceId  目标实例 id（由接收端定义与解释）
+     * @param message     文本消息内容，不能为空
+     */
+    public CompletableFuture<MessageResultPayload> sendMessage(MessageDestination destination,
+                                                               String instanceId,
+                                                               String message) {
+        if (destination == null) {
+            throw new IllegalArgumentException("destination must not be null");
+        }
+        if (instanceId == null || instanceId.isEmpty()) {
+            throw new IllegalArgumentException("instanceId must not be empty");
+        }
+        if (message == null || message.isEmpty()) {
+            throw new IllegalArgumentException("message must not be empty");
+        }
+        return envelopes.request(MessageType.MESSAGE,
+                new MessagePayload(destination, instanceId, message),
+                MessageResultPayload.class);
+    }
+
+    /**
      * 查询模块列表。服务端收到后会回调 {@link PluginServerListener#onQueryModules}
      * 由宿主提供模块数据，按 filter 过滤后封装返回。
      *
@@ -263,6 +427,10 @@ public class PluginClient {
 
     public void stop() {
         stopped = true;
+        for (ScheduledFuture<?> future : pendingHotkeyUps.values()) {
+            future.cancel(false);
+        }
+        pendingHotkeyUps.clear();
         handshake.stop();
         heartbeat.stop();
         connection.stop();

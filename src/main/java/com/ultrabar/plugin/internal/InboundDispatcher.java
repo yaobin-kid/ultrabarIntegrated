@@ -71,6 +71,8 @@ public final class InboundDispatcher {
             case A2UI_UPDATE_DATA_MODEL_RESULT:
             case A2UI_ACTION_CALL_RESULT:
             case QUERY_MODULES_RESULT:
+            case HOTKEY_RESULT:
+            case MESSAGE_RESULT:
                 if (!requests.complete(envelope.getRequestId(), envelope.getPayload())) {
                     log.debug("no pending request for type={} requestId={}", type, envelope.getRequestId());
                 }

@@ -41,6 +41,12 @@ public enum MessageType {
     QUERY_MODULES("query_modules", QueryModulesPayload.class),
     QUERY_MODULES_RESULT("query_modules_result", QueryModulesResultPayload.class),
 
+    HOTKEY("hotkey", HotkeyPayload.class),
+    HOTKEY_RESULT("hotkey_result", HotkeyResultPayload.class),
+
+    MESSAGE("message", MessagePayload.class),
+    MESSAGE_RESULT("message_result", MessageResultPayload.class),
+
     ;
 
 
