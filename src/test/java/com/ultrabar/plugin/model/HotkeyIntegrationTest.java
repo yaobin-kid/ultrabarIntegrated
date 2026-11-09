@@ -356,4 +356,99 @@ public class HotkeyIntegrationTest {
         } catch (IllegalArgumentException expected) {
         }
     }
+
+    // ====== 8. 服务端 → 插件：sendMessage 下发，PluginListener.onMessage 接收 ======
+
+    @Test
+    public void testServerSendMessageToClient() throws Exception {
+        final CountDownLatch registered = new CountDownLatch(1);
+        server.setListener(new PluginServerListener() {
+            @Override
+            public void onRegistered(PluginSession session) {
+                registered.countDown();
+            }
+        });
+
+        final AtomicReference<MessagePayload> receivedRef = new AtomicReference<MessagePayload>();
+        final CountDownLatch messageLatch = new CountDownLatch(1);
+        client = new PluginClient("127.0.0.1", serverPort);
+        RegisterPayload rp = new RegisterPayload();
+        rp.name = "HotkeyTestPlugin";
+        rp.packageName = PKG;
+        client.setRegisterConfig(rp);
+        client.setPluginListener(new PluginListener() {
+            @Override public void onRegisterSuccess(RegisterResultPayload payload) {}
+            @Override public void onCall(CallPayload payload, com.ultrabar.plugin.callback.CallResponder responder) {}
+
+            @Override
+            public void onMessage(MessagePayload payload, com.ultrabar.plugin.callback.MessageResponder responder) {
+                receivedRef.set(payload);
+                messageLatch.countDown();
+                responder.sendSuccess();
+            }
+        });
+        client.startAsync().get(5, TimeUnit.SECONDS);
+        assertTrue("client 注册超时", registered.await(5, TimeUnit.SECONDS));
+
+        MessageResultPayload ack = server.sendMessage(PKG, "instance-100", "主App下发的消息")
+                .get(3, TimeUnit.SECONDS);
+
+        assertTrue("插件应回复成功", ack.success);
+        assertTrue("插件应收到消息", messageLatch.await(3, TimeUnit.SECONDS));
+        MessagePayload received = receivedRef.get();
+        assertEquals("instance-100", received.instanceId);
+        assertEquals("主App下发的消息", received.message);
+        assertNull("服务端→插件方向不携带 destination", received.destination);
+        assertNotNull(received.timestamp);
+    }
+
+    // ====== 9. 服务端 → 插件：插件回复失败回传服务端；未注册插件失败 ======
+
+    @Test
+    public void testServerSendMessageFailureAndNoSession() throws Exception {
+        final CountDownLatch registered = new CountDownLatch(1);
+        server.setListener(new PluginServerListener() {
+            @Override
+            public void onRegistered(PluginSession session) {
+                registered.countDown();
+            }
+        });
+
+        client = new PluginClient("127.0.0.1", serverPort);
+        RegisterPayload rp = new RegisterPayload();
+        rp.name = "HotkeyTestPlugin";
+        rp.packageName = PKG;
+        client.setRegisterConfig(rp);
+        client.setPluginListener(new PluginListener() {
+            @Override public void onRegisterSuccess(RegisterResultPayload payload) {}
+            @Override public void onCall(CallPayload payload, com.ultrabar.plugin.callback.CallResponder responder) {}
+
+            @Override
+            public void onMessage(MessagePayload payload, com.ultrabar.plugin.callback.MessageResponder responder) {
+                responder.sendError("NOT_SUPPORTED", "该实例不支持消息", false);
+            }
+        });
+        client.startAsync().get(5, TimeUnit.SECONDS);
+        assertTrue(registered.await(5, TimeUnit.SECONDS));
+
+        MessageResultPayload ack = server.sendMessage(PKG, "instance-100", "hello")
+                .get(3, TimeUnit.SECONDS);
+        assertFalse("插件失败应回传", ack.success);
+        assertEquals("NOT_SUPPORTED", ack.error.code);
+
+        // 未注册的插件
+        try {
+            server.sendMessage("com.not.exists", "instance-100", "hello").get(3, TimeUnit.SECONDS);
+            fail("未注册插件应失败");
+        } catch (java.util.concurrent.ExecutionException expected) {
+        }
+
+        // 空参数通过 failedFuture 异步失败
+        try {
+            server.sendMessage(PKG, "", "hello").get(3, TimeUnit.SECONDS);
+            fail("空 instanceId 应失败");
+        } catch (java.util.concurrent.ExecutionException expected) {
+            assertTrue(expected.getCause() instanceof IllegalArgumentException);
+        }
+    }
 }

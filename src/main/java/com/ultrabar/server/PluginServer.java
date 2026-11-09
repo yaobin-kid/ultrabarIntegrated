@@ -244,6 +244,35 @@ public class PluginServer {
     }
 
     /**
+     * 向插件下发文本消息（仅支持文本）。
+     * 插件通过 {@link com.ultrabar.plugin.callback.PluginListener#onMessage} 接收并响应；
+     * 返回的 future 为插件的处理回执，success=false 表示插件侧处理失败。
+     *
+     * @param packageName 目标插件包名
+     * @param instanceId  目标实例 id（由插件侧定义与解释）
+     * @param message     文本消息内容，不能为空
+     */
+    public CompletableFuture<MessageResultPayload> sendMessage(String packageName,
+                                                               String instanceId,
+                                                               String message) {
+        PluginSession session;
+        try {
+            session = getValidSession(packageName);
+        } catch (IllegalStateException e) {
+            return failedFuture(e);
+        }
+        if (instanceId == null || instanceId.isEmpty()) {
+            return failedFuture(new IllegalArgumentException("instanceId must not be empty"));
+        }
+        if (message == null || message.isEmpty()) {
+            return failedFuture(new IllegalArgumentException("message must not be empty"));
+        }
+        // destination 仅用于插件→服务端方向，此处不携带
+        MessagePayload payload = new MessagePayload(null, instanceId, message);
+        return request(session, MessageType.MESSAGE, payload, MessageResultPayload.class);
+    }
+
+    /**
      * 主动向插件拉取当前 a2ui 数据。
      * 服务端发送 {@code a2ui_data_request}，插件通过
      * {@link com.ultrabar.plugin.callback.PluginListener#onA2UIDataRequest()} 返回布局列表。
@@ -564,6 +593,7 @@ public class PluginServer {
             case HEARTBEAT_ACK:
             case A2UI_ACTION_CALL_RESULT:
             case A2UI_DATA_REQUEST_RESULT:
+            case MESSAGE_RESULT:
                 pending.complete(envelope.getRequestId(), envelope.getPayload());
                 return;
             case EVENT:

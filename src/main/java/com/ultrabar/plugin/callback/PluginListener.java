@@ -67,4 +67,15 @@ public interface PluginListener {
     default List<A2UIItem> onA2UIDataRequest() {
         return Collections.emptyList();
     }
+
+    /**
+     * 收到服务端下发的文本消息（{@code PluginServer.sendMessage}）。
+     * {@code payload.instanceId} 为目标实例 id，{@code payload.message} 为文本内容；
+     * {@code payload.destination} 仅用于插件→服务端方向，此方向为 null。
+     * 需通过 {@link MessageResponder#sendSuccess()} 或
+     * {@link MessageResponder#sendError(String, String, boolean)} 响应。
+     */
+    default void onMessage(MessagePayload payload, MessageResponder responder) {
+        responder.sendError(ErrorCodes.NO_HANDLER, "no message handler registered", false);
+    }
 }

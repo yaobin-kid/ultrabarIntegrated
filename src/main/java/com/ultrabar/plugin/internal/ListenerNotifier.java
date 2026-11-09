@@ -5,6 +5,7 @@ import com.ultrabar.plugin.model.*;
 import com.ultrabar.plugin.callback.A2UIActionCallResponder;
 import com.ultrabar.plugin.callback.CallResponder;
 import com.ultrabar.plugin.callback.DescribeResponder;
+import com.ultrabar.plugin.callback.MessageResponder;
 import com.ultrabar.plugin.callback.ModuleEventResponder;
 import com.ultrabar.plugin.callback.OptionsResponder;
 import org.slf4j.Logger;
@@ -160,6 +161,25 @@ public final class ListenerNotifier {
             @Override
             public void run(PluginListener l) {
                 l.onA2UIActionCall(payload, responder);
+            }
+        });
+    }
+
+    void onMessage(final MessagePayload payload, final MessageResponder responder) {
+        PluginListener current = listener;
+        if (current == null) {
+            responder.sendError(ErrorCodes.NO_HANDLER, "No PluginListener registered", false);
+            return;
+        }
+        emitHandled(current, new ErrorSink() {
+            @Override
+            public void sendError(String code, String message) {
+                responder.sendError(code, message, false);
+            }
+        }, new ListenerAction() {
+            @Override
+            public void run(PluginListener l) {
+                l.onMessage(payload, responder);
             }
         });
     }

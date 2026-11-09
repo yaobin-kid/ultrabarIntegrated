@@ -5,6 +5,7 @@ import com.ultrabar.plugin.callback.A2UIActionCallResponder;
 import com.ultrabar.plugin.callback.CallResponder;
 import com.ultrabar.plugin.callback.DescribeResponder;
 import com.ultrabar.plugin.callback.EnvelopeWriter;
+import com.ultrabar.plugin.callback.MessageResponder;
 import com.ultrabar.plugin.callback.ModuleEventResponder;
 import com.ultrabar.plugin.callback.OptionsResponder;
 import com.ultrabar.plugin.model.ActionsPayload;
@@ -18,6 +19,7 @@ import com.ultrabar.plugin.model.Envelope;
 import com.ultrabar.plugin.model.ErrorCodes;
 import com.ultrabar.plugin.model.ErrorInfo;
 import com.ultrabar.plugin.model.GetOptionsPayload;
+import com.ultrabar.plugin.model.MessagePayload;
 import com.ultrabar.plugin.model.MessageType;
 import com.ultrabar.plugin.model.ModuleEventPayload;
 
@@ -98,6 +100,9 @@ public final class InboundDispatcher {
             case A2UI_DATA_REQUEST:
                 handleA2UIDataRequest(channel, envelope);
                 return;
+            case MESSAGE:
+                handleMessage(channel, envelope);
+                return;
             default:
                 log.info("ignored inbound type={} requestId={}", type, envelope.getRequestId());
         }
@@ -177,5 +182,16 @@ public final class InboundDispatcher {
         EnvelopeWriter.write(channel, mapper,
                 Envelope.of(MessageType.A2UI_DATA_REQUEST_RESULT, envelope.getRequestId(), result)
                         .withSession(session.sessionId(), session.sessionToken()));
+    }
+
+    private void handleMessage(Channel channel, Envelope envelope) {
+        MessageResponder responder = new MessageResponder(
+                channel, envelope.getRequestId(), mapper,
+                session.sessionId(), session.sessionToken());
+        try {
+            notifier.onMessage(envelope.payloadAs(MessagePayload.class), responder);
+        } catch (Exception e) {
+            responder.sendError(ErrorCodes.INVALID_PAYLOAD, e.getMessage(), false);
+        }
     }
 }

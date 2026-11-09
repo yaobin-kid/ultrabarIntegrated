@@ -14,8 +14,12 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class MessagePayload implements Payload {
 
-    /** 消息透传目的地，默认 {@link MessageDestination#PC} */
-    public MessageDestination destination = MessageDestination.PC;
+    /**
+     * 消息透传目的地。仅插件→服务端方向使用：
+     * 通过构造器创建时默认 {@link MessageDestination#PC}；
+     * 服务端→插件方向为 null。
+     */
+    public MessageDestination destination;
 
     /** 目标实例 id */
     public String instanceId;
