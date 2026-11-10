@@ -362,40 +362,40 @@ public class PluginClient {
     }
 
     /**
-     * 向指定实例发送文本消息（仅支持文本），默认透传到 Ultra WorkSpace PLUGIN 端。
+     * 向指定插件实例发送文本消息（仅支持文本），默认透传到 Ultra WorkSpace PLUGIN 端。
      * 服务端收到后回调 {@code PluginServerListener#onMessage}，
      * 返回值中的 success=false 表示处理失败。
      *
-     * @param instanceId 目标实例 id（由接收端定义与解释）
-     * @param message    文本消息内容，不能为空
+     * @param pluginId 目标插件实例 id（由接收端定义与解释）
+     * @param message  文本消息内容，不能为空
      */
-    public CompletableFuture<MessageResultPayload> sendMessage(String instanceId,
+    public CompletableFuture<MessageResultPayload> sendMessage(String pluginId,
                                                                String message) {
-        return sendMessage(MessageDestination.ULTRA_WORKSPACE_PLUGIN, instanceId, message);
+        return sendMessage(MessageDestination.ULTRA_WORKSPACE_PLUGIN, pluginId, message);
     }
 
     /**
-     * 向指定实例发送文本消息（仅支持文本），可指定透传目的地。
+     * 向指定插件实例发送文本消息（仅支持文本），可指定透传目的地。
      * 其他透传场景换 destination 参数即可。
      *
      * @param destination 消息透传目的地，见 {@link MessageDestination}
-     * @param instanceId  目标实例 id（由接收端定义与解释）
+     * @param pluginId    目标插件实例 id（由接收端定义与解释）
      * @param message     文本消息内容，不能为空
      */
     public CompletableFuture<MessageResultPayload> sendMessage(MessageDestination destination,
-                                                               String instanceId,
+                                                               String pluginId,
                                                                String message) {
         if (destination == null) {
             throw new IllegalArgumentException("destination must not be null");
         }
-        if (instanceId == null || instanceId.isEmpty()) {
-            throw new IllegalArgumentException("instanceId must not be empty");
+        if (pluginId == null || pluginId.isEmpty()) {
+            throw new IllegalArgumentException("pluginId must not be empty");
         }
         if (message == null || message.isEmpty()) {
             throw new IllegalArgumentException("message must not be empty");
         }
         return envelopes.request(MessageType.MESSAGE,
-                new MessagePayload(destination, instanceId, message),
+                new MessagePayload(destination, pluginId, message),
                 MessageResultPayload.class);
     }
 

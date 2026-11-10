@@ -260,7 +260,7 @@ public class HotkeyIntegrationTest {
         assertEquals("HOST_REJECTED", ack.error.code);
     }
 
-    // ====== 6. 实例文本消息：服务端收到 destination + instanceId + message ======
+    // ====== 6. 实例文本消息：服务端收到 destination + pluginId + message ======
 
     @Test
     public void testSendMessage() throws Exception {
@@ -279,14 +279,14 @@ public class HotkeyIntegrationTest {
         });
 
         MessageResultPayload ack = client
-                .sendMessage("instance-001", "开始播放")
+                .sendMessage("plugin-001", "开始播放")
                 .get(3, TimeUnit.SECONDS);
 
         assertTrue(ack.success);
         assertTrue("server 应收到消息", latch.await(3, TimeUnit.SECONDS));
         MessagePayload received = ref.get();
         assertEquals(MessageDestination.ULTRA_WORKSPACE_PLUGIN, received.destination);
-        assertEquals("instance-001", received.instanceId);
+        assertEquals("plugin-001", received.pluginId);
         assertEquals("开始播放", received.message);
         assertNotNull(received.timestamp);
     }
@@ -308,13 +308,13 @@ public class HotkeyIntegrationTest {
         });
 
         MessageResultPayload ack = client
-                .sendMessage(MessageDestination.ULTRA_WORKSPACE_PLUGIN, "instance-002", "切换频道")
+                .sendMessage(MessageDestination.ULTRA_WORKSPACE_PLUGIN, "plugin-002", "切换频道")
                 .get(3, TimeUnit.SECONDS);
 
         assertTrue(ack.success);
         assertTrue(latch.await(3, TimeUnit.SECONDS));
         assertEquals(MessageDestination.ULTRA_WORKSPACE_PLUGIN, ref.get().destination);
-        assertEquals("instance-002", ref.get().instanceId);
+        assertEquals("plugin-002", ref.get().pluginId);
         assertEquals("切换频道", ref.get().message);
     }
 
@@ -342,16 +342,16 @@ public class HotkeyIntegrationTest {
         // 空参数在客户端本地拦截，不发起请求
         try {
             client.sendMessage("", "hello");
-            fail("空 instanceId 应抛 IllegalArgumentException");
+            fail("空 pluginId 应抛 IllegalArgumentException");
         } catch (IllegalArgumentException expected) {
         }
         try {
-            client.sendMessage("instance-001", "");
+            client.sendMessage("plugin-001", "");
             fail("空 message 应抛 IllegalArgumentException");
         } catch (IllegalArgumentException expected) {
         }
         try {
-            client.sendMessage(null, "instance-001", "hello");
+            client.sendMessage(null, "plugin-001", "hello");
             fail("null destination 应抛 IllegalArgumentException");
         } catch (IllegalArgumentException expected) {
         }
@@ -390,14 +390,14 @@ public class HotkeyIntegrationTest {
         client.startAsync().get(5, TimeUnit.SECONDS);
         assertTrue("client 注册超时", registered.await(5, TimeUnit.SECONDS));
 
-        MessageResultPayload ack = server.sendMessage(PKG, "instance-100", "主App下发的消息")
+        MessageResultPayload ack = server.sendMessage(PKG, "plugin-100", "LineOS下发的消息")
                 .get(3, TimeUnit.SECONDS);
 
         assertTrue("插件应回复成功", ack.success);
         assertTrue("插件应收到消息", messageLatch.await(3, TimeUnit.SECONDS));
         MessagePayload received = receivedRef.get();
-        assertEquals("instance-100", received.instanceId);
-        assertEquals("主App下发的消息", received.message);
+        assertEquals("plugin-100", received.pluginId);
+        assertEquals("LineOS下发的消息", received.message);
         assertNull("服务端→插件方向不携带 destination", received.destination);
         assertNotNull(received.timestamp);
     }

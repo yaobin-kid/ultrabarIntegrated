@@ -913,11 +913,11 @@ client.hotkeyUp(0x11, 0xDD);               // 3. 结束：传参与 down 同序�
 
 ### 7.4 发送文本消息 sendMessage
 
-向指定实例发送文本消息（仅支持文本），默认透传到 PC 端：
+向指定插件实例发送文本消息（仅支持文本），默认透传到 Ultra WorkSpace PLUGIN 端：
 
 ```java
-// 默认目的地 PC
-client.sendMessage("instance-001", "开始播放")
+// 默认目的地 ULTRA_WORKSPACE_PLUGIN
+client.sendMessage("plugin-001", "开始播放")
       .thenAccept(ack -> {
           if (!ack.success) {
               Log.e(TAG, "消息投递失败: " + ack.error.message);
@@ -925,22 +925,22 @@ client.sendMessage("instance-001", "开始播放")
       });
 
 // 显式指定透传目的地（MessageDestination 枚举）
-client.sendMessage(MessageDestination.ULTRA_WORKSPACE_PLUGIN, "instance-002", "切换频道");
+client.sendMessage(MessageDestination.ULTRA_WORKSPACE_PLUGIN, "plugin-002", "切换频道");
 ```
 
 - `destination` 为 `MessageDestination` 枚举（当前含 `ULTRA_WORKSPACE_PLUGIN`），后续新增目的地只需扩展枚举，API 不变；
-- `instanceId` / `message` 为空、`destination` 为 null 会在客户端本地抛 `IllegalArgumentException`，不发起请求；
+- `pluginId` / `message` 为空、`destination` 为 null 会在客户端本地抛 `IllegalArgumentException`，不发起请求；
 - 服务端收到后回调 `PluginServerListener.onMessage`，其返回值作为 ack 回传——`success=false` 表示宿主处理失败。
 
 ### 7.5 接收 LineOS 下发的消息 onMessage
 
-消息通道是双向的。LineOS 侧调用 `PluginServer.sendMessage(packageName, instanceId, message)` 时，插件通过 `PluginListener.onMessage` 接收：
+消息通道是双向的。LineOS 侧调用 `PluginServer.sendMessage(packageName, pluginId, message)` 时，插件通过 `PluginListener.onMessage` 接收：
 
 ```java
 client.setPluginListener(new PluginListener() {
     @Override
     public void onMessage(MessagePayload payload, MessageResponder responder) {
-        String instanceId = payload.instanceId;   // 目标实例 id
+        String pluginId = payload.pluginId;       // 目标插件实例 id
         String text = payload.message;            // 文本内容
         // payload.destination 在此方向为 null（仅插件→LineOS 方向使用）
 

@@ -8,7 +8,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  * {@link #destination} 为消息透传的目的地，默认 {@link MessageDestination#ULTRA_WORKSPACE_PLUGIN}；
  * 其他透传场景只需换 destination 参数。
  * <p>
- * {@link #instanceId} 标识目标实例（由接收端定义与解释，如某个界面/场景实例），
+ * {@link #pluginId} 标识目标插件实例（由接收端定义与解释，如某个界面/场景实例），
  * {@link #message} 为要投递的文本内容。
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -21,8 +21,8 @@ public class MessagePayload implements Payload {
      */
     public MessageDestination destination;
 
-    /** 目标实例 id */
-    public String instanceId;
+    /** 目标插件实例 id */
+    public String pluginId;
 
     /** 文本消息内容 */
     public String message;
@@ -32,13 +32,13 @@ public class MessagePayload implements Payload {
     public MessagePayload() {
     }
 
-    public MessagePayload(String instanceId, String message) {
-        this(MessageDestination.ULTRA_WORKSPACE_PLUGIN, instanceId, message);
+    public MessagePayload(String pluginId, String message) {
+        this(MessageDestination.ULTRA_WORKSPACE_PLUGIN, pluginId, message);
     }
 
-    public MessagePayload(MessageDestination destination, String instanceId, String message) {
+    public MessagePayload(MessageDestination destination, String pluginId, String message) {
         this.destination = destination;
-        this.instanceId = instanceId;
+        this.pluginId = pluginId;
         this.message = message;
         this.timestamp = System.currentTimeMillis();
     }

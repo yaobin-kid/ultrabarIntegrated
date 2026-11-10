@@ -249,11 +249,11 @@ public class PluginServer {
      * 返回的 future 为插件的处理回执，success=false 表示插件侧处理失败。
      *
      * @param packageName 目标插件包名
-     * @param instanceId  目标实例 id（由插件侧定义与解释）
+     * @param pluginId    目标插件实例 id（由插件侧定义与解释）
      * @param message     文本消息内容，不能为空
      */
     public CompletableFuture<MessageResultPayload> sendMessage(String packageName,
-                                                               String instanceId,
+                                                               String pluginId,
                                                                String message) {
         PluginSession session;
         try {
@@ -261,14 +261,14 @@ public class PluginServer {
         } catch (IllegalStateException e) {
             return failedFuture(e);
         }
-        if (instanceId == null || instanceId.isEmpty()) {
-            return failedFuture(new IllegalArgumentException("instanceId must not be empty"));
+        if (pluginId == null || pluginId.isEmpty()) {
+            return failedFuture(new IllegalArgumentException("pluginId must not be empty"));
         }
         if (message == null || message.isEmpty()) {
             return failedFuture(new IllegalArgumentException("message must not be empty"));
         }
         // destination 仅用于插件→服务端方向，此处不携带
-        MessagePayload payload = new MessagePayload(null, instanceId, message);
+        MessagePayload payload = new MessagePayload(null, pluginId, message);
         return request(session, MessageType.MESSAGE, payload, MessageResultPayload.class);
     }
 
@@ -998,10 +998,10 @@ public class PluginServer {
                     .withSession(session.sessionId(), session.sessionToken()));
             return;
         }
-        if (payload == null || payload.instanceId == null || payload.instanceId.isEmpty()
+        if (payload == null || payload.pluginId == null || payload.pluginId.isEmpty()
                 || payload.message == null || payload.message.isEmpty()) {
             ack.success = false;
-            ack.error = ErrorInfo.of(ErrorCodes.INVALID_PAYLOAD, "instanceId/message is required", false, null);
+            ack.error = ErrorInfo.of(ErrorCodes.INVALID_PAYLOAD, "pluginId/message is required", false, null);
         } else {
             if (payload.destination == null) {
                 payload.destination = MessageDestination.ULTRA_WORKSPACE_PLUGIN;
