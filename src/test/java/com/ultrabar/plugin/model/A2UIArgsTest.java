@@ -11,8 +11,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -101,6 +99,13 @@ public class A2UIArgsTest {
         };
     }
 
+    @Test
+    public void testSixArgTypesWireFormat2() throws Exception {
+        A2UIArgs args = A2UIArgs.dynamic("test");
+        JsonNode root = Json.mapper().readTree(Json.mapper().writeValueAsString(args));
+        System.out.println(root.toString());
+    }
+
     // ====== 1. 6 种类型 Builder 生成正确的线上结构 ======
 
     @Test
@@ -118,8 +123,6 @@ public class A2UIArgsTest {
                         .property("retries", A2UIArgSpec.intArg().label("重试次数")
                                 .defaultValue(3).min(0).max(10).build())
                         .build());
-
-
 
 
         // 6 个顶层静态参数（覆盖 6 种类型）
@@ -230,7 +233,7 @@ public class A2UIArgsTest {
         assertFalse(Json.mapper().writeValueAsString(noArgs).contains("\"args\""));
     }
 
-    // ====== 5. 动态 schema 端到端：服务端拉取 → 插件回调 → 返回响应数据 ======
+    // ====== 5. 动态 schema 端到端：服务端拉取 → 插件回调 → 返回 A2UIArgs ======
 
     @Test
     public void testDynamicArgsSchemaEndToEnd() throws Exception {
@@ -245,12 +248,11 @@ public class A2UIArgsTest {
             }
 
             @Override
-            public Map<String, A2UIArgSpec> onA2UIArgsSchemaRequest(String schemaGetter) {
+            public A2UIArgs onA2UIArgsSchemaRequest(String schemaGetter) {
                 receivedGetter.set(schemaGetter);
-                Map<String, A2UIArgSpec> schema = new LinkedHashMap<String, A2UIArgSpec>();
-                schema.put("fieldA", A2UIArgSpec.stringArg().label("字段A").defaultValue("v1").build());
-                schema.put("fieldB", A2UIArgSpec.intArg().label("字段B").min(1).max(100).build());
-                return schema;
+                return A2UIArgs.create()
+                        .arg("fieldA", A2UIArgSpec.stringArg().label("字段A").defaultValue("v1").build())
+                        .arg("fieldB", A2UIArgSpec.intArg().label("字段B").min(1).max(100).build());
             }
         });
 
@@ -260,16 +262,16 @@ public class A2UIArgsTest {
 
         assertTrue("拉取动态 schema 应成功", result.success);
         assertEquals("schema.argsdemo", receivedGetter.get());
-        assertNotNull(result.schema);
-        assertEquals(2, result.schema.size());
-        assertEquals(A2UIArgSpec.TYPE_STRING, result.schema.get("fieldA").type);
-        assertEquals("字段A", result.schema.get("fieldA").label);
-        assertEquals("v1", result.schema.get("fieldA").defaultValue);
-        assertEquals(A2UIArgSpec.TYPE_INT, result.schema.get("fieldB").type);
-        assertEquals(100, result.schema.get("fieldB").max.intValue());
+        assertNotNull(result.args);
+        assertEquals(2, result.args.argNames().size());
+        assertEquals(A2UIArgSpec.TYPE_STRING, result.args.specs().get("fieldA").type);
+        assertEquals("字段A", result.args.specs().get("fieldA").label);
+        assertEquals("v1", result.args.specs().get("fieldA").defaultValue);
+        assertEquals(A2UIArgSpec.TYPE_INT, result.args.specs().get("fieldB").type);
+        assertEquals(100, result.args.specs().get("fieldB").max.intValue());
     }
 
-    // ====== 6. 插件未处理动态 schema → 空 Map；非法参数本地拦截 ======
+    // ====== 6. 插件未处理动态 schema → 空 A2UIArgs；非法参数本地拦截 ======
 
     @Test
     public void testDynamicArgsSchemaDefaultEmptyAndValidation() throws Exception {
@@ -279,8 +281,8 @@ public class A2UIArgsTest {
                 .queryA2UIArgsSchema(PKG, "schema.none")
                 .get(5, TimeUnit.SECONDS);
         assertTrue(result.success);
-        assertNotNull("未处理时应归一化为空 Map", result.schema);
-        assertTrue(result.schema.isEmpty());
+        assertNotNull("未处理时应归一化为空 A2UIArgs", result.args);
+        assertTrue(result.args.argNames().isEmpty());
 
         try {
             server.queryA2UIArgsSchema(PKG, "").get(3, TimeUnit.SECONDS);

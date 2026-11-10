@@ -280,10 +280,10 @@ public class PluginServer {
      * 卡片 {@code args} 中声明了 {@code dynamic + schemaGetter} 时，宿主在渲染参数表单前
      * 调用本方法：服务端发送 {@code a2ui_args_schema_request}，插件通过
      * {@link com.ultrabar.plugin.callback.PluginListener#onA2UIArgsSchemaRequest(String)}
-     * 返回实时生成的参数 schema。
+     * 返回实时生成的 {@link com.ultrabar.plugin.model.A2UIArgs}。
      * <p>
-     * 返回值 {@code schema} 中的每个参数为 {@link com.ultrabar.plugin.model.A2UIArgSpec}，
-     * 支持全部 6 种类型；插件返回 null/空 Map 时 {@code schema} 归一化为空 Map。
+     * 参数类型支持全部 6 种，见 {@link com.ultrabar.plugin.model.A2UIArgSpec}；
+     * 插件返回 null 时 {@code args} 归一化为空 {@code A2UIArgs}。
      *
      * @param packageName   目标插件包名
      * @param schemaGetter  卡片 args 中声明的 schemaGetter 动作 id
@@ -307,8 +307,8 @@ public class PluginServer {
         return request(session, MessageType.A2UI_ARGS_SCHEMA_REQUEST, payload,
                 A2UIArgsSchemaResultPayload.class)
                 .thenApply(result -> {
-                    if (result != null && result.success && result.schema == null) {
-                        result.schema = Collections.<String, A2UIArgSpec>emptyMap();
+                    if (result != null && result.success && result.args == null) {
+                        result.args = A2UIArgs.create();
                     }
                     return result;
                 });

@@ -196,7 +196,7 @@ public final class InboundDispatcher {
         try {
             A2UIArgsSchemaRequestPayload payload =
                     envelope.payloadAs(A2UIArgsSchemaRequestPayload.class);
-            result.schema = notifier.onA2UIArgsSchemaRequest(
+            result.args = notifier.onA2UIArgsSchemaRequest(
                     payload == null ? null : payload.schemaGetter);
             result.success = true;
         } catch (Exception e) {

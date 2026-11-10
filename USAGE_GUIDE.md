@@ -643,14 +643,14 @@ public List<A2UIItem> onA2UIDataRequest() {
 
 `A2UIItem.args` 用于声明用户可配置哪些字段、用什么控件渲染。6 种类型各有**专属 Builder**，只能设置本类型自己的字段（编译期隔离，无法交叉设置）：
 
-| 类型 | Builder | 可设置 |
-| ---- | ------- | ------ |
-| `int` | `intArg()` | `label` `required` `defaultValue(int)` `min(int)` `max(int)` |
-| `float` | `floatArg()` | `label` `required` `defaultValue(double)` `min(double)` `max(double)` |
-| `bool` | `boolArg()` | `label` `required` `defaultValue(boolean)` |
-| `string` | `stringArg()` | `label` `required` `defaultValue(String)` |
+| 类型     | Builder       | 可设置                                                                             |
+| -------- | ------------- | ---------------------------------------------------------------------------------- |
+| `int`    | `intArg()`    | `label` `required` `defaultValue(int)` `min(int)` `max(int)`                       |
+| `float`  | `floatArg()`  | `label` `required` `defaultValue(double)` `min(double)` `max(double)`              |
+| `bool`   | `boolArg()`   | `label` `required` `defaultValue(boolean)`                                         |
+| `string` | `stringArg()` | `label` `required` `defaultValue(String)`                                          |
 | `select` | `selectArg()` | `label` `required` `defaultValue(String)` `option(value)` / `option(value, label)` |
-| `object` | `objectArg()` | `label` `required` `property(name, A2UIArgSpec)`（递归嵌套） |
+| `object` | `objectArg()` | `label` `required` `property(name, A2UIArgSpec)`（递归嵌套）                       |
 
 ```java
 A2UIArgs args = A2UIArgs.create()
@@ -665,19 +665,19 @@ A2UIArgs args = A2UIArgs.create()
 client.sendA2UIData(new A2UIItem("example-focus", "card-example", "示例", ui, args));
 ```
 
-**动态 schema**：参数由插件实时决定时，声明 `dynamic + schemaGetter`；LineOS 在渲染表单前通过 `PluginServer.queryA2UIArgsSchema(packageName, schemaGetter)` 拉取，插件在 `PluginListener.onA2UIArgsSchemaRequest(schemaGetter)` 中返回参数 schema：
+**动态 schema**：参数由插件实时决定时，声明 `dynamic + schemaGetter`；LineOS 在渲染表单前 拉取参数，插件在 `PluginListener.onA2UIArgsSchemaRequest(schemaGetter)` 中直接返回 `A2UIArgs`：
 
 ```java
 // 插件声明：动态参数
 A2UIArgs args = A2UIArgs.dynamic("schema.argsdemo");
 
-// 插件侧：响应拉取，实时生成 schema
+// 插件侧：响应拉取，实时生成 A2UIArgs
 @Override
-public Map<String, A2UIArgSpec> onA2UIArgsSchemaRequest(String schemaGetter) {
-    Map<String, A2UIArgSpec> schema = new LinkedHashMap<>();
-    schema.put("fieldA", A2UIArgSpec.stringArg().label("字段A").defaultValue("v1").build());
-    schema.put("fieldB", A2UIArgSpec.intArg().label("字段B").min(1).max(100).build());
-    return schema;   // null / 空 Map 表示没有可配置参数
+public A2UIArgs onA2UIArgsSchemaRequest(String schemaGetter) {
+    return A2UIArgs.create()
+            .arg("fieldA", A2UIArgSpec.stringArg().label("字段A").defaultValue("v1").build())
+            .arg("fieldB", A2UIArgSpec.intArg().label("字段B").min(1).max(100).build());
+    // 返回 null 表示没有可配置参数，服务端会归一化为空 A2UIArgs
 }
 ```
 

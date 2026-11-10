@@ -4,7 +4,6 @@ import com.ultrabar.plugin.model.*;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Single global listener interface for plugin events.
@@ -75,20 +74,20 @@ public interface PluginListener {
      * {@code dynamic + schemaGetter} 声明）。
      * <p>
      * 参数 {@code schemaGetter} 即卡片里声明的 schemaGetter 动作 id，
-     * 返回该动作实时生成的参数 schema；返回 null 或空 Map 表示没有可配置参数。
+     * 返回该动作实时生成的 {@link A2UIArgs}；返回 null 或空 {@code A2UIArgs}
+     * 表示没有可配置参数。
      * <p>
      * 6 种参数类型见 {@link A2UIArgSpec}，例如：
      * <pre>
-     * Map&lt;String, A2UIArgSpec&gt; schema = new LinkedHashMap&lt;&gt;();
-     * schema.put("fieldA", A2UIArgSpec.stringArg().label("字段A").defaultValue("x").build());
-     * schema.put("fieldB", A2UIArgSpec.intArg().label("字段B").min(1).max(100).build());
-     * return schema;
+     * return A2UIArgs.create()
+     *         .arg("fieldA", A2UIArgSpec.stringArg().label("字段A").defaultValue("x").build())
+     *         .arg("fieldB", A2UIArgSpec.intArg().label("字段B").min(1).max(100).build());
      * </pre>
      *
      * @param schemaGetter 卡片 args 中声明的 schemaGetter 动作 id
      */
-    default Map<String, A2UIArgSpec> onA2UIArgsSchemaRequest(String schemaGetter) {
-        return Collections.emptyMap();
+    default A2UIArgs onA2UIArgsSchemaRequest(String schemaGetter) {
+        return null;
     }
 
     /**

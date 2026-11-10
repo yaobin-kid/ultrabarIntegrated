@@ -316,11 +316,6 @@ public class ClientMain {
 
 
             @Override
-            public Map<String, A2UIArgSpec> onA2UIArgsSchemaRequest(String schemaGetter) {
-                return PluginListener.super.onA2UIArgsSchemaRequest(schemaGetter);
-            }
-
-            @Override
             public void onModuleEvent(ModuleEventPayload payload, ModuleEventResponder responder) {
                 // ============================================================
                 // 模块事件（服务端透传)

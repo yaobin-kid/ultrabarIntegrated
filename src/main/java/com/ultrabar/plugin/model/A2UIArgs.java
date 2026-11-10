@@ -49,17 +49,17 @@ public class A2UIArgs extends LinkedHashMap<String, Object> {
     }
 
     /** 追加/覆盖一个参数描述 */
-    public A2UIArgs arg(String name, A2UIArgSpec spec) {
-        if (name == null || name.isEmpty()) {
-            throw new IllegalArgumentException("arg name must not be empty");
+    public A2UIArgs arg(String field, A2UIArgSpec spec) {
+        if (field == null || field.isEmpty()) {
+            throw new IllegalArgumentException("arg field must not be empty");
         }
         if (spec == null) {
             throw new IllegalArgumentException("arg spec must not be null");
         }
-        if (KEY_DYNAMIC.equals(name) || KEY_SCHEMA_GETTER.equals(name)) {
-            throw new IllegalArgumentException(name + " is a reserved key");
+        if (KEY_DYNAMIC.equals(field) || KEY_SCHEMA_GETTER.equals(field)) {
+            throw new IllegalArgumentException(field + " is a reserved key");
         }
-        put(name, spec);
+        put(field, spec);
         return this;
     }
 

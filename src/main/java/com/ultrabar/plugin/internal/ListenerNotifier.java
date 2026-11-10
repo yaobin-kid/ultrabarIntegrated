@@ -13,7 +13,6 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 
@@ -206,18 +205,18 @@ public final class ListenerNotifier {
     /**
      * 同步调用 {@link PluginListener#onA2UIArgsSchemaRequest(String)} 并返回结果。
      * 必须在调用线程同步执行，以便 InboundDispatcher 立即回包。
+     * 插件未处理时返回 {@code null}，由服务端归一化为空 {@link A2UIArgs}。
      */
-    Map<String, A2UIArgSpec> onA2UIArgsSchemaRequest(String schemaGetter) {
+    A2UIArgs onA2UIArgsSchemaRequest(String schemaGetter) {
         PluginListener current = listener;
         if (current == null) {
-            return Collections.emptyMap();
+            return null;
         }
         try {
-            Map<String, A2UIArgSpec> result = current.onA2UIArgsSchemaRequest(schemaGetter);
-            return result == null ? Collections.<String, A2UIArgSpec>emptyMap() : result;
+            return current.onA2UIArgsSchemaRequest(schemaGetter);
         } catch (Exception e) {
             log.error("onA2UIArgsSchemaRequest listener failed", e);
-            return Collections.emptyMap();
+            return null;
         }
     }
 
