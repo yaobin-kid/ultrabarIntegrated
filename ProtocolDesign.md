@@ -215,7 +215,7 @@ CompletableFuture<A2UIUpdateDataModelResultPayload> sendA2UIUpdateDataModel(Stri
 CompletableFuture<A2UIUpdateDataModelResultPayload> sendA2UIUpdateDataModel(String layoutId, String dataModel, boolean incremental)
 ```
 
-**`sendA2UIData(items)`** — 每个 `A2UIItem` 包含 `layoutId`（布局 id）和 `ui`（A2UI 消息列表，类型 `List<Map<String, Object>>`，即 JSON 数组），用于 `createSurface` / `updateComponents` / `deleteSurface`。构造时参数传 JSON 字符串则 SDK 内部自动解析为数组（单条 JSON 对象字符串自动包装为单元素数组），非法 JSON 抛 `IllegalArgumentException`：
+**`sendA2UIData(items)`** — 每个 `A2UIItem` 包含 `layoutId`（布局 id）、`name`（布局名）、`cardId`（卡片 id）和 `ui`（A2UI 消息列表，类型 `List<Map<String, Object>>`，即 JSON 数组），4 个参数创建时必须全部传入；`ui` 支持重载（结构化数组或 JSON 字符串，后者 SDK 内部解析）。用于 `createSurface` / `updateComponents` / `deleteSurface`。构造时参数传 JSON 字符串则 SDK 内部自动解析为数组（单条 JSON 对象字符串自动包装为单元素数组），非法 JSON 抛 `IllegalArgumentException`：
 
 ```json
 { "version": "v0.9", "createSurface": { "surfaceId": "main", "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json" } }
@@ -261,7 +261,7 @@ rp.supportsA2UI = true;   // 第 4 点
 
 ```
 服务端                                         客户端
-  │  server.callA2UIAction(pkg, "chat", paramsMap) │
+  │  server.callA2UIAction(pkg, "chat", layoutId, cardId, paramsMap) │
   │  ① 校验 session.supportsA2UI()          │
   │  ─── A2UI_ACTION_CALL ───────────────► │
   │                                           │  InboundDispatcher.handleA2UIActionCall()
@@ -274,14 +274,15 @@ rp.supportsA2UI = true;   // 第 4 点
 
 ```java
 CompletableFuture<A2UIActionCallResultPayload> callA2UIAction(
-        String packageName, String functionName, Map<String, Object> context, String layoutId)
+        String packageName, String actionName, String layoutId, String cardId, Map<String, Object> context)
 ```
 
 - `context` 为调用参数字典（可为 null），例如 `{"prompt": "hello"}`
 - `layoutId` 为布局 id（可为 null）
+- `cardId` 为卡片 id（可为 null）
 - 若 session 不存在 → Future 立即失败 `"no active session"`
 - 若 session 未声明 `supportsA2UI=true` → Future 立即失败 `"does not support a2ui"`
-- 若 `functionName` 为空 → Future 立即失败
+- 若 `actionName` 为空 → Future 立即失败
 
 ```java
 CompletableFuture<A2UIDataRequestResultPayload> queryA2UIData(String packageName)
@@ -467,7 +468,7 @@ server.removeAllFallbacks(ModuleType module);
 | `setRegisterHandler(PluginRegisterHandler)` | 自定义注册逻辑 |
 | `setListener(PluginServerListener)` | 设置全局监听器 |
 | `call(String pkg, String actionId, Map params)` | 调用插件 Action |
-| `callA2UIAction(String pkg, String functionName, Map<String,Object> context, String layoutId)` | 调用插件 A2UI Action |
+| `callA2UIAction(String pkg, String actionName, String layoutId, String cardId, Map<String,Object> context)` | 调用插件 A2UI Action |
 | `setAppState(String pkg, boolean foreground)` | 设置插件前后台 |
 | `setForegroundApp(String pkg)` | 该插件前台，其余后台 |
 | `sendModuleEvent(ModuleType, String moduleId, String action, Object event)` | 触发模块事件 |
@@ -725,7 +726,7 @@ public class HostApp {
         Map<String, Object> params = new HashMap<>();
         params.put("question", "现在播放的是什么歌？");
         CompletableFuture<A2UIActionCallResultPayload> a2uiFut =
-                server.callA2UIAction("com.ultrabar.music", "chat", params, "layout_music");
+                server.callA2UIAction("com.ultrabar.music", "chat", "layout_music", "card_music", params);
         a2uiFut.whenComplete((result, err) -> {
             if (err != null) {
                 System.out.println("[host] A2UI action failed: " + err.getMessage());
@@ -1040,13 +1041,13 @@ public class MusicPlugin {
         String createSurfaceJson = "{\"version\":\"v0.9\",\"createSurface\":{"
                 + "\"surfaceId\":\"main\","
                 + "\"catalogId\":\"https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json\"}}";
-        client.sendA2UIData(new A2UIItem("layout_music", createSurfaceJson));
+        client.sendA2UIData(new A2UIItem("layout_music", "音乐", "card_music", createSurfaceJson));
 
         // 7a'. 上报 A2UI v0.9 updateComponents envelope（定义组件树，component 为对象形式）
         String updateComponentsJson = "{\"version\":\"v0.9\",\"updateComponents\":{"
                 + "\"surfaceId\":\"main\",\"components\":["
                 + "{\"id\":\"root\",\"component\":{\"Text\":{\"text\":{\"path\":\"/track/name\"}}}}]}}";
-        client.sendA2UIData(new A2UIItem("layout_music", updateComponentsJson));
+        client.sendA2UIData(new A2UIItem("layout_music", "音乐", "card_music", updateComponentsJson));
 
         // 7b. 全量 updateDataModel（path:"/" 替换整个数据模型）
         String fullDataModelJson = "{\"version\":\"v0.9\",\"updateDataModel\":{"

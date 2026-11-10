@@ -448,11 +448,10 @@ client.setRegisterConfig(rp);
 ### 5.3 上报 UI 结构 sendA2UIData
 
 ```java
-// A2UIItem: layoutId（布局ID）+ ui（A2UI 消息列表）
-// ui 为 JSON 数组（List<Map<String, Object>>），即 A2UI 消息序列：
+// A2UIItem: layoutId（布局ID）+ name（布局名）+ cardId（卡片ID）+ ui（A2UI 消息列表）
+// 4 个参数创建时必须全部传入；ui 为 JSON 数组（List<Map<String, Object>>），即 A2UI 消息序列：
 //   [{createSurface...}, {updateComponents...}, {updateDataModel}...]
-// 可选第三个参数 name：布局展示名
-// 兼容旧用法：构造参数传 JSON 字符串时，SDK 内部自动解析为数组
+// ui 支持重载：直接传结构化数组，或传 JSON 字符串由 SDK 内部解析
 //（单条 JSON 对象字符串也会自动包装为单元素数组）
 String ui = "["
     + "{\"version\":\"v0.9.1\",\"createSurface\":{"
@@ -474,13 +473,13 @@ String ui = "["
     + "]";
 
 // 方式一：字符串（内部自动解析为 JSON 数组）
-client.sendA2UIData(new A2UIItem("example-focus", ui))
+client.sendA2UIData(new A2UIItem("example-focus", "示例", "card-example", ui))
       .thenAccept(ack -> Log.d(TAG, "上报结果: " + ack.success));
 
 // 方式二：直接构造结构化数组（推荐，避免字符串拼接出错）
 Map<String, Object> createSurface = new HashMap<>();
 // ... 填充 A2UI 消息结构
-client.sendA2UIData(new A2UIItem("example-focus", uiList));
+client.sendA2UIData(new A2UIItem("example-focus", "示例", "card-example", uiList));
 
 // 批量上报多个布局：
 // client.sendA2UIData(Arrays.asList(item1, item2));
@@ -955,31 +954,31 @@ client.setPluginListener(new PluginListener() {
 
 ### 7.6 请求宿主执行动作 sendHostAction
 
-打开文件、启动应用、打开浏览器、输入文本、执行命令这 5 类操作统一为**一个方法**，请求对象通过 `HostActionRequest` 的 **Builder 链式构造**——逐个参数设置，参数键由 SDK 内聚，调用方不需要关心协议字段名：
+打开文件、启动应用、打开浏览器、输入文本、执行命令这 5 类操作统一为**一个方法**，每个动作有**专属 Builder**——只能设置该动作自己的参数（编译期隔离，无法交叉设置），参数键由 SDK 内聚，调用方不需要关心协议字段名：
 
 ```java
-// 1. 打开文件或文件夹
-client.sendHostAction(HostActionRequest.open()
+// 1. 打开文件或文件夹（只能设置 path）
+client.sendHostAction(HostActionRequest.openFile()
         .path("C:/Users/kid/Desktop/ap")
         .build());
 
-// 2. 启动应用（launchMode 可选）
+// 2. 启动应用（只能设置 path 与 launchMode）
 client.sendHostAction(HostActionRequest.startApp()
         .path("C:\\Users\\kid\\AppData\\Local\\SourceTree\\app-3.4.30\\SourceTree.exe")
-        .launchMode(2)
+        .launchMode(HostActionRequest.HostLaunchMode.ACTIVATE_OR_START)  // 可选
         .build());
 
-// 3. 打开浏览器
+// 3. 打开浏览器（只能设置 url）
 client.sendHostAction(HostActionRequest.openBrowser()
         .url("google.com")
         .build());
 
-// 4. 输入文本
+// 4. 输入文本（只能设置 text）
 client.sendHostAction(HostActionRequest.inputText()
         .text("hello")
         .build());
 
-// 5. 执行命令
+// 5. 执行命令（只能设置 cmd）
 client.sendHostAction(HostActionRequest.execCmd()
         .cmd("notepad")
         .build())
@@ -990,8 +989,16 @@ client.sendHostAction(HostActionRequest.execCmd()
       });
 ```
 
+**launchMode 启动方式**（`HostActionRequest.HostLaunchMode` 枚举）：
+
+| 枚举值 | 线上值 | 含义 |
+| --- | --- | --- |
+| `NEW_PROCESS` | 0 | 总是启动一个新的进程 |
+| `ACTIVATE_ONLY` | 1 | 只做激活（不启动新进程，仅激活已运行的进程） |
+| `ACTIVATE_OR_START` | 2 | 未启动过进程则启动；已有启动的进程则激活 |
+
 - 动作类型用 `HostAction` 枚举区分，服务端回调 `PluginServerListener.onHostAction`，通过 `request.action` 准确区分动作、`request.params` 取参数；
-- 每个 Builder 入口明确该动作的必填参数（如 `open()` 必填 `path`），`build()` 时校验，缺失抛 `IllegalArgumentException`；新增动作时只扩展枚举与 Builder，**不需要新增发送方法**；
+- 每个专属 Builder 的 `build()` 校验必填参数（如 `openFile()` 必填 `path`），缺失抛 `IllegalArgumentException`；新增动作时只扩展枚举与 Builder，**不需要新增发送方法**；
 - 返回值中的 `success=false` 表示宿主执行失败。
 
 ---

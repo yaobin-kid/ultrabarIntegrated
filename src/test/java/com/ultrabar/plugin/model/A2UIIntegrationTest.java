@@ -129,7 +129,7 @@ public class A2UIIntegrationTest {
         List<Map<String, Object>> uiList = new ArrayList<Map<String, Object>>();
         uiList.add(data);
         List<A2UIItem> items = new ArrayList<A2UIItem>();
-        items.add(new A2UIItem("layout_music", uiList));
+        items.add(new A2UIItem("layout_music", "音乐", "card_music", uiList));
         A2UIDataResultPayload ack = client.sendA2UIData(items).get(3, TimeUnit.SECONDS);
         assertTrue("ack 应成功", ack.success);
 
@@ -166,7 +166,7 @@ public class A2UIIntegrationTest {
         client.setRegisterConfig(rp);
 
         final List<A2UIItem> pluginData = new ArrayList<A2UIItem>();
-        pluginData.add(new A2UIItem("layout_music", "{\"status\":\"playing\"}"));
+        pluginData.add(new A2UIItem("layout_music", "音乐", "card_music", "{\"status\":\"playing\"}"));
         client.setPluginListener(new PluginListener() {
             @Override public void onRegisterSuccess(RegisterResultPayload payload) {}
             @Override public void onCall(CallPayload payload, com.ultrabar.plugin.callback.CallResponder responder) {}
@@ -311,7 +311,8 @@ public class A2UIIntegrationTest {
         });
 
         List<A2UIItem> items = new ArrayList<A2UIItem>();
-        items.add(new A2UIItem("layout_music", "{\"status\":\"playing\"}")); // 字符串内部解析为数组
+        items.add(new A2UIItem("layout_music", "音乐", "card_music",
+                "{\"status\":\"playing\"}")); // 字符串内部解析为数组
         A2UIDataResultPayload ack = client.sendA2UIData(items).get(3, TimeUnit.SECONDS);
 
         assertTrue("listener 应收到回调", latch.await(3, TimeUnit.SECONDS));
@@ -348,7 +349,7 @@ public class A2UIIntegrationTest {
         Map<String, Object> params = new HashMap<String, Object>();
         params.put("prompt", "hello");
 
-        A2UIActionCallResultPayload result = server.callA2UIAction(PKG, "a2ui_chat", params, "layout_music")
+        A2UIActionCallResultPayload result = server.callA2UIAction(PKG, "a2ui_chat", "layout_music", "card_music", params)
                 .get(3, TimeUnit.SECONDS);
 
         assertTrue("call 应成功", result.success);
@@ -375,7 +376,7 @@ public class A2UIIntegrationTest {
             }
         });
 
-        A2UIActionCallResultPayload result = server.callA2UIAction(PKG, "a2ui_reset", null, "layout_music")
+        A2UIActionCallResultPayload result = server.callA2UIAction(PKG, "a2ui_reset", "layout_music", null, null)
                 .get(3, TimeUnit.SECONDS);
 
         assertFalse("客户端拒绝时 result.success 应为 false", result.success);
@@ -389,7 +390,7 @@ public class A2UIIntegrationTest {
         startClientWithSupportsA2UI(false);
 
         CompletableFuture<A2UIActionCallResultPayload> future =
-                server.callA2UIAction(PKG, "a2ui_chat", null, "layout_music");
+                server.callA2UIAction(PKG, "a2ui_chat", "layout_music", null, null);
 
         try {
             future.get(1, TimeUnit.SECONDS);
@@ -405,7 +406,7 @@ public class A2UIIntegrationTest {
         startClientWithSupportsA2UI(true);
 
         CompletableFuture<A2UIActionCallResultPayload> future =
-                server.callA2UIAction("com.unknown.pkg", "a2ui_chat", null, "layout_music");
+                server.callA2UIAction("com.unknown.pkg", "a2ui_chat", "layout_music", null, null);
 
         try {
             future.get(1, TimeUnit.SECONDS);
@@ -428,7 +429,7 @@ public class A2UIIntegrationTest {
             // onA2UIActionCall 不实现，走 PluginListener 默认：responder.sendError(NO_HANDLER, ...)
         });
 
-        A2UIActionCallResultPayload result = server.callA2UIAction(PKG, "a2ui_chat", null, "layout_music")
+        A2UIActionCallResultPayload result = server.callA2UIAction(PKG, "a2ui_chat", "layout_music", null, null)
                 .get(3, TimeUnit.SECONDS);
 
         assertFalse("默认 NO_HANDLER 应返回 false", result.success);
@@ -456,8 +457,8 @@ public class A2UIIntegrationTest {
         });
 
         List<A2UIItem> items = new ArrayList<A2UIItem>();
-        items.add(new A2UIItem("layout_a", "{\"status\":\"playing\"}"));
-        items.add(new A2UIItem("layout_b", "{\"status\":\"paused\"}"));
+        items.add(new A2UIItem("layout_a", "a", "card_a", "{\"status\":\"playing\"}"));
+        items.add(new A2UIItem("layout_b", "b", "card_b", "{\"status\":\"paused\"}"));
         A2UIDataResultPayload ack = client.sendA2UIData(items).get(3, TimeUnit.SECONDS);
         assertTrue("ack 应成功", ack.success);
 
@@ -544,7 +545,7 @@ public class A2UIIntegrationTest {
         client.setRegisterConfig(rp);
 
         final List<A2UIItem> pluginData = new ArrayList<A2UIItem>();
-        pluginData.add(new A2UIItem("layout_music", "{\"status\":\"playing\"}"));
+        pluginData.add(new A2UIItem("layout_music", "音乐", "card_music", "{\"status\":\"playing\"}"));
         client.setPluginListener(new PluginListener() {
             @Override public void onRegisterSuccess(RegisterResultPayload payload) {}
             @Override public void onCall(CallPayload payload, com.ultrabar.plugin.callback.CallResponder responder) {}

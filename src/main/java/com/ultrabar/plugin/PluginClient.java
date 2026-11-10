@@ -401,11 +401,12 @@ public class PluginClient {
 
     /**
      * 请求宿主（PC）端执行指定动作（打开文件、启动应用、打开浏览器、输入文本、执行命令等）。
-     * 请求对象通过 {@link HostActionRequest} 的 Builder 链式构造，参数键由 SDK 内聚：
+     * 每个动作有专属 Builder，只能设置该动作自己的参数：
      *
      * <pre>
-     * sendHostAction(HostActionRequest.open().path("C:/Users/kid/Desktop/ap").build());
-     * sendHostAction(HostActionRequest.startApp().path("C:/.../SourceTree.exe").launchMode(2).build());
+     * sendHostAction(HostActionRequest.openFile().path("C:/Users/kid/Desktop/ap").build());
+     * sendHostAction(HostActionRequest.startApp().path("C:/.../SourceTree.exe")
+     *         .launchMode(HostActionRequest.HostLaunchMode.ACTIVATE_OR_START).build());
      * sendHostAction(HostActionRequest.openBrowser().url("google.com").build());
      * sendHostAction(HostActionRequest.inputText().text("hello").build());
      * sendHostAction(HostActionRequest.execCmd().cmd("notepad").build());
@@ -415,7 +416,7 @@ public class PluginClient {
      * 通过 {@code request.action} 区分动作类型、{@code request.params} 取参数；
      * 返回值中的 success=false 表示执行失败。
      *
-     * @param request 动作请求，见 {@link HostActionRequest} 的 Builder
+     * @param request 动作请求，见 {@link HostActionRequest} 的各专属 Builder
      */
     public CompletableFuture<HostActionResultPayload> sendHostAction(HostActionRequest request) {
         if (request == null || request.action == null) {

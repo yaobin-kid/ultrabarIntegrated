@@ -18,7 +18,8 @@ public class A2UIProtocolTest {
     @Test
     @SuppressWarnings("unchecked")
     public void testA2UIDataPayloadFields() {
-        A2UIItem item = new A2UIItem("layout_music", "[{\"status\":\"playing\",\"volume\":80}]");
+        A2UIItem item = new A2UIItem("layout_music", "音乐", "card_music",
+                "[{\"status\":\"playing\",\"volume\":80}]");
         java.util.List<A2UIItem> items = new java.util.ArrayList<A2UIItem>();
         items.add(item);
         A2UIDataPayload p = new A2UIDataPayload(items);
@@ -35,7 +36,8 @@ public class A2UIProtocolTest {
     @Test
     @SuppressWarnings("unchecked")
     public void testA2UIDataPayloadJson() throws Exception {
-        A2UIItem item = new A2UIItem("layout_music", "[{\"status\":\"playing\"}]");
+        A2UIItem item = new A2UIItem("layout_music", "音乐", "card_music",
+                "[{\"status\":\"playing\"}]");
         java.util.List<A2UIItem> items = new java.util.ArrayList<A2UIItem>();
         items.add(item);
         A2UIDataPayload p = new A2UIDataPayload(items);
@@ -53,19 +55,20 @@ public class A2UIProtocolTest {
     @Test
     public void testA2UIItemStringUiParsedAsArray() {
         // 字符串参数内部解析为 JSON 数组
-        A2UIItem item = new A2UIItem("layout_music", "{\"status\":\"playing\"}");
+        A2UIItem item = new A2UIItem("layout_music", "音乐", "card_music",
+                "{\"status\":\"playing\"}");
         assertEquals("layout_music", item.layoutId);
         assertNotNull(item.ui);
         assertEquals(1, item.ui.size());
         assertEquals("playing", item.ui.get(0).get("status"));
 
         // 数组字符串
-        A2UIItem arr = new A2UIItem("layout_x", "[{\"a\":1},{\"b\":2}]");
+        A2UIItem arr = new A2UIItem("layout_x", "x", "card_x", "[{\"a\":1},{\"b\":2}]");
         assertEquals(2, arr.ui.size());
 
         // 非 JSON 字符串抛 IllegalArgumentException
         try {
-            new A2UIItem("bad", "not-json");
+            new A2UIItem("bad", "name", "card", "not-json");
             fail("非法 JSON 应抛 IllegalArgumentException");
         } catch (IllegalArgumentException expected) {
         }
@@ -109,15 +112,16 @@ public class A2UIProtocolTest {
         Map<String, Object> args = new HashMap<String, Object>();
         args.put("prompt", "hello");
 
-        A2UIActionCallPayload p = new A2UIActionCallPayload("a2ui_chat", args, "layout_music");
+        A2UIActionCallPayload p = new A2UIActionCallPayload("a2ui_chat", "layout_music", "card_music", args);
         assertEquals("a2ui_chat", p.actionName);
-        assertEquals(args, p.context);
         assertEquals("layout_music", p.layoutId);
+        assertEquals("card_music", p.cardId);
+        assertEquals(args, p.context);
     }
 
     @Test
     public void testA2UIActionCallPayloadJson() throws Exception {
-        A2UIActionCallPayload p = new A2UIActionCallPayload("a2ui_reset", null, "layout_music");
+        A2UIActionCallPayload p = new A2UIActionCallPayload("a2ui_reset", "layout_music", null, null);
         String json = mapper.writeValueAsString(p);
         assertTrue(json.contains("a2ui_reset"));
 
@@ -125,6 +129,7 @@ public class A2UIProtocolTest {
         assertEquals("a2ui_reset", round.actionName);
         assertNull(round.context);
         assertEquals("layout_music", round.layoutId);
+        assertNull(round.cardId);
     }
 
     @Test

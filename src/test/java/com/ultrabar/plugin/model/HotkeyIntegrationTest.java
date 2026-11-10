@@ -472,15 +472,17 @@ public class HotkeyIntegrationTest {
 
         // 1. 打开文件夹
         HostActionResultPayload ack = client
-                .sendHostAction(HostActionRequest.open().path("C:/Users/kid/Desktop/ap").build())
+                .sendHostAction(HostActionRequest.openFile().path("C:/Users/kid/Desktop/ap").build())
                 .get(3, TimeUnit.SECONDS);
         assertTrue(ack.success);
+
+
 
         // 2. 启动应用（带 launchMode）
         HostActionResultPayload ack2 = client
                 .sendHostAction(HostActionRequest.startApp()
                         .path("C:\\Users\\kid\\AppData\\Local\\SourceTree\\app-3.4.30\\SourceTree.exe")
-                        .launchMode(2)
+                        .launchMode(HostActionRequest.HostLaunchMode.ACTIVATE_OR_START)
                         .build())
                 .get(3, TimeUnit.SECONDS);
         assertTrue(ack2.success);
@@ -490,12 +492,12 @@ public class HotkeyIntegrationTest {
         assertEquals(HostAction.START_APP, received.action);
         assertEquals("C:\\Users\\kid\\AppData\\Local\\SourceTree\\app-3.4.30\\SourceTree.exe",
                 received.params.get("path"));
-        assertEquals(2, received.params.get("launchMode"));
+        assertEquals(2, received.params.get("launchMode")); // 线上值仍为 2
         assertNotNull(received.timestamp);
 
         // build() 时校验必填参数
         try {
-            HostActionRequest.open().build();
+            HostActionRequest.openFile().build();
             fail("缺少必填 path 应抛 IllegalArgumentException");
         } catch (IllegalArgumentException expected) {
         }
