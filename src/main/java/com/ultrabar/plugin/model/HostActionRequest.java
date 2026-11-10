@@ -24,15 +24,21 @@ import java.util.Map;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class HostActionRequest implements Payload {
 
-    /** 动作类型 */
+    /**
+     * 动作类型
+     */
     public HostAction action;
 
-    /** 动作参数（键由各专属 Builder 保证，如 path / url / text / cmd / launchMode） */
+    /**
+     * 动作参数（键由各专属 Builder 保证，如 path / url / text / cmd / launchMode）
+     */
     public Map<String, Object> params;
 
     public Long timestamp;
 
-    /** 仅用于反序列化，请使用各动作的 Builder 创建实例 */
+    /**
+     * 仅用于反序列化，请使用各动作的 Builder 创建实例
+     */
     public HostActionRequest() {
     }
 
@@ -42,32 +48,44 @@ public class HostActionRequest implements Payload {
         this.timestamp = System.currentTimeMillis();
     }
 
-    /** 打开文件或文件夹 → {@link OpenBuilder}（必填 path） */
+    /**
+     * 打开文件或文件夹 → {@link OpenBuilder}（必填 path）
+     */
     public static OpenBuilder openFile() {
         return new OpenBuilder();
     }
 
-    /** 启动应用 → {@link StartAppBuilder}（必填 path，可选 launchMode） */
+    /**
+     * 启动应用 → {@link StartAppBuilder}（必填 path，可选 launchMode）
+     */
     public static StartAppBuilder startApp() {
         return new StartAppBuilder();
     }
 
-    /** 打开浏览器访问网址 → {@link OpenBrowserBuilder}（必填 url） */
+    /**
+     * 打开浏览器访问网址 → {@link OpenBrowserBuilder}（必填 url）
+     */
     public static OpenBrowserBuilder openBrowser() {
         return new OpenBrowserBuilder();
     }
 
-    /** 输入文本 → {@link InputTextBuilder}（必填 text） */
+    /**
+     * 输入文本 → {@link InputTextBuilder}（必填 text）
+     */
     public static InputTextBuilder inputText() {
         return new InputTextBuilder();
     }
 
-    /** 执行命令 → {@link ExecCmdBuilder}（必填 cmd） */
+    /**
+     * 执行命令 → {@link ExecCmdBuilder}（必填 cmd）
+     */
     public static ExecCmdBuilder execCmd() {
         return new ExecCmdBuilder();
     }
 
-    /** 通用 build 校验：必填参数非空 */
+    /**
+     * 通用 build 校验：必填参数非空
+     */
     private static String required(String key, String value) {
         if (value == null || value.isEmpty()) {
             throw new IllegalArgumentException(key + " is required");
@@ -80,13 +98,19 @@ public class HostActionRequest implements Payload {
      */
     public enum HostLaunchMode {
 
-        /** 总是启动一个新的进程 */
+        /**
+         * 总是启动一个新的进程
+         */
         NEW_PROCESS(0),
 
-        /** 只做激活（不启动新进程，仅激活已运行的进程） */
+        /**
+         * 只做激活（不启动新进程，仅激活已运行的进程）
+         */
         ACTIVATE_ONLY(1),
 
-        /** 未启动过进程则启动；已有启动的进程则激活 */
+        /**
+         * 未启动过进程则启动；已有启动的进程则激活
+         */
         ACTIVATE_OR_START(2);
 
         private final int value;
@@ -111,7 +135,9 @@ public class HostActionRequest implements Payload {
         }
     }
 
-    /** {@link HostActionRequest#openFile()} 专属 Builder：只能设置 path */
+    /**
+     * {@link HostActionRequest#openFile()} 专属 Builder：只能设置 path
+     */
     public static final class OpenBuilder {
 
         private String path;
@@ -119,7 +145,9 @@ public class HostActionRequest implements Payload {
         private OpenBuilder() {
         }
 
-        /** 文件或文件夹路径（必填） */
+        /**
+         * 文件或文件夹路径（必填）
+         */
         public OpenBuilder path(String path) {
             this.path = path;
             return this;
@@ -132,22 +160,28 @@ public class HostActionRequest implements Payload {
         }
     }
 
-    /** {@link HostActionRequest#startApp()} 专属 Builder：只能设置 path 与 launchMode */
+    /**
+     * {@link HostActionRequest#startApp()} 专属 Builder：只能设置 path 与 launchMode
+     */
     public static final class StartAppBuilder {
 
         private String path;
-        private HostLaunchMode launchMode;
+        private HostLaunchMode launchMode = HostLaunchMode.ACTIVATE_OR_START;
 
         private StartAppBuilder() {
         }
 
-        /** 可执行文件路径（必填） */
+        /**
+         * 可执行文件路径（必填）
+         */
         public StartAppBuilder path(String path) {
             this.path = path;
             return this;
         }
 
-        /** 启动方式（可选，默认由宿主决定），见 {@link HostLaunchMode} */
+        /**
+         * 启动方式（可选，默认由宿主决定），见 {@link HostLaunchMode}
+         */
         public StartAppBuilder launchMode(HostLaunchMode launchMode) {
             this.launchMode = launchMode;
             return this;
@@ -163,7 +197,9 @@ public class HostActionRequest implements Payload {
         }
     }
 
-    /** {@link HostActionRequest#openBrowser()} 专属 Builder：只能设置 url */
+    /**
+     * {@link HostActionRequest#openBrowser()} 专属 Builder：只能设置 url
+     */
     public static final class OpenBrowserBuilder {
 
         private String url;
@@ -171,8 +207,18 @@ public class HostActionRequest implements Payload {
         private OpenBrowserBuilder() {
         }
 
-        /** 要访问的网址（必填） */
+        /**
+         * 要访问的网址（必填，必须以 http:// 或 https:// 开头）
+         */
         public OpenBrowserBuilder url(String url) {
+            if (url == null || url.isEmpty()) {
+                throw new IllegalArgumentException("url must not be empty");
+            }
+            String lower = url.toLowerCase();
+            if (!lower.startsWith("http://") && !lower.startsWith("https://")) {
+                throw new IllegalArgumentException(
+                        "url must start with http:// or https://, got: " + url);
+            }
             this.url = url;
             return this;
         }
@@ -184,7 +230,9 @@ public class HostActionRequest implements Payload {
         }
     }
 
-    /** {@link HostActionRequest#inputText()} 专属 Builder：只能设置 text */
+    /**
+     * {@link HostActionRequest#inputText()} 专属 Builder：只能设置 text
+     */
     public static final class InputTextBuilder {
 
         private String text;
@@ -192,7 +240,9 @@ public class HostActionRequest implements Payload {
         private InputTextBuilder() {
         }
 
-        /** 要输入的文本（必填） */
+        /**
+         * 要输入的文本（必填）
+         */
         public InputTextBuilder text(String text) {
             this.text = text;
             return this;
@@ -205,7 +255,9 @@ public class HostActionRequest implements Payload {
         }
     }
 
-    /** {@link HostActionRequest#execCmd()} 专属 Builder：只能设置 cmd */
+    /**
+     * {@link HostActionRequest#execCmd()} 专属 Builder：只能设置 cmd
+     */
     public static final class ExecCmdBuilder {
 
         private String cmd;
@@ -213,7 +265,9 @@ public class HostActionRequest implements Payload {
         private ExecCmdBuilder() {
         }
 
-        /** 要执行的命令（必填） */
+        /**
+         * 要执行的命令（必填）
+         */
         public ExecCmdBuilder cmd(String cmd) {
             this.cmd = cmd;
             return this;

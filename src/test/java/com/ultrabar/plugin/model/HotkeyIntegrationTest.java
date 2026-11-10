@@ -138,17 +138,19 @@ public class HotkeyIntegrationTest {
         }
     }
 
-    private static void assertMsg(HotkeyPayload p, String action, String pressType, int keyCode) {
+    private static void assertMsg(HotkeyPayload p, String action, String pressType, int... expectedKeys) {
         assertNotNull(p);
         assertEquals(action, p.action);
         assertEquals(pressType, p.pressType);
         assertNotNull(p.keys);
-        assertEquals(1, p.keys.size());
-        assertEquals(Integer.valueOf(keyCode), p.keys.get(0));
+        assertEquals(expectedKeys.length, p.keys.size());
+        for (int i = 0; i < expectedKeys.length; i++) {
+            assertEquals(Integer.valueOf(expectedKeys[i]), p.keys.get(i));
+        }
         assertNotNull(p.timestamp);
     }
 
-    // ====== 1. 短按组合键 Ctrl+C：服务端收到 4 次回调，down 顺序 / up 逆序 ======
+    // ====== 1. 短按组合键 Ctrl+C：服务端收到 2 次回调，down 顺序 / up 逆序 ======
 
     @Test
     public void testShortPressComboAutoUp() throws Exception {
@@ -159,12 +161,10 @@ public class HotkeyIntegrationTest {
         HotkeyResultPayload ack = client.sendHotkey(VK_CONTROL, VK_C).get(3, TimeUnit.SECONDS);
         assertTrue("短按上报应成功", ack.success);
 
-        List<HotkeyPayload> msgs = listener.drain(4, 3000);
-        assertEquals("组合键应产生 4 次回调（每键 down+up）", 4, msgs.size());
-        assertMsg(msgs.get(0), HotkeyPayload.ACTION_DOWN, HotkeyPayload.PRESS_TYPE_SHORT, VK_CONTROL);
-        assertMsg(msgs.get(1), HotkeyPayload.ACTION_DOWN, HotkeyPayload.PRESS_TYPE_SHORT, VK_C);
-        assertMsg(msgs.get(2), HotkeyPayload.ACTION_UP, HotkeyPayload.PRESS_TYPE_SHORT, VK_C);
-        assertMsg(msgs.get(3), HotkeyPayload.ACTION_UP, HotkeyPayload.PRESS_TYPE_SHORT, VK_CONTROL);
+        List<HotkeyPayload> msgs = listener.drain(2, 3000);
+        assertEquals("组合键应产生 2 次回调（一条 down 含全部键 + 一条 up 逆序）", 2, msgs.size());
+        assertMsg(msgs.get(0), HotkeyPayload.ACTION_DOWN, HotkeyPayload.PRESS_TYPE_SHORT, VK_CONTROL, VK_C);
+        assertMsg(msgs.get(1), HotkeyPayload.ACTION_UP, HotkeyPayload.PRESS_TYPE_SHORT, VK_C, VK_CONTROL);
 
         // 短按不登记自动补发，之后不应再有任何回调
         Thread.sleep(500);
@@ -180,11 +180,11 @@ public class HotkeyIntegrationTest {
         server.setListener(listener);
 
         client.setHotkeyAutoReleaseMs(2000);
-        HotkeyResultPayload downAck = client.hotkeyDown(VK_VOLUME_UP).get(3, TimeUnit.SECONDS);
+        HotkeyResultPayload downAck = client.sendHotkeyDown(VK_VOLUME_UP).get(3, TimeUnit.SECONDS);
         assertTrue(downAck.success);
 
         Thread.sleep(300); // 未到自动补发时间
-        HotkeyResultPayload upAck = client.hotkeyUp(VK_VOLUME_UP).get(3, TimeUnit.SECONDS);
+        HotkeyResultPayload upAck = client.sendHotkeyUp(VK_VOLUME_UP).get(3, TimeUnit.SECONDS);
         assertTrue(upAck.success);
 
         List<HotkeyPayload> msgs = listener.drain(2, 3000);
@@ -205,8 +205,8 @@ public class HotkeyIntegrationTest {
         server.setListener(listener);
 
         client.setHotkeyAutoReleaseMs(300);
-        client.hotkeyDown(VK_POWER).get(3, TimeUnit.SECONDS);
-        // 故意不调 hotkeyUp，等待自动补发
+        client.sendHotkeyDown(VK_POWER).get(3, TimeUnit.SECONDS);
+        // 故意不调 sendHotkeyUp，等待自动补发
 
         List<HotkeyPayload> msgs = listener.drain(2, 3000);
         assertEquals("应收到 down + 自动补发的 up", 2, msgs.size());
@@ -224,21 +224,20 @@ public class HotkeyIntegrationTest {
 
         client.setHotkeyAutoReleaseMs(2000); // 覆盖整个按住时长（约 600ms），不触发补发
         // 模拟按住 Ctrl+]：CTRL 按下后，以 200ms 间隔重复发送 ] 的 down
-        client.hotkeyDown(VK_CONTROL).get(3, TimeUnit.SECONDS);
+        client.sendHotkeyDown(VK_CONTROL).get(3, TimeUnit.SECONDS);
         for (int i = 0; i < 3; i++) {
-            client.hotkeyDown(VK_OEM_6).get(3, TimeUnit.SECONDS);
+            client.sendHotkeyDown(VK_OEM_6).get(3, TimeUnit.SECONDS);
             Thread.sleep(200);
         }
-        client.hotkeyUp(VK_CONTROL, VK_OEM_6).get(3, TimeUnit.SECONDS); // 传参与 down 同序，内部逆序：先 ] 后 CTRL
+        client.sendHotkeyUp(VK_CONTROL, VK_OEM_6).get(3, TimeUnit.SECONDS); // 传参与 down 同序，内部逆序：先 ] 后 CTRL
 
-        List<HotkeyPayload> msgs = listener.drain(6, 3000);
-        assertEquals("CTRL down + 3×] down + ] up + CTRL up", 6, msgs.size());
+        List<HotkeyPayload> msgs = listener.drain(5, 3000);
+        assertEquals("CTRL down + 3×] down + 一条 up(],CTRL)", 5, msgs.size());
         assertMsg(msgs.get(0), HotkeyPayload.ACTION_DOWN, HotkeyPayload.PRESS_TYPE_LONG, VK_CONTROL);
         assertMsg(msgs.get(1), HotkeyPayload.ACTION_DOWN, HotkeyPayload.PRESS_TYPE_LONG, VK_OEM_6);
         assertMsg(msgs.get(2), HotkeyPayload.ACTION_DOWN, HotkeyPayload.PRESS_TYPE_LONG, VK_OEM_6);
         assertMsg(msgs.get(3), HotkeyPayload.ACTION_DOWN, HotkeyPayload.PRESS_TYPE_LONG, VK_OEM_6);
-        assertMsg(msgs.get(4), HotkeyPayload.ACTION_UP, HotkeyPayload.PRESS_TYPE_LONG, VK_OEM_6);
-        assertMsg(msgs.get(5), HotkeyPayload.ACTION_UP, HotkeyPayload.PRESS_TYPE_LONG, VK_CONTROL);
+        assertMsg(msgs.get(4), HotkeyPayload.ACTION_UP, HotkeyPayload.PRESS_TYPE_LONG, VK_OEM_6, VK_CONTROL);
 
         Thread.sleep(2300); // 超过 autoReleaseMs
         assertNull("显式 up 后不应再自动补发", listener.payloads.poll());

@@ -74,19 +74,19 @@ public interface PluginServerListener {
     }
 
     /**
-     * 插件上报热键时触发（{@code PluginClient.sendHotkey / hotkeyDown / hotkeyUp}）。
+     * 插件上报热键时触发（{@code PluginClient.sendHotkey / sendHotkeyDown / sendHotkeyUp}）。
      * <p>
-     * {@code payload.action} 只有 down / up 两种，<b>每个按键至少回调 2 次</b>（down + up）；
+     * {@code payload.action} 只有 down / up 两种，<b>每次热键调用至少回调 2 次</b>（down + up）；
      * {@code payload.pressType} 区分语义：
      * <ul>
      *   <li>short：插件调用 sendHotkey 的短按，down+up 由 SDK 自动补齐，
-     *       组合键 down 按按下顺序、up 按逆序到达</li>
-     *   <li>long：插件调用 hotkeyDown/hotkeyUp 的长按；按住期间可能收到重复的 down
+     *       组合键作为一个整体放在同一条消息的 keys 中，down 按按下顺序、up 按逆序到达</li>
+     *   <li>long：插件调用 sendHotkeyDown/sendHotkeyUp 的长按；按住期间可能收到重复的 down
      *       （模拟键盘自动重复，如 PS 中 Ctrl+] 持续放大画笔）；插件 SDK 保证
      *       down 后长时间未 up 会自动补发一次 up</li>
      * </ul>
-     * {@code payload.keys} 为原始按键码（与宿主平台一致，Windows 为 VK 码），
-     * 一条消息通常只含一个按键码。
+     * {@code payload.keys} 为原始按键码列表（与宿主平台一致，Windows 为 VK 码），
+     * 组合键放在同一条消息的 keys 中一次性发送。
      * <p>
      * 返回值会作为 ack 回传给插件；返回 null 视为成功。
      * 若宿主执行失败，可返回 success=false 的结果告知插件。

@@ -850,15 +850,7 @@ client.queryModules().thenAccept(result -> {
 
 ### 7.1 按键码约定
 
-热键 API 的参数是**原始按键码（int）**，与宿主平台一致——PC 端即 Windows VK 虚拟键码。常用值：
-
-| 按键 | 按键码 | 按键 | 按键码 |
-| ---- | ------ | ---- | ------ |
-| Ctrl | `0x11` | Alt | `0x12` |
-| Shift | `0x10` | `]` | `0xDD`（VK_OEM_6） |
-| `C` | `0x43` | F1 | `0x70` |
-
-完整 VK 码表参考 [Microsoft 文档](https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes)。
+热键 API 的参数是**原始按键码（int）**，与宿主平台一致——PC 端即 Windows VK 虚拟键码。按键码完整对照表见 [hidKey.md](./hidKey.md)。
 
 ### 7.2 短按 sendHotkey
 
@@ -868,8 +860,8 @@ client.queryModules().thenAccept(result -> {
 // 单键：按一下 F1
 client.sendHotkey(0x70);
 
-// 组合键：模拟 Windows 复制 Ctrl+C（修饰键在前）
-client.sendHotkey(0x11, 0x43).thenAccept(ack -> {
+// 组合键：模拟 Windows 复制 Ctrl+V（修饰键在前）
+client.sendHotkey(0xE0, 0x19).thenAccept(ack -> {
     if (!ack.success) {
         Log.e(TAG, "热键执行失败: " + ack.error.message);
     }
@@ -878,37 +870,37 @@ client.sendHotkey(0x11, 0x43).thenAccept(ack -> {
 
 语义规则：
 
-- 组合键 down 按参数顺序发送、up 按**逆序**发送（修饰键先按后抬，与真实键盘一致）；
-- 每个按键在服务端至少产生 2 次回调（down + up），消息 `pressType = short`；
-- 返回的 `CompletableFuture` 是最后一个 up 的回执（channel 写有序，前面的消息均已送达）；`success=false` 表示宿主执行失败。
+- 组合键作为一个整体**一次性**发送（keys 数组打包进同一条消息），down 按参数顺序、up 按**逆序**（修饰键先按后抬，与真实键盘一致）；
+- 每次调用在服务端产生 2 次回调（一条 down + 一条 up），消息 `pressType = short`；
+- 返回的 `CompletableFuture` 是 up 的回执（channel 写有序，前面的 down 已送达）；`success=false` 表示宿主执行失败。
 
-### 7.3 长按 hotkeyDown / hotkeyUp
+### 7.3 长按 sendHotkeyDown / sendHotkeyUp
 
-需要"按住"语义时，使用 `hotkeyDown` / `hotkeyUp` 显式配对，消息 `pressType = long`：
+需要"按住"语义时，使用 `sendHotkeyDown` / `sendHotkeyUp` 显式配对，消息 `pressType = long`：
 
 ```java
-client.hotkeyDown(0x5E);   // 按下（不抬起）
+client.sendHotkeyDown(0x5E);   // 按下（不抬起）
 // ...长按中...
-client.hotkeyUp(0x5E);     // 抬起
+client.sendHotkeyUp(0x5E);     // 抬起
 ```
 
-**自动补发保护**：`hotkeyDown` 后若超过 3000ms（可用 `client.setHotkeyAutoReleaseMs(...)` 调整，设 0 关闭）仍未调用 `hotkeyUp`，SDK 会自动补发一次 up，防止按键在系统侧卡死。显式 `hotkeyUp` 会取消该任务。
+**自动补发保护**：`sendHotkeyDown` 后若超过 3000ms（可用 `client.setHotkeyAutoReleaseMs(...)` 调整，设 0 关闭）仍未调用 `sendHotkeyUp`，SDK 会自动补发一次 up，防止按键在系统侧卡死。显式 `sendHotkeyUp` 会取消该任务。
 
 **持续生效场景**（如 PS 中 Ctrl+] 按住时画笔持续线性放大）：真实键盘的"持续生效"来自硬件自动重复——按住不放会不断产生 down 事件。SDK 注入只发一次 down 不会自动重复，需要以固定间隔重复发送：
 
 ```java
 client.setHotkeyAutoReleaseMs(0);          // 按住期间关闭自动补发
-client.hotkeyDown(0x11);                   // 1. Ctrl 按下，只发一次
+client.sendHotkeyDown(0x11);                   // 1. Ctrl 按下，只发一次
 
 while (holding) {                          // 2. 按住期间：每 80ms 重复发送 ] 的 down
-    client.hotkeyDown(0xDD);               //    模拟键盘自动重复 → 画笔持续放大
+    client.sendHotkeyDown(0xDD);               //    模拟键盘自动重复 → 画笔持续放大
     Thread.sleep(80);
 }
 
-client.hotkeyUp(0x11, 0xDD);               // 3. 结束：传参与 down 同序，SDK 内部逆序抬起（先 ] 后 Ctrl）
+client.sendHotkeyUp(0x11, 0xDD);               // 3. 结束：传参与 down 同序，SDK 内部逆序抬起（先 ] 后 Ctrl）
 ```
 
-> 重复 `hotkeyDown` 同一个键会**重置**自动补发计时——只要重复间隔小于补发阈值，默认配置下也不会误触发补发。
+> 重复 `sendHotkeyDown` 同一个键会**重置**自动补发计时——只要重复间隔小于补发阈值，默认配置下也不会误触发补发。
 
 ### 7.4 发送文本消息 sendMessage
 
@@ -991,11 +983,11 @@ client.sendHostAction(HostActionRequest.execCmd()
 
 **launchMode 启动方式**（`HostActionRequest.HostLaunchMode` 枚举）：
 
-| 枚举值 | 线上值 | 含义 |
-| --- | --- | --- |
-| `NEW_PROCESS` | 0 | 总是启动一个新的进程 |
-| `ACTIVATE_ONLY` | 1 | 只做激活（不启动新进程，仅激活已运行的进程） |
-| `ACTIVATE_OR_START` | 2 | 未启动过进程则启动；已有启动的进程则激活 |
+| 枚举值              | 线上值 | 含义                                         |
+| ------------------- | ------ | -------------------------------------------- |
+| `NEW_PROCESS`       | 0      | 总是启动一个新的进程                         |
+| `ACTIVATE_ONLY`     | 1      | 只做激活（不启动新进程，仅激活已运行的进程） |
+| `ACTIVATE_OR_START` | 2      | 未启动过进程则启动；已有启动的进程则激活     |
 
 - 动作类型用 `HostAction` 枚举区分，服务端回调 `PluginServerListener.onHostAction`，通过 `request.action` 准确区分动作、`request.params` 取参数；
 - 每个专属 Builder 的 `build()` 校验必填参数（如 `openFile()` 必填 `path`），缺失抛 `IllegalArgumentException`；新增动作时只扩展枚举与 Builder，**不需要新增发送方法**；
@@ -1043,7 +1035,7 @@ client.sendHostAction(HostActionRequest.execCmd()
 5. **回调线程非主线程**：`PluginListener` 所有回调运行在 SDK 线程池，UI 操作请自行 `Looper.getMainLooper()` 切换。
 6. **断线自动重连**：SDK 自动重连并重新注册 + 重新上报 Actions；但 **A2UI 的 UI 数据不会自动重发**——LineOS 会在注册成功后主动拉取一次（通过 `onA2UIDataRequest`），所以实现好该回调即可保证重连后 UI 数据恢复。
 7. **sessionToken 需自行校验**：它是调试会话凭证，不要在 HTTP 接口中无校验信任。
-8. **热键 down/up 必须配对**：`hotkeyDown` 后忘记 `hotkeyUp` 会由 SDK 在超时后自动补发 up（默认 3000ms），但补发时序不受你控制；需要精确长按语义时请自行保证配对，见 [7.3](#73-长按-hotkeydown--hotkeyup)。
+8. **热键 down/up 必须配对**：`sendHotkeyDown` 后忘记 `sendHotkeyUp` 会由 SDK 在超时后自动补发 up（默认 3000ms），但补发时序不受你控制；需要精确长按语义时请自行保证配对，见 [7.3](#73-长按-sendhotkeydown--sendhotkeyup)。
 
 ### 9.3 协议契约
 

@@ -74,14 +74,16 @@ public class PluginClient {
     private final ExecutorService callbackExecutor;
     private final Set<ModuleType> moduleEvents = Collections.newSetFromMap(
             new ConcurrentHashMap<ModuleType, Boolean>());
-    /** 已 down 尚未 up 的按键码 → 自动补发 up 的定时任务 */
-    private final Map<Integer, ScheduledFuture<?>> pendingHotkeyUps =
-            new ConcurrentHashMap<Integer, ScheduledFuture<?>>();
-    /** hotkeyDown 后未配对 up 时，自动补发 up 的延迟（毫秒） */
+    /** 当前处于 down 状态（收到 sendHotkeyDown 尚未 sendHotkeyUp）的按键集合，保留插入顺序 */
+    private final Set<Integer> currentDownKeys = Collections.newSetFromMap(
+            new ConcurrentHashMap<Integer, Boolean>());
+    /** 自动补发 up 的统一定时器；每次 sendHotkeyDown 重置计时 */
+    private volatile ScheduledFuture<?> autoReleaseTimer;
+    /** sendHotkeyDown 后未配对 up 时，自动补发 up 的延迟（毫秒） */
     private volatile long hotkeyAutoReleaseMs = DEFAULT_HOTKEY_AUTO_RELEASE_MS;
     private volatile boolean stopped;
 
-    private static final long DEFAULT_HOTKEY_AUTO_RELEASE_MS = 3000L;
+    private static final long DEFAULT_HOTKEY_AUTO_RELEASE_MS = 2000L;
 
     public PluginClient() {
         this("127.0.0.1", 39001);
@@ -252,112 +254,139 @@ public class PluginClient {
     /**
      * 短按热键：SDK 自动补齐 down + up，无需配对调用。支持单键与组合键。
      * <p>
-     * 每个按键在服务端至少产生 2 次回调（down + up）：
-     * down 按参数顺序发送，up 按<b>逆序</b>发送（修饰键先按后抬）。
+     * 组合键作为一个整体<b>一次性</b>发送（keys 数组打包进同一条消息），SDK 自动补齐
+     * 一条 down + 一条 up：down 按参数顺序，up 按<b>逆序</b>（修饰键先按后抬）。
      * 消息 {@code pressType = short}。
      * <p>
      * 示例（Windows VK 码）：复制 {@code sendHotkey(0x11, 0x43)}（Ctrl+C）；
      * PS 放大画笔一次 {@code sendHotkey(0x11, 0xDD)}（Ctrl+]）。
      *
      * @param keys 原始按键码，组合键按按下顺序排列（修饰键在前）
-     * @return 最后一个 up 消息的回执（channel 写有序，前面的 down/up 均已送达）
+     * @return up 消息的回执（channel 写有序，前面的 down 已送达）
      */
     public CompletableFuture<HotkeyResultPayload> sendHotkey(int... keys) {
         if (keys == null || keys.length == 0) {
             throw new IllegalArgumentException("keys must not be empty");
         }
-        for (int key : keys) {
-            doSendHotkey(HotkeyPayload.ACTION_DOWN, HotkeyPayload.PRESS_TYPE_SHORT, key);
-        }
-        CompletableFuture<HotkeyResultPayload> result = null;
-        for (int i = keys.length - 1; i >= 0; i--) {
-            result = doSendHotkey(HotkeyPayload.ACTION_UP, HotkeyPayload.PRESS_TYPE_SHORT, keys[i]);
-        }
-        return result;
+        List<Integer> downKeys = toKeyList(keys);
+        List<Integer> upKeys = reverse(downKeys);
+        doSendHotkey(HotkeyPayload.ACTION_DOWN, HotkeyPayload.PRESS_TYPE_SHORT, downKeys);
+        return doSendHotkey(HotkeyPayload.ACTION_UP, HotkeyPayload.PRESS_TYPE_SHORT, upKeys);
     }
 
     /**
-     * 长按按下（不抬起），必须与 {@link #hotkeyUp(int...)} 配对。
+     * 长按按下（不抬起），必须与 {@link #sendHotkeyUp(int...)} 配对。
      * 消息 {@code pressType = long}。
      * <p>
      * 需要"按住持续生效"的效果（如 PS 中 Ctrl+] 持续线性放大画笔）时，
      * 按住期间以固定间隔（如 80ms）重复调用本方法发送同一个键的 down，
-     * 模拟键盘硬件自动重复；结束时调用 {@code hotkeyUp} 收尾。
+     * 模拟键盘硬件自动重复；结束时调用 {@code sendHotkeyUp} 收尾。
      * <p>
      * 若在 {@link #setHotkeyAutoReleaseMs(long)} 设定的时长内（默认 3000ms，
-     * 设为 0 可关闭）仍未调用 {@code hotkeyUp}，SDK 会自动补发一次 up，防止按键卡死。
+     * 设为 0 可关闭）仍未调用 {@code sendHotkeyUp}，SDK 会自动补发一次 up，防止按键卡死。
      *
-     * @param keys 原始按键码；多键时按参数顺序逐个 down
-     * @return 最后一个 down 消息的回执
+     * @param keys 原始按键码；多键时作为一个整体一次性 down
+     * @return down 消息的回执
      */
-    public CompletableFuture<HotkeyResultPayload> hotkeyDown(int... keys) {
+    public CompletableFuture<HotkeyResultPayload> sendHotkeyDown(int... keys) {
         if (keys == null || keys.length == 0) {
             throw new IllegalArgumentException("keys must not be empty");
         }
-        CompletableFuture<HotkeyResultPayload> result = null;
-        for (int key : keys) {
-            result = doSendHotkey(HotkeyPayload.ACTION_DOWN, HotkeyPayload.PRESS_TYPE_LONG, key);
-            scheduleHotkeyAutoRelease(key);
-        }
-        return result;
+        List<Integer> keyList = toKeyList(keys);
+        armAutoRelease(keys);
+        return doSendHotkey(HotkeyPayload.ACTION_DOWN, HotkeyPayload.PRESS_TYPE_LONG, keyList);
     }
 
     /**
-     * 长按抬起，与 {@link #hotkeyDown(int...)} 配对。消息 {@code pressType = long}。
-     * 多键时按<b>逆序</b>逐个 up（与短按一致的释放语义），并取消各键的自动补发任务。
+     * 长按抬起，与 {@link #sendHotkeyDown(int...)} 配对。消息 {@code pressType = long}。
+     * 多键时作为一个整体一次性 up，keys 内部<b>逆序</b>（与短按一致的释放语义），
+     * 并取消自动补发计时器。
      *
-     * @param keys 原始按键码，传参与对应 {@code hotkeyDown} 相同即可（内部自动逆序）
-     * @return 最后一个 up 消息的回执
+     * @param keys 原始按键码，传参与对应 {@code sendHotkeyDown} 相同即可（内部自动逆序）
+     * @return up 消息的回执
      */
-    public CompletableFuture<HotkeyResultPayload> hotkeyUp(int... keys) {
+    public CompletableFuture<HotkeyResultPayload> sendHotkeyUp(int... keys) {
         if (keys == null || keys.length == 0) {
             throw new IllegalArgumentException("keys must not be empty");
         }
-        CompletableFuture<HotkeyResultPayload> result = null;
-        for (int i = keys.length - 1; i >= 0; i--) {
-            cancelHotkeyAutoRelease(keys[i]);
-            result = doSendHotkey(HotkeyPayload.ACTION_UP, HotkeyPayload.PRESS_TYPE_LONG, keys[i]);
-        }
-        return result;
+        disarmAutoRelease(keys);
+        List<Integer> upKeys = reverse(toKeyList(keys));
+        return doSendHotkey(HotkeyPayload.ACTION_UP, HotkeyPayload.PRESS_TYPE_LONG, upKeys);
     }
 
     /**
-     * 设置 {@code hotkeyDown} 后自动补发 up 的延迟毫秒数（默认 3000ms）。
+     * 设置 {@code sendHotkeyDown} 后自动补发 up 的延迟毫秒数（默认 3000ms）。
      * 设为 0 或负数则关闭自动补发（用于需要长时间按住的场景）。
      */
     public void setHotkeyAutoReleaseMs(long autoReleaseMs) {
         this.hotkeyAutoReleaseMs = autoReleaseMs;
     }
 
-    private CompletableFuture<HotkeyResultPayload> doSendHotkey(String action, String pressType, int key) {
-        HotkeyPayload payload = new HotkeyPayload(action, pressType,
-                Collections.singletonList(key));
+    private CompletableFuture<HotkeyResultPayload> doSendHotkey(String action, String pressType, List<Integer> keys) {
+        HotkeyPayload payload = new HotkeyPayload(action, pressType, keys);
         return envelopes.request(MessageType.HOTKEY, payload, HotkeyResultPayload.class);
     }
 
-    /** 为 down 的按键登记自动补发 up；重复 down 同一键会重置计时。 */
-    private void scheduleHotkeyAutoRelease(final Integer key) {
-        if (key == null || hotkeyAutoReleaseMs <= 0) {
+    private static List<Integer> toKeyList(int[] keys) {
+        List<Integer> list = new ArrayList<Integer>(keys.length);
+        for (int k : keys) {
+            list.add(k);
+        }
+        return list;
+    }
+
+    private static List<Integer> reverse(List<Integer> keys) {
+        List<Integer> reversed = new ArrayList<Integer>(keys.size());
+        for (int i = keys.size() - 1; i >= 0; i--) {
+            reversed.add(keys.get(i));
+        }
+        return reversed;
+    }
+
+    /**
+     * 登记 down 的按键到 currentDownKeys 并重置自动补发计时器。
+     * 每次 sendHotkeyDown 调用都会把 keys 整体加入集合、重置计时；
+     * 超时后 auto-release 会把集合中所有键作为一组一次性补发 up。
+     */
+    private void armAutoRelease(int... keys) {
+        if (hotkeyAutoReleaseMs <= 0) {
             return;
         }
-        cancelHotkeyAutoRelease(key);
-        ScheduledFuture<?> future = scheduler.schedule(new Runnable() {
+        for (int key : keys) {
+            currentDownKeys.add(key);
+        }
+        ScheduledFuture<?> prev = autoReleaseTimer;
+        ScheduledFuture<?> next = scheduler.schedule(new Runnable() {
             @Override
             public void run() {
-                if (pendingHotkeyUps.remove(key) != null && !stopped) {
-                    log.warn("hotkey 0x{} down without up for {}ms, auto releasing",
-                            Integer.toHexString(key).toUpperCase(), hotkeyAutoReleaseMs);
-                    doSendHotkey(HotkeyPayload.ACTION_UP, HotkeyPayload.PRESS_TYPE_LONG, key);
+                List<Integer> snapshot = new ArrayList<Integer>(currentDownKeys);
+                currentDownKeys.clear();
+                autoReleaseTimer = null;
+                if (!stopped && !snapshot.isEmpty()) {
+                    log.warn("hotkey down without up for {} ms, auto releasing {} keys",
+                            hotkeyAutoReleaseMs, snapshot.size());
+                    // 整体一次补发，不拆分
+                    doSendHotkey(HotkeyPayload.ACTION_UP, HotkeyPayload.PRESS_TYPE_LONG, snapshot);
                 }
             }
         }, hotkeyAutoReleaseMs, TimeUnit.MILLISECONDS);
-        pendingHotkeyUps.put(key, future);
+        autoReleaseTimer = next;
+        if (prev != null) {
+            prev.cancel(false);
+        }
     }
 
-    private void cancelHotkeyAutoRelease(Integer key) {
-        ScheduledFuture<?> future = pendingHotkeyUps.remove(key);
-        if (future != null) {
-            future.cancel(false);
+    /**
+     * 取消自动补发计时器，并从 currentDownKeys 中移除已 up 的按键。
+     */
+    private void disarmAutoRelease(int... keys) {
+        ScheduledFuture<?> timer = autoReleaseTimer;
+        if (timer != null) {
+            autoReleaseTimer = null;
+            timer.cancel(false);
+        }
+        for (int key : keys) {
+            currentDownKeys.remove(key);
         }
     }
 
@@ -455,10 +484,12 @@ public class PluginClient {
 
     public void stop() {
         stopped = true;
-        for (ScheduledFuture<?> future : pendingHotkeyUps.values()) {
-            future.cancel(false);
+        ScheduledFuture<?> timer = autoReleaseTimer;
+        autoReleaseTimer = null;
+        if (timer != null) {
+            timer.cancel(false);
         }
-        pendingHotkeyUps.clear();
+        currentDownKeys.clear();
         handshake.stop();
         heartbeat.stop();
         connection.stop();
