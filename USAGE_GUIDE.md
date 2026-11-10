@@ -639,7 +639,51 @@ public List<A2UIItem> onA2UIDataRequest() {
 
 > 📌 拉取成功后，LineOS 自动将数据缓存到插件会话。若未实现此回调，默认返回空列表。
 
-### 5.8 参考资料
+### 5.8 卡片参数 schema（args）
+
+`A2UIItem.args` 用于声明用户可配置哪些字段、用什么控件渲染。6 种类型各有**专属 Builder**，只能设置本类型自己的字段（编译期隔离，无法交叉设置）：
+
+| 类型 | Builder | 可设置 |
+| ---- | ------- | ------ |
+| `int` | `intArg()` | `label` `required` `defaultValue(int)` `min(int)` `max(int)` |
+| `float` | `floatArg()` | `label` `required` `defaultValue(double)` `min(double)` `max(double)` |
+| `bool` | `boolArg()` | `label` `required` `defaultValue(boolean)` |
+| `string` | `stringArg()` | `label` `required` `defaultValue(String)` |
+| `select` | `selectArg()` | `label` `required` `defaultValue(String)` `option(value)` / `option(value, label)` |
+| `object` | `objectArg()` | `label` `required` `property(name, A2UIArgSpec)`（递归嵌套） |
+
+```java
+A2UIArgs args = A2UIArgs.create()
+        .arg("title", A2UIArgSpec.stringArg().label("标题").defaultValue("参数演示").build())
+        .arg("count", A2UIArgSpec.intArg().label("数量").defaultValue(3).min(1).max(99).build())
+        .arg("level", A2UIArgSpec.selectArg().label("等级").defaultValue("normal")
+                .option("low", "低").option("normal", "中").build())
+        .arg("headers", A2UIArgSpec.objectArg().label("嵌套参数组")
+                .property("retries", A2UIArgSpec.intArg().defaultValue(3).max(10).build())
+                .build());
+
+client.sendA2UIData(new A2UIItem("example-focus", "card-example", "示例", ui, args));
+```
+
+**动态 schema**：参数由插件实时决定时，声明 `dynamic + schemaGetter`；LineOS 在渲染表单前通过 `PluginServer.queryA2UIArgsSchema(packageName, schemaGetter)` 拉取，插件在 `PluginListener.onA2UIArgsSchemaRequest(schemaGetter)` 中返回参数 schema：
+
+```java
+// 插件声明：动态参数
+A2UIArgs args = A2UIArgs.dynamic("schema.argsdemo");
+
+// 插件侧：响应拉取，实时生成 schema
+@Override
+public Map<String, A2UIArgSpec> onA2UIArgsSchemaRequest(String schemaGetter) {
+    Map<String, A2UIArgSpec> schema = new LinkedHashMap<>();
+    schema.put("fieldA", A2UIArgSpec.stringArg().label("字段A").defaultValue("v1").build());
+    schema.put("fieldB", A2UIArgSpec.intArg().label("字段B").min(1).max(100).build());
+    return schema;   // null / 空 Map 表示没有可配置参数
+}
+```
+
+静态字段与动态声明可共存：固定字段先渲染，动态字段由 getter 返回的 schema 合并追加。
+
+### 5.9 参考资料
 
 | 资料                  | 链接                                                                             | 说明                                                               |
 | --------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------ |

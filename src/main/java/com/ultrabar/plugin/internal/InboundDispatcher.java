@@ -10,6 +10,8 @@ import com.ultrabar.plugin.callback.ModuleEventResponder;
 import com.ultrabar.plugin.callback.OptionsResponder;
 import com.ultrabar.plugin.model.ActionsPayload;
 import com.ultrabar.plugin.model.A2UIActionCallPayload;
+import com.ultrabar.plugin.model.A2UIArgsSchemaRequestPayload;
+import com.ultrabar.plugin.model.A2UIArgsSchemaResultPayload;
 import com.ultrabar.plugin.model.A2UIDataRequestResultPayload;
 import com.ultrabar.plugin.model.A2UIDataResultPayload;
 import com.ultrabar.plugin.model.A2UIUpdateDataModelResultPayload;
@@ -72,6 +74,7 @@ public final class InboundDispatcher {
             case A2UI_DATA_REQUEST_RESULT:
             case A2UI_UPDATE_DATA_MODEL_RESULT:
             case A2UI_ACTION_CALL_RESULT:
+            case A2UI_ARGS_SCHEMA_RESULT:
             case QUERY_MODULES_RESULT:
             case HOTKEY_RESULT:
             case MESSAGE_RESULT:
@@ -100,6 +103,9 @@ public final class InboundDispatcher {
                 return;
             case A2UI_DATA_REQUEST:
                 handleA2UIDataRequest(channel, envelope);
+                return;
+            case A2UI_ARGS_SCHEMA_REQUEST:
+                handleA2UIArgsSchemaRequest(channel, envelope);
                 return;
             case MESSAGE:
                 handleMessage(channel, envelope);
@@ -182,6 +188,23 @@ public final class InboundDispatcher {
         }
         EnvelopeWriter.write(channel, mapper,
                 Envelope.of(MessageType.A2UI_DATA_REQUEST_RESULT, envelope.getRequestId(), result)
+                        .withSession(session.sessionId(), session.sessionToken()));
+    }
+
+    private void handleA2UIArgsSchemaRequest(Channel channel, Envelope envelope) {
+        A2UIArgsSchemaResultPayload result = new A2UIArgsSchemaResultPayload();
+        try {
+            A2UIArgsSchemaRequestPayload payload =
+                    envelope.payloadAs(A2UIArgsSchemaRequestPayload.class);
+            result.schema = notifier.onA2UIArgsSchemaRequest(
+                    payload == null ? null : payload.schemaGetter);
+            result.success = true;
+        } catch (Exception e) {
+            result.success = false;
+            result.error = ErrorInfo.of(ErrorCodes.HANDLER_EXCEPTION, e.getMessage(), false, null);
+        }
+        EnvelopeWriter.write(channel, mapper,
+                Envelope.of(MessageType.A2UI_ARGS_SCHEMA_RESULT, envelope.getRequestId(), result)
                         .withSession(session.sessionId(), session.sessionToken()));
     }
 

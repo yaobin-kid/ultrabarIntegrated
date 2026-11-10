@@ -314,6 +314,12 @@ public class ClientMain {
                 responder.sendSuccess(data);
             }
 
+
+            @Override
+            public Map<String, A2UIArgSpec> onA2UIArgsSchemaRequest(String schemaGetter) {
+                return PluginListener.super.onA2UIArgsSchemaRequest(schemaGetter);
+            }
+
             @Override
             public void onModuleEvent(ModuleEventPayload payload, ModuleEventResponder responder) {
                 // ============================================================

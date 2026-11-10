@@ -275,6 +275,46 @@ public class PluginServer {
     }
 
     /**
+     * 主动向插件拉取<b>动态卡片参数 schema</b>。
+     * <p>
+     * 卡片 {@code args} 中声明了 {@code dynamic + schemaGetter} 时，宿主在渲染参数表单前
+     * 调用本方法：服务端发送 {@code a2ui_args_schema_request}，插件通过
+     * {@link com.ultrabar.plugin.callback.PluginListener#onA2UIArgsSchemaRequest(String)}
+     * 返回实时生成的参数 schema。
+     * <p>
+     * 返回值 {@code schema} 中的每个参数为 {@link com.ultrabar.plugin.model.A2UIArgSpec}，
+     * 支持全部 6 种类型；插件返回 null/空 Map 时 {@code schema} 归一化为空 Map。
+     *
+     * @param packageName   目标插件包名
+     * @param schemaGetter  卡片 args 中声明的 schemaGetter 动作 id
+     */
+    public CompletableFuture<A2UIArgsSchemaResultPayload> queryA2UIArgsSchema(
+            String packageName, String schemaGetter) {
+        if (schemaGetter == null || schemaGetter.isEmpty()) {
+            return failedFuture(new IllegalArgumentException("schemaGetter must not be empty"));
+        }
+        PluginSession session;
+        try {
+            session = getValidSession(packageName);
+        } catch (IllegalStateException e) {
+            return failedFuture(e);
+        }
+        if (!session.supportsA2UI()) {
+            return failedFuture(new IllegalStateException(
+                    "package " + packageName + " does not support a2ui"));
+        }
+        A2UIArgsSchemaRequestPayload payload = new A2UIArgsSchemaRequestPayload(schemaGetter);
+        return request(session, MessageType.A2UI_ARGS_SCHEMA_REQUEST, payload,
+                A2UIArgsSchemaResultPayload.class)
+                .thenApply(result -> {
+                    if (result != null && result.success && result.schema == null) {
+                        result.schema = Collections.<String, A2UIArgSpec>emptyMap();
+                    }
+                    return result;
+                });
+    }
+
+    /**
      * 主动向插件拉取当前 a2ui 数据。
      * 服务端发送 {@code a2ui_data_request}，插件通过
      * {@link com.ultrabar.plugin.callback.PluginListener#onA2UIDataRequest()} 返回布局列表。
@@ -595,6 +635,7 @@ public class PluginServer {
             case HEARTBEAT_ACK:
             case A2UI_ACTION_CALL_RESULT:
             case A2UI_DATA_REQUEST_RESULT:
+            case A2UI_ARGS_SCHEMA_RESULT:
             case MESSAGE_RESULT:
                 pending.complete(envelope.getRequestId(), envelope.getPayload());
                 return;

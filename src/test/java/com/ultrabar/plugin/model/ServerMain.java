@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Starts the plugin protocol server (default 127.0.0.1:39001).
@@ -61,6 +62,8 @@ public final class ServerMain {
                 //透传一个模块事件：前台优先、后台其次，全部未消费则走兜底。
                 Map<String, Object> event = new HashMap<>();
                 event.put("key", "play");
+                CompletableFuture<A2UIArgsSchemaResultPayload> a2UIArgsSchemaResultPayloadCompletableFuture = server.queryA2UIArgsSchema(null, null);
+
 
                 server.sendModuleEvent(ModuleType.DOT_KEY, "player_01", "sn_player_01", "play", event)
                         .thenAccept(result -> {

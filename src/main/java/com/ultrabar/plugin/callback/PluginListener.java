@@ -4,6 +4,7 @@ import com.ultrabar.plugin.model.*;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Single global listener interface for plugin events.
@@ -66,6 +67,28 @@ public interface PluginListener {
      */
     default List<A2UIItem> onA2UIDataRequest() {
         return Collections.emptyList();
+    }
+
+    /**
+     * 服务端拉取<b>动态卡片参数 schema</b> 时触发
+     * （{@code PluginServer.queryA2UIArgsSchema}，对应卡片 {@code args} 中的
+     * {@code dynamic + schemaGetter} 声明）。
+     * <p>
+     * 参数 {@code schemaGetter} 即卡片里声明的 schemaGetter 动作 id，
+     * 返回该动作实时生成的参数 schema；返回 null 或空 Map 表示没有可配置参数。
+     * <p>
+     * 6 种参数类型见 {@link A2UIArgSpec}，例如：
+     * <pre>
+     * Map&lt;String, A2UIArgSpec&gt; schema = new LinkedHashMap&lt;&gt;();
+     * schema.put("fieldA", A2UIArgSpec.stringArg().label("字段A").defaultValue("x").build());
+     * schema.put("fieldB", A2UIArgSpec.intArg().label("字段B").min(1).max(100).build());
+     * return schema;
+     * </pre>
+     *
+     * @param schemaGetter 卡片 args 中声明的 schemaGetter 动作 id
+     */
+    default Map<String, A2UIArgSpec> onA2UIArgsSchemaRequest(String schemaGetter) {
+        return Collections.emptyMap();
     }
 
     /**

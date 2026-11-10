@@ -37,6 +37,8 @@ public enum MessageType {
     A2UI_UPDATE_DATA_MODEL_RESULT("a2ui_update_data_model_result", A2UIUpdateDataModelResultPayload.class),
     A2UI_ACTION_CALL("a2ui_action_call", A2UIActionCallPayload.class),
     A2UI_ACTION_CALL_RESULT("a2ui_action_call_result", A2UIActionCallResultPayload.class),
+    A2UI_ARGS_SCHEMA_REQUEST("a2ui_args_schema_request", A2UIArgsSchemaRequestPayload.class),
+    A2UI_ARGS_SCHEMA_RESULT("a2ui_args_schema_result", A2UIArgsSchemaResultPayload.class),
 
     QUERY_MODULES("query_modules", QueryModulesPayload.class),
     QUERY_MODULES_RESULT("query_modules_result", QueryModulesResultPayload.class),
