@@ -620,6 +620,9 @@ public class PluginServer {
             case MESSAGE:
                 handleMessage(channel, envelope);
                 return;
+            case HOST_ACTION:
+                handleHostAction(channel, envelope);
+                return;
 
             default:
                 log.info("ignored plugin message type={} from {}", envelope.getType(), channel.remoteAddress());
@@ -1016,6 +1019,46 @@ public class PluginServer {
             }
         }
         write(channel, Envelope.of(MessageType.MESSAGE_RESULT, envelope.getRequestId(), ack)
+                .withSession(session.sessionId(), session.sessionToken()));
+    }
+
+    private void handleHostAction(Channel channel, Envelope envelope) {
+        PluginSession session = sessions.resolve(channel, envelope.getSessionId());
+        if (session == null) {
+            log.warn("host_action without session from {}", channel.remoteAddress());
+            return;
+        }
+        session.touch();
+        HostActionRequest request;
+        HostActionResultPayload ack = new HostActionResultPayload();
+        ack.success = true;
+        try {
+            request = envelope.payloadAs(HostActionRequest.class);
+        } catch (Exception e) {
+            ack.success = false;
+            ack.error = ErrorInfo.of(ErrorCodes.INVALID_PAYLOAD, e.getMessage(), false, null);
+            write(channel, Envelope.of(MessageType.HOST_ACTION_RESULT, envelope.getRequestId(), ack)
+                    .withSession(session.sessionId(), session.sessionToken()));
+            return;
+        }
+        if (request == null || request.action == null) {
+            ack.success = false;
+            ack.error = ErrorInfo.of(ErrorCodes.INVALID_PAYLOAD, "action is required", false, null);
+        } else {
+            try {
+                HostActionResultPayload result = listener.onHostAction(session, request);
+                if (result != null) {
+                    ack = result;
+                }
+            } catch (Exception e) {
+                log.error("onHostAction listener failed packageName={} action={}",
+                        session.packageName(), request.action, e);
+                ack = new HostActionResultPayload();
+                ack.success = false;
+                ack.error = ErrorInfo.of(ErrorCodes.HANDLER_EXCEPTION, e.getMessage(), false, null);
+            }
+        }
+        write(channel, Envelope.of(MessageType.HOST_ACTION_RESULT, envelope.getRequestId(), ack)
                 .withSession(session.sessionId(), session.sessionToken()));
     }
 

@@ -126,9 +126,10 @@ public class A2UIIntegrationTest {
         data.put("status", "playing");
         data.put("volume", 80);
 
-        String uiJson = Json.mapper().writeValueAsString(data);
+        List<Map<String, Object>> uiList = new ArrayList<Map<String, Object>>();
+        uiList.add(data);
         List<A2UIItem> items = new ArrayList<A2UIItem>();
-        items.add(new A2UIItem("layout_music", uiJson));
+        items.add(new A2UIItem("layout_music", uiList));
         A2UIDataResultPayload ack = client.sendA2UIData(items).get(3, TimeUnit.SECONDS);
         assertTrue("ack 应成功", ack.success);
 
@@ -136,10 +137,11 @@ public class A2UIIntegrationTest {
         assertNotNull(receivedRef.get());
         assertEquals(1, receivedRef.get().data.size());
         assertEquals("layout_music", receivedRef.get().data.get(0).layoutId);
-        assertEquals(uiJson, receivedRef.get().data.get(0).ui);
+        assertEquals("playing", receivedRef.get().data.get(0).ui.get(0).get("status"));
+        assertEquals(80, receivedRef.get().data.get(0).ui.get(0).get("volume"));
 
         assertEquals(1, session.a2uiData().size());
-        assertEquals(uiJson, session.a2uiData().get(0).ui);
+        assertEquals("playing", session.a2uiData().get(0).ui.get(0).get("status"));
     }
 
     // ====== 1b. server.queryA2UIData → 触发 plugin.onA2UIDataRequest → 回传数据 ======
@@ -309,7 +311,7 @@ public class A2UIIntegrationTest {
         });
 
         List<A2UIItem> items = new ArrayList<A2UIItem>();
-        items.add(new A2UIItem("layout_music", "{\"status\":\"playing\"}"));
+        items.add(new A2UIItem("layout_music", "{\"status\":\"playing\"}")); // 字符串内部解析为数组
         A2UIDataResultPayload ack = client.sendA2UIData(items).get(3, TimeUnit.SECONDS);
 
         assertTrue("listener 应收到回调", latch.await(3, TimeUnit.SECONDS));

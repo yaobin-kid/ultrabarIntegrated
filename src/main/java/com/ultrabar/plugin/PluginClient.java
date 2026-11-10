@@ -25,6 +25,8 @@ import com.ultrabar.plugin.model.MessageDestination;
 import com.ultrabar.plugin.model.MessagePayload;
 import com.ultrabar.plugin.model.MessageResultPayload;
 import com.ultrabar.plugin.model.MessageType;
+import com.ultrabar.plugin.model.HostActionRequest;
+import com.ultrabar.plugin.model.HostActionResultPayload;
 import com.ultrabar.plugin.model.ModuleEventRegisterPayload;
 import com.ultrabar.plugin.model.ModuleEventUnregisterPayload;
 import com.ultrabar.plugin.model.ModuleOnlineFilter;
@@ -395,6 +397,31 @@ public class PluginClient {
         return envelopes.request(MessageType.MESSAGE,
                 new MessagePayload(destination, instanceId, message),
                 MessageResultPayload.class);
+    }
+
+    /**
+     * 请求宿主（PC）端执行指定动作（打开文件、启动应用、打开浏览器、输入文本、执行命令等）。
+     * 请求对象通过 {@link HostActionRequest} 的 Builder 链式构造，参数键由 SDK 内聚：
+     *
+     * <pre>
+     * sendHostAction(HostActionRequest.open().path("C:/Users/kid/Desktop/ap").build());
+     * sendHostAction(HostActionRequest.startApp().path("C:/.../SourceTree.exe").launchMode(2).build());
+     * sendHostAction(HostActionRequest.openBrowser().url("google.com").build());
+     * sendHostAction(HostActionRequest.inputText().text("hello").build());
+     * sendHostAction(HostActionRequest.execCmd().cmd("notepad").build());
+     * </pre>
+     *
+     * 服务端收到后回调 {@code PluginServerListener#onHostAction}，
+     * 通过 {@code request.action} 区分动作类型、{@code request.params} 取参数；
+     * 返回值中的 success=false 表示执行失败。
+     *
+     * @param request 动作请求，见 {@link HostActionRequest} 的 Builder
+     */
+    public CompletableFuture<HostActionResultPayload> sendHostAction(HostActionRequest request) {
+        if (request == null || request.action == null) {
+            throw new IllegalArgumentException("request.action must not be null");
+        }
+        return envelopes.request(MessageType.HOST_ACTION, request, HostActionResultPayload.class);
     }
 
     /**

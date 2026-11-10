@@ -10,6 +10,8 @@ import com.ultrabar.plugin.model.HotkeyResultPayload;
 import com.ultrabar.plugin.model.MessagePayload;
 import com.ultrabar.plugin.model.MessageResultPayload;
 import com.ultrabar.plugin.model.ModuleEventPayload;
+import com.ultrabar.plugin.model.HostActionRequest;
+import com.ultrabar.plugin.model.HostActionResultPayload;
 import com.ultrabar.plugin.model.ModuleInfo;
 
 import java.util.Collections;
@@ -108,6 +110,23 @@ public interface PluginServerListener {
      */
     default MessageResultPayload onMessage(PluginSession session, MessagePayload payload) {
         MessageResultPayload r = new MessageResultPayload();
+        r.success = true;
+        return r;
+    }
+
+    /**
+     * 插件请求在宿主（PC）端执行动作时触发（{@code PluginClient.sendHostAction}）。
+     * <p>
+     * 通过 {@code request.action}（{@code HostAction} 枚举）准确区分动作类型：
+     * OPEN_FILE / START_APP / OPEN_BROWSER / INPUT_TEXT / EXEC_CMD；
+     * {@code request.params} 为该动作的参数集合（如 path / url / text / cmd / launchMode），
+     * 各动作的参数键由 {@code HostActionRequest} 的 Builder 保证。
+     * <p>
+     * 返回值会作为 ack 回传给插件；返回 null 视为成功。
+     * 若执行失败，可返回 success=false 的结果告知插件。
+     */
+    default HostActionResultPayload onHostAction(PluginSession session, HostActionRequest request) {
+        HostActionResultPayload r = new HostActionResultPayload();
         r.success = true;
         return r;
     }

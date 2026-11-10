@@ -75,6 +75,7 @@ public final class InboundDispatcher {
             case QUERY_MODULES_RESULT:
             case HOTKEY_RESULT:
             case MESSAGE_RESULT:
+            case HOST_ACTION_RESULT:
                 if (!requests.complete(envelope.getRequestId(), envelope.getPayload())) {
                     log.debug("no pending request for type={} requestId={}", type, envelope.getRequestId());
                 }

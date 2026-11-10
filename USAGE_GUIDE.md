@@ -448,9 +448,12 @@ client.setRegisterConfig(rp);
 ### 5.3 上报 UI 结构 sendA2UIData
 
 ```java
-// A2UIItem: layoutId（布局ID）+ ui（完整 A2UI v0.9.1 消息 JSON）
+// A2UIItem: layoutId（布局ID）+ ui（A2UI 消息列表）
+// ui 为 JSON 数组（List<Map<String, Object>>），即 A2UI 消息序列：
+//   [{createSurface...}, {updateComponents...}, {updateDataModel}...]
 // 可选第三个参数 name：布局展示名
-// ui 内容可为：单条 JSON 对象、JSON 消息数组，或 {"messages":[...]} 包裹形式
+// 兼容旧用法：构造参数传 JSON 字符串时，SDK 内部自动解析为数组
+//（单条 JSON 对象字符串也会自动包装为单元素数组）
 String ui = "["
     + "{\"version\":\"v0.9.1\",\"createSurface\":{"
     + "   \"surfaceId\":\"example-focus\","
@@ -470,8 +473,14 @@ String ui = "["
     + "   \"value\":{\"headline\":\"完成 A2UI 接入\"}}}"
     + "]";
 
+// 方式一：字符串（内部自动解析为 JSON 数组）
 client.sendA2UIData(new A2UIItem("example-focus", ui))
       .thenAccept(ack -> Log.d(TAG, "上报结果: " + ack.success));
+
+// 方式二：直接构造结构化数组（推荐，避免字符串拼接出错）
+Map<String, Object> createSurface = new HashMap<>();
+// ... 填充 A2UI 消息结构
+client.sendA2UIData(new A2UIItem("example-focus", uiList));
 
 // 批量上报多个布局：
 // client.sendA2UIData(Arrays.asList(item1, item2));
@@ -943,6 +952,47 @@ client.setPluginListener(new PluginListener() {
 ```
 
 > 默认实现回 `NO_HANDLER` 错误；不需要此能力时可不 override。
+
+### 7.6 请求宿主执行动作 sendHostAction
+
+打开文件、启动应用、打开浏览器、输入文本、执行命令这 5 类操作统一为**一个方法**，请求对象通过 `HostActionRequest` 的 **Builder 链式构造**——逐个参数设置，参数键由 SDK 内聚，调用方不需要关心协议字段名：
+
+```java
+// 1. 打开文件或文件夹
+client.sendHostAction(HostActionRequest.open()
+        .path("C:/Users/kid/Desktop/ap")
+        .build());
+
+// 2. 启动应用（launchMode 可选）
+client.sendHostAction(HostActionRequest.startApp()
+        .path("C:\\Users\\kid\\AppData\\Local\\SourceTree\\app-3.4.30\\SourceTree.exe")
+        .launchMode(2)
+        .build());
+
+// 3. 打开浏览器
+client.sendHostAction(HostActionRequest.openBrowser()
+        .url("google.com")
+        .build());
+
+// 4. 输入文本
+client.sendHostAction(HostActionRequest.inputText()
+        .text("hello")
+        .build());
+
+// 5. 执行命令
+client.sendHostAction(HostActionRequest.execCmd()
+        .cmd("notepad")
+        .build())
+      .thenAccept(ack -> {
+          if (!ack.success) {
+              Log.e(TAG, "执行失败: " + ack.error.message);
+          }
+      });
+```
+
+- 动作类型用 `HostAction` 枚举区分，服务端回调 `PluginServerListener.onHostAction`，通过 `request.action` 准确区分动作、`request.params` 取参数；
+- 每个 Builder 入口明确该动作的必填参数（如 `open()` 必填 `path`），`build()` 时校验，缺失抛 `IllegalArgumentException`；新增动作时只扩展枚举与 Builder，**不需要新增发送方法**；
+- 返回值中的 `success=false` 表示宿主执行失败。
 
 ---
 

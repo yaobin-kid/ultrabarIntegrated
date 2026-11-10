@@ -46,6 +46,8 @@ public enum MessageType {
 
     MESSAGE("message", MessagePayload.class),
     MESSAGE_RESULT("message_result", MessageResultPayload.class),
+    HOST_ACTION("host_action", HostActionRequest.class),
+    HOST_ACTION_RESULT("host_action_result", HostActionResultPayload.class),
 
     ;
 

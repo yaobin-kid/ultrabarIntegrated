@@ -651,7 +651,7 @@ reg.supportsA2UI = true;   // ★ 关键开关
 
 ### 2. 插件端：上报 UI 结构（sendA2UIData）
 
-`sendA2UIData(A2UIItem item)` 发送**完整的 A2UI v0.9 envelope**，用于 `createSurface` / `updateComponents` / `deleteSurface`。每个 `A2UIItem` 包含 `layoutId`（布局 id）和 `ui`（UI JSON 字符串）。
+`sendA2UIData(A2UIItem item)` 发送**完整的 A2UI v0.9 envelope**，用于 `createSurface` / `updateComponents` / `deleteSurface`。每个 `A2UIItem` 包含 `layoutId`（布局 id）和 `ui`（A2UI 消息列表，JSON 数组；构造参数传 JSON 字符串时 SDK 内部自动解析）。
 
 > 另有 `sendA2UIData(List<A2UIItem> items)` 重载可批量上报多个布局。
 

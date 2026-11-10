@@ -451,4 +451,83 @@ public class HotkeyIntegrationTest {
             assertTrue(expected.getCause() instanceof IllegalArgumentException);
         }
     }
+
+    // ====== 10. sendHostAction：服务端按 action 准确区分并取到 params ======
+
+    @Test
+    public void testSendHostAction() throws Exception {
+        startClient();
+        final AtomicReference<HostActionRequest> ref = new AtomicReference<HostActionRequest>();
+        final CountDownLatch latch = new CountDownLatch(2);
+        server.setListener(new PluginServerListener() {
+            @Override
+            public HostActionResultPayload onHostAction(PluginSession session, HostActionRequest request) {
+                ref.set(request);
+                latch.countDown();
+                HostActionResultPayload r = new HostActionResultPayload();
+                r.success = true;
+                return r;
+            }
+        });
+
+        // 1. 打开文件夹
+        HostActionResultPayload ack = client
+                .sendHostAction(HostActionRequest.open().path("C:/Users/kid/Desktop/ap").build())
+                .get(3, TimeUnit.SECONDS);
+        assertTrue(ack.success);
+
+        // 2. 启动应用（带 launchMode）
+        HostActionResultPayload ack2 = client
+                .sendHostAction(HostActionRequest.startApp()
+                        .path("C:\\Users\\kid\\AppData\\Local\\SourceTree\\app-3.4.30\\SourceTree.exe")
+                        .launchMode(2)
+                        .build())
+                .get(3, TimeUnit.SECONDS);
+        assertTrue(ack2.success);
+
+        assertTrue("server 应收到 2 次动作", latch.await(3, TimeUnit.SECONDS));
+        HostActionRequest received = ref.get(); // 最后一次
+        assertEquals(HostAction.START_APP, received.action);
+        assertEquals("C:\\Users\\kid\\AppData\\Local\\SourceTree\\app-3.4.30\\SourceTree.exe",
+                received.params.get("path"));
+        assertEquals(2, received.params.get("launchMode"));
+        assertNotNull(received.timestamp);
+
+        // build() 时校验必填参数
+        try {
+            HostActionRequest.open().build();
+            fail("缺少必填 path 应抛 IllegalArgumentException");
+        } catch (IllegalArgumentException expected) {
+        }
+        // request 为 null 本地拦截
+        try {
+            client.sendHostAction(null);
+            fail("null request 应抛 IllegalArgumentException");
+        } catch (IllegalArgumentException expected) {
+        }
+    }
+
+    // ====== 11. sendHostAction：宿主执行失败回传 ======
+
+    @Test
+    public void testSendHostActionFailurePropagates() throws Exception {
+        startClient();
+        server.setListener(new PluginServerListener() {
+            @Override
+            public HostActionResultPayload onHostAction(PluginSession session, HostActionRequest request) {
+                assertEquals(HostAction.EXEC_CMD, request.action);
+                assertEquals("notepad", request.params.get("cmd"));
+                HostActionResultPayload r = new HostActionResultPayload();
+                r.success = false;
+                r.error = ErrorInfo.of("EXEC_FAILED", "命令执行失败", false, null);
+                return r;
+            }
+        });
+
+        HostActionResultPayload ack = client
+                .sendHostAction(HostActionRequest.execCmd().cmd("notepad").build())
+                .get(3, TimeUnit.SECONDS);
+        assertFalse(ack.success);
+        assertEquals("EXEC_FAILED", ack.error.code);
+    }
 }

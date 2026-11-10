@@ -16,21 +16,26 @@ public class A2UIProtocolTest {
     private final ObjectMapper mapper = new ObjectMapper();
 
     @Test
+    @SuppressWarnings("unchecked")
     public void testA2UIDataPayloadFields() {
-        A2UIItem item = new A2UIItem("layout_music", "{\"status\":\"playing\",\"volume\":80}");
+        A2UIItem item = new A2UIItem("layout_music", "[{\"status\":\"playing\",\"volume\":80}]");
         java.util.List<A2UIItem> items = new java.util.ArrayList<A2UIItem>();
         items.add(item);
         A2UIDataPayload p = new A2UIDataPayload(items);
         assertEquals(1, p.data.size());
         assertEquals("layout_music", p.data.get(0).layoutId);
-        assertEquals("{\"status\":\"playing\",\"volume\":80}", p.data.get(0).ui);
+        assertNotNull(p.data.get(0).ui);
+        assertEquals(1, p.data.get(0).ui.size());
+        assertEquals("playing", ((Map<String, Object>) p.data.get(0).ui.get(0)).get("status"));
+        assertEquals(80, ((Map<String, Object>) p.data.get(0).ui.get(0)).get("volume"));
         assertNotNull(p.timestamp);
         assertTrue(p.timestamp > 0);
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     public void testA2UIDataPayloadJson() throws Exception {
-        A2UIItem item = new A2UIItem("layout_music", "{\"status\":\"playing\"}");
+        A2UIItem item = new A2UIItem("layout_music", "[{\"status\":\"playing\"}]");
         java.util.List<A2UIItem> items = new java.util.ArrayList<A2UIItem>();
         items.add(item);
         A2UIDataPayload p = new A2UIDataPayload(items);
@@ -41,7 +46,29 @@ public class A2UIProtocolTest {
         A2UIDataPayload round = mapper.readValue(json, A2UIDataPayload.class);
         assertEquals(1, round.data.size());
         assertEquals("layout_music", round.data.get(0).layoutId);
-        assertEquals("{\"status\":\"playing\"}", round.data.get(0).ui);
+        assertEquals(1, round.data.get(0).ui.size());
+        assertEquals("playing", ((Map<String, Object>) round.data.get(0).ui.get(0)).get("status"));
+    }
+
+    @Test
+    public void testA2UIItemStringUiParsedAsArray() {
+        // 字符串参数内部解析为 JSON 数组
+        A2UIItem item = new A2UIItem("layout_music", "{\"status\":\"playing\"}");
+        assertEquals("layout_music", item.layoutId);
+        assertNotNull(item.ui);
+        assertEquals(1, item.ui.size());
+        assertEquals("playing", item.ui.get(0).get("status"));
+
+        // 数组字符串
+        A2UIItem arr = new A2UIItem("layout_x", "[{\"a\":1},{\"b\":2}]");
+        assertEquals(2, arr.ui.size());
+
+        // 非 JSON 字符串抛 IllegalArgumentException
+        try {
+            new A2UIItem("bad", "not-json");
+            fail("非法 JSON 应抛 IllegalArgumentException");
+        } catch (IllegalArgumentException expected) {
+        }
     }
 
     @Test

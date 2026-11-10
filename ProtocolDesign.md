@@ -215,7 +215,7 @@ CompletableFuture<A2UIUpdateDataModelResultPayload> sendA2UIUpdateDataModel(Stri
 CompletableFuture<A2UIUpdateDataModelResultPayload> sendA2UIUpdateDataModel(String layoutId, String dataModel, boolean incremental)
 ```
 
-**`sendA2UIData(items)`** — 每个 `A2UIItem` 包含 `layoutId`（布局 id）和 `ui`（完整的 A2UI v0.9 envelope），用于 `createSurface` / `updateComponents` / `deleteSurface`：
+**`sendA2UIData(items)`** — 每个 `A2UIItem` 包含 `layoutId`（布局 id）和 `ui`（A2UI 消息列表，类型 `List<Map<String, Object>>`，即 JSON 数组），用于 `createSurface` / `updateComponents` / `deleteSurface`。构造时参数传 JSON 字符串则 SDK 内部自动解析为数组（单条 JSON 对象字符串自动包装为单元素数组），非法 JSON 抛 `IllegalArgumentException`：
 
 ```json
 { "version": "v0.9", "createSurface": { "surfaceId": "main", "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json" } }
@@ -241,7 +241,7 @@ CompletableFuture<A2UIUpdateDataModelResultPayload> sendA2UIUpdateDataModel(Stri
 **服务端侧数据读取**（无需回调，随时可取）：
 ```java
 PluginSession session = server.getSession("com.ultrabar.music");
-String audioData = session.a2uiData();          // 最近一次 data JSON 字符串
+String audioData = session.a2uiData();          // 最近一次 A2UI 数据（List<A2UIItem>）
 String state     = session.a2uiDataModel();     // 最近一次 dataModel JSON 字符串
 ```
 
@@ -411,7 +411,7 @@ server.setForegroundApp("com.ultrabar.music");           // 该插件前台，�
 | `moduleEvents()` | 当前订阅的 ModuleType 集合 |
 | `handlesModuleEvent(ModuleType)` | 是否订阅了该模块 |
 | `isForeground()` / `foregroundAtMillis()` | 前后台状态与切换时间 |
-| `a2uiData()` | 最近一次 A2UI 数据 JSON 字符串 |
+| `a2uiData()` | 最近一次 A2UI 数据（`List<A2UIItem>`，`ui` 为 JSON 数组） |
 | `a2uiDataModel()` | 最近一次 A2UI dataModel JSON 字符串 |
 | `lastSeenMillis()` | 最后一次通信时间 |
 
