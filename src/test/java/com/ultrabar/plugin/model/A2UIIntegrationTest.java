@@ -350,7 +350,7 @@ public class A2UIIntegrationTest {
         Map<String, Object> params = new HashMap<String, Object>();
         params.put("prompt", "hello");
 
-        A2UIActionCallResultPayload result = server.callA2UIAction(PKG, "a2ui_chat", "layout_music", "card_music", params)
+        A2UIActionCallResultPayload result = server.callA2UIAction(PKG, "a2ui_chat", "inst_music", "layout_music", "card_music", params)
                 .get(3, TimeUnit.SECONDS);
 
         assertTrue("call 应成功", result.success);
@@ -377,7 +377,7 @@ public class A2UIIntegrationTest {
             }
         });
 
-        A2UIActionCallResultPayload result = server.callA2UIAction(PKG, "a2ui_reset", "layout_music", null, null)
+        A2UIActionCallResultPayload result = server.callA2UIAction(PKG, "a2ui_reset", "inst_music", "layout_music", null, null)
                 .get(3, TimeUnit.SECONDS);
 
         assertFalse("客户端拒绝时 result.success 应为 false", result.success);
@@ -391,7 +391,7 @@ public class A2UIIntegrationTest {
         startClientWithSupportsA2UI(false);
 
         CompletableFuture<A2UIActionCallResultPayload> future =
-                server.callA2UIAction(PKG, "a2ui_chat", "layout_music", null, null);
+                server.callA2UIAction(PKG, "a2ui_chat", "inst_music", "layout_music", null, null);
 
         try {
             future.get(1, TimeUnit.SECONDS);
@@ -407,7 +407,7 @@ public class A2UIIntegrationTest {
         startClientWithSupportsA2UI(true);
 
         CompletableFuture<A2UIActionCallResultPayload> future =
-                server.callA2UIAction("com.unknown.pkg", "a2ui_chat", "layout_music", null, null);
+                server.callA2UIAction("com.unknown.pkg", "a2ui_chat", "inst_music", "layout_music", null, null);
 
         try {
             future.get(1, TimeUnit.SECONDS);
@@ -430,7 +430,7 @@ public class A2UIIntegrationTest {
             // onA2UIActionCall 不实现，走 PluginListener 默认：responder.sendError(NO_HANDLER, ...)
         });
 
-        A2UIActionCallResultPayload result = server.callA2UIAction(PKG, "a2ui_chat", "layout_music", null, null)
+        A2UIActionCallResultPayload result = server.callA2UIAction(PKG, "a2ui_chat", "inst_music", "layout_music", null, null)
                 .get(3, TimeUnit.SECONDS);
 
         assertFalse("默认 NO_HANDLER 应返回 false", result.success);

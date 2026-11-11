@@ -221,13 +221,13 @@ public class PluginServer {
      *
      * @param packageName 目标插件包名
      * @param actionName  函数名
+     * @param instanceId  实例 id（可为 null）
      * @param layoutId    布局 id（可为 null）
      * @param cardId      卡片 id（可为 null）
      * @param context     调用参数字典（可为 null）
      */
     public CompletableFuture<A2UIActionCallResultPayload> callA2UIAction(String packageName, String actionName,
-                                                                        String layoutId, String cardId,
-                                                                        Map<String, Object> context) {
+                                                                        String instanceId, String layoutId,  String cardId, Map<String, Object> context) {
         PluginSession session;
         try {
             session = getValidSession(packageName);
@@ -241,7 +241,7 @@ public class PluginServer {
         if (actionName == null || actionName.isEmpty()) {
             return failedFuture(new IllegalArgumentException("actionName must not be empty"));
         }
-        A2UIActionCallPayload payload = new A2UIActionCallPayload(actionName, layoutId, cardId, context);
+        A2UIActionCallPayload payload = new A2UIActionCallPayload(actionName, instanceId, layoutId, cardId, context);
         return request(session, MessageType.A2UI_ACTION_CALL, payload, A2UIActionCallResultPayload.class);
     }
 

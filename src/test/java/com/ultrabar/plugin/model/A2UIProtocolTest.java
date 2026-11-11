@@ -114,8 +114,9 @@ public class A2UIProtocolTest {
         Map<String, Object> args = new HashMap<String, Object>();
         args.put("prompt", "hello");
 
-        A2UIActionCallPayload p = new A2UIActionCallPayload("a2ui_chat", "layout_music", "card_music", args);
+        A2UIActionCallPayload p = new A2UIActionCallPayload("a2ui_chat", "inst_music", "layout_music", "card_music", args);
         assertEquals("a2ui_chat", p.actionName);
+        assertEquals("inst_music", p.instanceId);
         assertEquals("layout_music", p.layoutId);
         assertEquals("card_music", p.cardId);
         assertEquals(args, p.context);
@@ -123,12 +124,13 @@ public class A2UIProtocolTest {
 
     @Test
     public void testA2UIActionCallPayloadJson() throws Exception {
-        A2UIActionCallPayload p = new A2UIActionCallPayload("a2ui_reset", "layout_music", null, null);
+        A2UIActionCallPayload p = new A2UIActionCallPayload("a2ui_reset", "inst_music", "layout_music", null, null);
         String json = mapper.writeValueAsString(p);
         assertTrue(json.contains("a2ui_reset"));
 
         A2UIActionCallPayload round = mapper.readValue(json, A2UIActionCallPayload.class);
         assertEquals("a2ui_reset", round.actionName);
+        assertEquals("inst_music", round.instanceId);
         assertNull(round.context);
         assertEquals("layout_music", round.layoutId);
         assertNull(round.cardId);

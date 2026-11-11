@@ -13,6 +13,9 @@ public class A2UIActionCallPayload implements Payload {
     /** 函数名 */
     public String actionName;
 
+    /** 实例 id（卡片实例） */
+    public String instanceId;
+
     /** 布局 id */
     public String layoutId;
 
@@ -26,9 +29,10 @@ public class A2UIActionCallPayload implements Payload {
 
     }
 
-    public A2UIActionCallPayload(String actionName, String layoutId, String cardId,
-                                 Map<String, Object> context) {
+    public A2UIActionCallPayload(String actionName, String instanceId, String layoutId,
+                                 String cardId, Map<String, Object> context) {
         this.actionName = actionName;
+        this.instanceId = instanceId;
         this.layoutId = layoutId;
         this.cardId = cardId;
         this.context = context;
