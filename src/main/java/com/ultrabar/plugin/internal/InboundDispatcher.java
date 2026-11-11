@@ -2,6 +2,7 @@ package com.ultrabar.plugin.internal;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ultrabar.plugin.callback.A2UIActionCallResponder;
+import com.ultrabar.plugin.callback.A2UIRenderResponder;
 import com.ultrabar.plugin.callback.CallResponder;
 import com.ultrabar.plugin.callback.DescribeResponder;
 import com.ultrabar.plugin.callback.EnvelopeWriter;
@@ -13,6 +14,7 @@ import com.ultrabar.plugin.model.A2UIActionCallPayload;
 import com.ultrabar.plugin.model.A2UIArgsSchemaRequestPayload;
 import com.ultrabar.plugin.model.A2UIArgsSchemaResultPayload;
 import com.ultrabar.plugin.model.A2UIDataRequestResultPayload;
+import com.ultrabar.plugin.model.A2UIRenderPayload;
 import com.ultrabar.plugin.model.A2UIDataResultPayload;
 import com.ultrabar.plugin.model.A2UIUpdateDataModelResultPayload;
 import com.ultrabar.plugin.model.CallPayload;
@@ -74,6 +76,7 @@ public final class InboundDispatcher {
             case A2UI_DATA_REQUEST_RESULT:
             case A2UI_UPDATE_DATA_MODEL_RESULT:
             case A2UI_ACTION_CALL_RESULT:
+            case A2UI_RENDER_RESULT:
             case A2UI_ARGS_SCHEMA_RESULT:
             case QUERY_MODULES_RESULT:
             case HOTKEY_RESULT:
@@ -100,6 +103,9 @@ public final class InboundDispatcher {
                 return;
             case A2UI_ACTION_CALL:
                 handleA2UIActionCall(channel, envelope);
+                return;
+            case A2UI_RENDER:
+                handleA2UIRender(channel, envelope);
                 return;
             case A2UI_DATA_REQUEST:
                 handleA2UIDataRequest(channel, envelope);
@@ -172,6 +178,18 @@ public final class InboundDispatcher {
         try {
             A2UIActionCallPayload payload = envelope.payloadAs(A2UIActionCallPayload.class);
             notifier.onA2UIActionCall(payload, responder);
+        } catch (Exception e) {
+            responder.sendError(ErrorCodes.INVALID_PAYLOAD, e.getMessage(), false);
+        }
+    }
+
+    private void handleA2UIRender(Channel channel, Envelope envelope) {
+        A2UIRenderResponder responder = new A2UIRenderResponder(
+                channel, envelope.getRequestId(), mapper,
+                session.sessionId(), session.sessionToken());
+        try {
+            A2UIRenderPayload payload = envelope.payloadAs(A2UIRenderPayload.class);
+            notifier.onA2UIRender(payload, responder);
         } catch (Exception e) {
             responder.sendError(ErrorCodes.INVALID_PAYLOAD, e.getMessage(), false);
         }

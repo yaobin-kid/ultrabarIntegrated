@@ -558,5 +558,81 @@ public class A2UIIntegrationTest {
         assertEquals(1, session.a2uiData().size());
         assertEquals("layout_music", session.a2uiData().get(0).layoutId);
     }
+
+    // ====== 7. server.notifyA2UIRender → client.onA2UIRender → sendSuccess ======
+
+    @Test
+    public void testNotifyA2UIRenderFirstRender() throws Exception {
+        startClientWithSupportsA2UI(true);
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<A2UIRenderPayload> receivedRef = new AtomicReference<A2UIRenderPayload>();
+        client.setPluginListener(new PluginListener() {
+            @Override public void onRegisterSuccess(RegisterResultPayload payload) {}
+            @Override public void onCall(CallPayload payload, com.ultrabar.plugin.callback.CallResponder responder) {}
+            @Override
+            public void onA2UIRender(A2UIRenderPayload payload, com.ultrabar.plugin.callback.A2UIRenderResponder responder) {
+                receivedRef.set(payload);
+                latch.countDown();
+                responder.sendSuccess();
+            }
+        });
+
+        Map<String, Object> args = new HashMap<String, Object>();
+        args.put("title", "参数演示");
+        args.put("count", 3);
+        A2UIRenderResultPayload result = server.notifyA2UIRender(PKG, "inst_music", "layout_music", "card_music",
+                args, A2UIRenderStage.FIRST_RENDER).get(3, TimeUnit.SECONDS);
+        assertTrue("ack 应成功", result.success);
+
+        assertTrue("client 应收到渲染通知", latch.await(3, TimeUnit.SECONDS));
+        assertNotNull(receivedRef.get());
+        assertEquals("inst_music", receivedRef.get().instanceId);
+        assertEquals("layout_music", receivedRef.get().layoutId);
+        assertEquals("card_music", receivedRef.get().cardId);
+        assertEquals(A2UIRenderStage.FIRST_RENDER, receivedRef.get().stage);
+        assertEquals("参数演示", receivedRef.get().args.get("title"));
+        assertEquals(3, receivedRef.get().args.get("count"));
+    }
+
+    @Test
+    public void testNotifyA2UIRenderRefreshStage() throws Exception {
+        startClientWithSupportsA2UI(true);
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<A2UIRenderPayload> receivedRef = new AtomicReference<A2UIRenderPayload>();
+        client.setPluginListener(new PluginListener() {
+            @Override public void onRegisterSuccess(RegisterResultPayload payload) {}
+            @Override public void onCall(CallPayload payload, com.ultrabar.plugin.callback.CallResponder responder) {}
+            @Override
+            public void onA2UIRender(A2UIRenderPayload payload, com.ultrabar.plugin.callback.A2UIRenderResponder responder) {
+                receivedRef.set(payload);
+                latch.countDown();
+                responder.sendSuccess();
+            }
+        });
+
+        A2UIRenderResultPayload result = server.notifyA2UIRender(PKG, "inst_music", "layout_music", "card_music",
+                null, A2UIRenderStage.REFRESH).get(3, TimeUnit.SECONDS);
+        assertTrue("ack 应成功", result.success);
+
+        assertTrue("client 应收到渲染通知", latch.await(3, TimeUnit.SECONDS));
+        assertEquals(A2UIRenderStage.REFRESH, receivedRef.get().stage);
+        assertNull(receivedRef.get().args);
+    }
+
+    // ====== 7c. onA2UIRender 未注册时返回 NO_HANDLER ======
+
+    @Test
+    public void testNotifyA2UIRenderNoHandler() throws Exception {
+        startClientWithSupportsA2UI(true);
+        // startClientWithSupportsA2UI 注册的默认 listener 未覆写 onA2UIRender → 默认 NO_HANDLER
+
+        A2UIRenderResultPayload result = server.notifyA2UIRender(PKG, "inst_music", "layout_music", "card_music",
+                null, A2UIRenderStage.FIRST_RENDER).get(3, TimeUnit.SECONDS);
+        assertFalse("无 handler 应失败", result.success);
+        assertNotNull(result.error);
+        assertEquals(com.ultrabar.plugin.model.ErrorCodes.NO_HANDLER, result.error.code);
+    }
 }
 

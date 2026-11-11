@@ -61,6 +61,17 @@ public interface PluginListener {
     }
 
     /**
+     * 收到服务端下发的 A2UI 渲染通知（{@code PluginServer.notifyA2UIRender}）。
+     * 卡片首次渲染（{@code stage = FIRST_RENDER}）或刷新渲染（{@code stage = REFRESH}）
+     * 时触发；payload 携带 instanceId / layoutId / cardId / args 参数值。
+     * 需通过 {@link A2UIRenderResponder#sendSuccess()} 或
+     * {@link A2UIRenderResponder#sendError(String, String, boolean)} 响应。
+     */
+    default void onA2UIRender(A2UIRenderPayload payload, A2UIRenderResponder responder) {
+        responder.sendError(ErrorCodes.NO_HANDLER, "no a2ui render handler registered", false);
+    }
+
+    /**
      * 服务端主动拉取 a2ui 数据时触发。
      * 返回当前插件持有的 a2ui 布局列表；返回 null 或空列表表示没有数据。
      */

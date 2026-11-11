@@ -216,6 +216,36 @@ public class PluginServer {
     }
 
     /**
+     * 通知插件 a2ui 卡片发生了渲染（首次渲染或刷新）。
+     * 插件通过 {@link com.ultrabar.plugin.callback.PluginListener#onA2UIRender} 接收，
+     * 并回 {@link A2UIRenderResultPayload} ack。
+     * 插件必须在注册时声明 {@link RegisterPayload#supportsA2UI} 为 true 才会被接受。
+     *
+     * @param packageName 目标插件包名
+     * @param instanceId  卡片实例 id
+     * @param layoutId    布局 id
+     * @param cardId      卡片 id
+     * @param args        渲染时生效的 args 参数值（可为 null）
+     * @param stage       渲染阶段：FIRST_RENDER 首次渲染 / REFRESH 刷新
+     */
+    public CompletableFuture<A2UIRenderResultPayload> notifyA2UIRender(String packageName,
+                                                                       String instanceId, String layoutId, String cardId,
+                                                                       Map<String, Object> args, A2UIRenderStage stage) {
+        PluginSession session;
+        try {
+            session = getValidSession(packageName);
+        } catch (IllegalStateException e) {
+            return failedFuture(e);
+        }
+        if (!session.supportsA2UI()) {
+            return failedFuture(new IllegalStateException(
+                    "package " + packageName + " does not support a2ui"));
+        }
+        A2UIRenderPayload payload = new A2UIRenderPayload(instanceId, layoutId, cardId, args, stage);
+        return request(session, MessageType.A2UI_RENDER, payload, A2UIRenderResultPayload.class);
+    }
+
+    /**
      * 调用指定插件的 a2ui action。
      * 插件必须在注册时声明 {@link RegisterPayload#supportsA2UI} 为 true 才会被接受。
      *
@@ -629,6 +659,7 @@ public class PluginServer {
             case HEARTBEAT_ACK:
             case A2UI_ACTION_CALL_RESULT:
             case A2UI_DATA_REQUEST_RESULT:
+            case A2UI_RENDER_RESULT:
             case A2UI_ARGS_SCHEMA_RESULT:
             case MESSAGE_RESULT:
                 pending.complete(envelope.getRequestId(), envelope.getPayload());
