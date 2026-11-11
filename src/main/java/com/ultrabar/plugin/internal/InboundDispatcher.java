@@ -15,7 +15,6 @@ import com.ultrabar.plugin.model.A2UIArgsSchemaRequestPayload;
 import com.ultrabar.plugin.model.A2UIArgsSchemaResultPayload;
 import com.ultrabar.plugin.model.A2UIDataRequestResultPayload;
 import com.ultrabar.plugin.model.A2UIRenderPayload;
-import com.ultrabar.plugin.model.A2UIDataResultPayload;
 import com.ultrabar.plugin.model.A2UIUpdateDataModelResultPayload;
 import com.ultrabar.plugin.model.CallPayload;
 import com.ultrabar.plugin.model.DescribePayload;

@@ -433,7 +433,7 @@ rp.supportsA2UI = true;   // ★ 关键开关
 client.setRegisterConfig(rp);
 ```
 
-**不声明的后果：** LineOS 调用 `callA2UIAction` / `queryA2UIData` 会被服务端直接拒绝；但插件主动向LineOS 上报数据不受影响。
+**不声明的后果：** LineOS 调用 `callA2UIAction` / `queryA2UIData` / `notifyA2UIRender` 会被服务端直接拒绝；但插件主动向LineOS 上报数据不受影响。
 
 ### 5.2 A2UI 消息类型对照
 
@@ -444,6 +444,7 @@ client.setRegisterConfig(rp);
 | `updateDataModel`  | 插件→LineOS | `sendA2UIUpdateDataModel` | 写入/更新/删除数据模型 |
 | `deleteSurface`    | 插件→LineOS | `refreshA2UI`             | 删除 surface           |
 | `action`（event）  | LineOS→插件 | 回调 `onA2UIActionCall`   | 用户交互回传           |
+| 渲染通知           | LineOS→插件 | 回调 `onA2UIRender`       | 卡片首次渲染/刷新通知  |
 
 ### 5.3 刷新已存在视图 refreshA2UI
 
@@ -518,7 +519,9 @@ client.refreshA2UI(new A2UIRefreshItem("inst-example", "example-focus", uiList))
 
 ### 5.5 更新数据 sendA2UIUpdateDataModel
 
-UI 结构不变、只更新绑定的数据时，无需重发整个 envelope。`updateDataModel` 消息体有三个字段：`surfaceId`（必填）、`path`（可选）、`value`（可选），对应三种用法：
+UI 结构不变、只更新绑定的数据时，无需重发整个 envelope。`updateDataModel` 消息体有三个字段：`surfaceId`（必填）、`path`（可选）、`value`（可选），对应三种用法。
+
+方法签名：`sendA2UIUpdateDataModel(instanceId, layoutId, dataModel)`，另有带 `incremental` 的重载（默认 `true` 增量合并，`false` 整体替换）：
 
 ```java
 // 用法一：不传 path，value 为对象 → 整体替换 dataModel
@@ -526,13 +529,13 @@ String full = "{\"version\":\"v0.9.1\",\"updateDataModel\":{"
     + "\"surfaceId\":\"example-focus\","
     + "\"value\":{\"headline\":\"新的标题\",\"progress\":\"2 / 3\"}"
     + "}}";
-client.sendA2UIUpdateDataModel("example-focus", full);
+client.sendA2UIUpdateDataModel("inst-example", "example-focus", full);
 
 // 用法二：path + value → 只更新指定路径（中间路径不存在时自动创建）
 String partial = "{\"version\":\"v0.9.1\",\"updateDataModel\":{"
     + "\"surfaceId\":\"example-focus\","
     + "\"path\":\"/progress\",\"value\":\"3 / 3\"}}";
-client.sendA2UIUpdateDataModel("example-focus", partial);
+client.sendA2UIUpdateDataModel("inst-example", "example-focus", partial);
 
 // 向数组追加元素（path 用 /items/-）：
 // "{\"path\":\"/items/-\",\"value\":{\"title\":\"新任务\"}}"
@@ -540,13 +543,16 @@ client.sendA2UIUpdateDataModel("example-focus", partial);
 // 用法三：有 path 无 value → 删除该路径
 String del = "{\"version\":\"v0.9.1\",\"updateDataModel\":{"
     + "\"surfaceId\":\"example-focus\",\"path\":\"/progress\"}}";
-client.sendA2UIUpdateDataModel("example-focus", del);
+client.sendA2UIUpdateDataModel("inst-example", "example-focus", del);
+
+// 整体替换（不合并旧数据）：
+// client.sendA2UIUpdateDataModel("inst-example", "example-focus", full, false);
 ```
 
 **检查处理结果：** 返回值 `A2UIUpdateDataModelResultPayload` 中 `success=false` 表示LineOS 处理失败，插件侧应检查 ack 而不是盲目认为成功：
 
 ```java
-client.sendA2UIUpdateDataModel("example-focus", update).thenAccept(ack -> {
+client.sendA2UIUpdateDataModel("inst-example", "example-focus", update).thenAccept(ack -> {
     if (!ack.success) {
         Log.e(TAG, "数据更新被LineOS 拒绝: " + (ack.error != null ? ack.error.message : "unknown"));
     }
@@ -590,6 +596,8 @@ A2UI 组件的 `action` 有**三种形式**，只有 `event` 形式会回传到�
 | `event.name`    | `payload.actionName` | 事件名，如 `"submitForm"`                                                              |
 | `event.context` | `payload.context`    | `Map<String, Object>`；其中 `#/path` 引用**已被替换为 dataModel 实际值**，无需二次解析 |
 | `surfaceId`     | `payload.layoutId`   | 事件来源的布局 id                                                                      |
+| ——              | `payload.instanceId` | 事件来源的卡片实例 id                                                                  |
+| ——              | `payload.cardId`     | 事件来源的卡片 id                                                                      |
 
 插件端接收：
 
@@ -598,6 +606,7 @@ A2UI 组件的 `action` 有**三种形式**，只有 `event` 形式会回传到�
 public void onA2UIActionCall(A2UIActionCallPayload payload, A2UIActionCallResponder responder) {
     String actionName = payload.actionName;          // event.name，如 "submitForm"
     Map<String, Object> context = payload.context;   // event.context（#/path 已解析为实际值）
+    String instanceId = payload.instanceId;          // 来源卡片实例
     String layoutId = payload.layoutId;              // 来源 surfaceId
 
     if ("submitForm".equals(actionName)) {
@@ -609,7 +618,7 @@ public void onA2UIActionCall(A2UIActionCallPayload payload, A2UIActionCallRespon
         responder.sendSuccess(reply);
 
         // 处理完成后通常需要刷新界面：
-        // client.sendA2UIUpdateDataModel(layoutId, updateJson);
+        // client.sendA2UIUpdateDataModel(instanceId, layoutId, updateJson);
         return;
     }
 
@@ -628,7 +637,8 @@ public void onA2UIActionCall(A2UIActionCallPayload payload, A2UIActionCallRespon
 @Override
 public List<A2UIItem> onA2UIDataRequest() {
     List<A2UIItem> items = new ArrayList<>();
-    items.add(new A2UIItem("example-focus", currentUiJson));
+    // A2UIItem 4 参必填：layoutId / cardId / name / ui
+    items.add(new A2UIItem("example-focus", "card-example", "示例", currentUiJson));
     return items;   // 返回 null 或空列表表示当前无数据
 }
 ```
@@ -680,7 +690,37 @@ public A2UIArgs onA2UIArgsSchemaRequest(String schemaGetter) {
 
 静态字段与动态声明可共存：固定字段先渲染，动态字段由 getter 返回的 schema 合并追加。
 
-### 5.9 参考资料
+### 5.9 渲染通知 onA2UIRender
+
+LineOS 在卡片**首次渲染**和**刷新渲染**时，会主动通知插件（`PluginServer.notifyA2UIRender`），插件在 `PluginListener.onA2UIRender` 接收：
+
+```java
+@Override
+public void onA2UIRender(A2UIRenderPayload payload, A2UIRenderResponder responder) {
+    // payload.instanceId  卡片实例 id
+    // payload.layoutId    布局 id
+    // payload.cardId      卡片 id
+    // payload.args        本次渲染生效的 args 参数值（Map，可能为 null）
+    // payload.stage       FIRST_RENDER 首次渲染 / REFRESH 刷新渲染
+
+    if (payload.stage == A2UIRenderStage.FIRST_RENDER) {
+        // 首次渲染：按需拉取初始数据、刷新内容等
+    }
+
+    responder.sendSuccess();
+}
+```
+
+服务端侧调用：
+
+```java
+server.notifyA2UIRender(packageName, instanceId, layoutId, cardId, argsMap,
+        A2UIRenderStage.FIRST_RENDER);
+```
+
+> 📌 未实现该回调时默认返回 `NO_HANDLER`；插件必须声明 `supportsA2UI=true` 才会收到通知。
+
+### 5.10 参考资料
 
 | 资料                  | 链接                                                                             | 说明                                                               |
 | --------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
@@ -1053,6 +1093,7 @@ client.sendHostAction(HostActionRequest.execCmd()
 | `onModuleEvent(ModuleEventPayload, ModuleEventResponder)`          | 模块硬件事件                                      | 订阅了模块则必须   |
 | `onA2UIActionCall(A2UIActionCallPayload, A2UIActionCallResponder)` | A2UI 用户交互回传（默认回 NO_HANDLER）            | 有交互组件则必须   |
 | `onA2UIDataRequest()`                                              | LineOS 主动拉取 A2UI 数据（默认返回空列表）       | A2UI 插件建议      |
+| `onA2UIRender(A2UIRenderPayload, A2UIRenderResponder)`             | 卡片首次渲染/刷新渲染通知（默认回 NO_HANDLER）    | A2UI 插件可选      |
 | `onMessage(MessagePayload, MessageResponder)`                      | LineOS 下发文本消息（默认回 NO_HANDLER）          | 可选               |
 
 **Responder 通用约定：**
