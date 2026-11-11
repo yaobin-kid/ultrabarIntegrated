@@ -103,17 +103,17 @@ public class A2UIIntegrationTest {
         return sessionRef.get();
     }
 
-    // ====== 1. client.sendA2UIData → server 存储 + listener.onA2UIData ======
+    // ====== 1. client.refreshA2UI → server listener.onA2UIRefresh ======
 
     @Test
-    public void testSendA2UIDataStoresAndNotifies() throws Exception {
+    public void testRefreshA2UIStoresAndNotifies() throws Exception {
         PluginSession session = startClientWithSupportsA2UI(true);
 
         final CountDownLatch latch = new CountDownLatch(1);
-        final AtomicReference<A2UIDataPayload> receivedRef = new AtomicReference<A2UIDataPayload>();
+        final AtomicReference<A2UIRefreshPayload> receivedRef = new AtomicReference<A2UIRefreshPayload>();
         server.setListener(new PluginServerListener() {
             @Override
-            public A2UIDataResultPayload onA2UIData(PluginSession s, A2UIDataPayload payload) {
+            public A2UIDataResultPayload onA2UIRefresh(PluginSession s, A2UIRefreshPayload payload) {
                 receivedRef.set(payload);
                 latch.countDown();
                 A2UIDataResultPayload r = new A2UIDataResultPayload();
@@ -128,20 +128,21 @@ public class A2UIIntegrationTest {
 
         List<Map<String, Object>> uiList = new ArrayList<Map<String, Object>>();
         uiList.add(data);
-        List<A2UIItem> items = new ArrayList<A2UIItem>();
-        items.add(new A2UIItem("layout_music", "音乐", "card_music", uiList));
-        A2UIDataResultPayload ack = client.sendA2UIData(items).get(3, TimeUnit.SECONDS);
+        List<A2UIRefreshItem> items = new ArrayList<A2UIRefreshItem>();
+        items.add(new A2UIRefreshItem("inst_music", "layout_music", uiList));
+        A2UIDataResultPayload ack = client.refreshA2UI(items).get(3, TimeUnit.SECONDS);
         assertTrue("ack 应成功", ack.success);
 
         assertTrue("listener 应收到回调", latch.await(3, TimeUnit.SECONDS));
         assertNotNull(receivedRef.get());
         assertEquals(1, receivedRef.get().data.size());
+        assertEquals("inst_music", receivedRef.get().data.get(0).instanceId);
         assertEquals("layout_music", receivedRef.get().data.get(0).layoutId);
         assertEquals("playing", receivedRef.get().data.get(0).ui.get(0).get("status"));
         assertEquals(80, receivedRef.get().data.get(0).ui.get(0).get("volume"));
 
-        assertEquals(1, session.a2uiData().size());
-        assertEquals("playing", session.a2uiData().get(0).ui.get(0).get("status"));
+        // 刷新不覆盖 session 缓存的完整卡片定义
+        assertTrue(session.a2uiData().isEmpty());
     }
 
     // ====== 1b. server.queryA2UIData → 触发 plugin.onA2UIDataRequest → 回传数据 ======
@@ -179,27 +180,10 @@ public class A2UIIntegrationTest {
         assertTrue("client 启动超时", client.startAsync().get(5, TimeUnit.SECONDS) == null);
         assertTrue("client 注册超时", registered.await(5, TimeUnit.SECONDS));
 
-        final CountDownLatch latch = new CountDownLatch(1);
-        final AtomicReference<A2UIDataPayload> notifyRef = new AtomicReference<A2UIDataPayload>();
-        server.setListener(new PluginServerListener() {
-            @Override
-            public A2UIDataResultPayload onA2UIData(PluginSession s, A2UIDataPayload payload) {
-                notifyRef.set(payload);
-                latch.countDown();
-                A2UIDataResultPayload r = new A2UIDataResultPayload();
-                r.success = true;
-                return r;
-            }
-        });
-
         A2UIDataRequestResultPayload result = server.queryA2UIData(PKG).get(3, TimeUnit.SECONDS);
         assertTrue("query 应成功", result.success);
         assertEquals(1, result.items.size());
         assertEquals("layout_music", result.items.get(0).layoutId);
-
-        assertTrue("onA2UIData 应被触发", latch.await(2, TimeUnit.SECONDS));
-        assertNotNull(notifyRef.get());
-        assertEquals("layout_music", notifyRef.get().data.get(0).layoutId);
 
         assertEquals(1, sessionRef.get().a2uiData().size());
     }
@@ -299,22 +283,22 @@ public class A2UIIntegrationTest {
     // ====== 2c. listener 抛异常时服务端应返回 HANDLER_EXCEPTION ======
 
     @Test
-    public void testSendA2UIDataListenerExceptionPropagates() throws Exception {
+    public void testRefreshA2UIListenerExceptionPropagates() throws Exception {
         startClientWithSupportsA2UI(true);
 
         final CountDownLatch latch = new CountDownLatch(1);
         server.setListener(new PluginServerListener() {
             @Override
-            public A2UIDataResultPayload onA2UIData(PluginSession s, A2UIDataPayload payload) {
+            public A2UIDataResultPayload onA2UIRefresh(PluginSession s, A2UIRefreshPayload payload) {
                 latch.countDown();
                 throw new RuntimeException("boom");
             }
         });
 
-        List<A2UIItem> items = new ArrayList<A2UIItem>();
-        items.add(new A2UIItem("layout_music", "音乐", "card_music",
+        List<A2UIRefreshItem> items = new ArrayList<A2UIRefreshItem>();
+        items.add(new A2UIRefreshItem("inst_music", "layout_music",
                 "{\"status\":\"playing\"}")); // 字符串内部解析为数组
-        A2UIDataResultPayload ack = client.sendA2UIData(items).get(3, TimeUnit.SECONDS);
+        A2UIDataResultPayload ack = client.refreshA2UI(items).get(3, TimeUnit.SECONDS);
 
         assertTrue("listener 应收到回调", latch.await(3, TimeUnit.SECONDS));
         assertFalse("listener 抛异常时 ack.success 应为 false", ack.success);
@@ -438,17 +422,17 @@ public class A2UIIntegrationTest {
         assertEquals("NO_HANDLER", result.error.code);
     }
 
-    // ====== 1c. sendA2UIData 批量推送多个 layout ======
+    // ====== 1c. refreshA2UI 批量刷新多个视图 ======
 
     @Test
-    public void testSendA2UIDataMultipleItems() throws Exception {
+    public void testRefreshA2UIMultipleItems() throws Exception {
         PluginSession session = startClientWithSupportsA2UI(true);
 
         final CountDownLatch latch = new CountDownLatch(1);
-        final AtomicReference<A2UIDataPayload> receivedRef = new AtomicReference<A2UIDataPayload>();
+        final AtomicReference<A2UIRefreshPayload> receivedRef = new AtomicReference<A2UIRefreshPayload>();
         server.setListener(new PluginServerListener() {
             @Override
-            public A2UIDataResultPayload onA2UIData(PluginSession s, A2UIDataPayload payload) {
+            public A2UIDataResultPayload onA2UIRefresh(PluginSession s, A2UIRefreshPayload payload) {
                 receivedRef.set(payload);
                 latch.countDown();
                 A2UIDataResultPayload r = new A2UIDataResultPayload();
@@ -457,19 +441,22 @@ public class A2UIIntegrationTest {
             }
         });
 
-        List<A2UIItem> items = new ArrayList<A2UIItem>();
-        items.add(new A2UIItem("layout_a", "a", "card_a", "{\"status\":\"playing\"}"));
-        items.add(new A2UIItem("layout_b", "b", "card_b", "{\"status\":\"paused\"}"));
-        A2UIDataResultPayload ack = client.sendA2UIData(items).get(3, TimeUnit.SECONDS);
+        List<A2UIRefreshItem> items = new ArrayList<A2UIRefreshItem>();
+        items.add(new A2UIRefreshItem("inst_a", "layout_a", "{\"status\":\"playing\"}"));
+        items.add(new A2UIRefreshItem("inst_b", "layout_b", "{\"status\":\"paused\"}"));
+        A2UIDataResultPayload ack = client.refreshA2UI(items).get(3, TimeUnit.SECONDS);
         assertTrue("ack 应成功", ack.success);
 
         assertTrue("listener 应收到回调", latch.await(3, TimeUnit.SECONDS));
         assertNotNull(receivedRef.get());
         assertEquals(2, receivedRef.get().data.size());
+        assertEquals("inst_a", receivedRef.get().data.get(0).instanceId);
         assertEquals("layout_a", receivedRef.get().data.get(0).layoutId);
+        assertEquals("inst_b", receivedRef.get().data.get(1).instanceId);
         assertEquals("layout_b", receivedRef.get().data.get(1).layoutId);
 
-        assertEquals(2, session.a2uiData().size());
+        // 刷新不写入 session 缓存
+        assertTrue(session.a2uiData().isEmpty());
     }
 
     // ====== 1d. queryA2UIData 插件返回空列表 ======

@@ -439,51 +439,47 @@ client.setRegisterConfig(rp);
 
 | Envelope key       | 方向        | SDK API                   | 用途                   |
 | ------------------ | ----------- | ------------------------- | ---------------------- |
-| `createSurface`    | 插件→LineOS | `sendA2UIData`            | 创建 UI surface        |
-| `updateComponents` | 插件→LineOS | `sendA2UIData`            | 定义/更新组件树        |
+| `createSurface`    | 插件→LineOS | `refreshA2UI`             | 创建 UI surface        |
+| `updateComponents` | 插件→LineOS | `refreshA2UI`             | 定义/更新组件树        |
 | `updateDataModel`  | 插件→LineOS | `sendA2UIUpdateDataModel` | 写入/更新/删除数据模型 |
-| `deleteSurface`    | 插件→LineOS | `sendA2UIData`            | 删除 surface           |
+| `deleteSurface`    | 插件→LineOS | `refreshA2UI`             | 删除 surface           |
 | `action`（event）  | LineOS→插件 | 回调 `onA2UIActionCall`   | 用户交互回传           |
 
-### 5.3 上报 UI 结构 sendA2UIData
+### 5.3 刷新已存在视图 refreshA2UI
+
+`refreshA2UI` 用于刷新**已经存在**的 A2UI 视图：通过 `instanceId + layoutId` 定位到已渲染的视图实例，用新的 `ui` 数据替换其内容。
+（卡片首次定义由服务端 `queryA2UIData` 拉取，插件在 `onA2UIDataRequest` 返回完整 `A2UIItem`，见 §5.4。）
 
 ```java
-// A2UIItem: layoutId（布局ID）+ name（布局名）+ cardId（卡片ID）+ ui（A2UI 消息列表）
-// 4 个参数创建时必须全部传入；ui 为 JSON 数组（List<Map<String, Object>>），即 A2UI 消息序列：
+// A2UIRefreshItem: instanceId（实例ID）+ layoutId（布局ID）+ ui（A2UI 消息列表）
+// 3 个参数创建时必须全部传入；ui 为 JSON 数组（List<Map<String, Object>>）：
 //   [{createSurface...}, {updateComponents...}, {updateDataModel}...]
 // ui 支持重载：直接传结构化数组，或传 JSON 字符串由 SDK 内部解析
 //（单条 JSON 对象字符串也会自动包装为单元素数组）
 String ui = "["
-    + "{\"version\":\"v0.9.1\",\"createSurface\":{"
-    + "   \"surfaceId\":\"example-focus\","
-    + "   \"catalogId\":\"https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json\","
-    + "   \"theme\":{\"primaryColor\":\"#6750A4\"},"
-    + "   \"sendDataModel\":true}},"
     + "{\"version\":\"v0.9.1\",\"updateComponents\":{"
     + "   \"surfaceId\":\"example-focus\","
     + "   \"components\":["
-    + "     {\"id\":\"root\",\"component\":\"Card\",\"child\":\"content\","
-    + "      \"style\":{\"background\":{\"color\":\"#FFFFFFFF\",\"cornerRadius\":20},\"padding\":20}},"
+    + "     {\"id\":\"root\",\"component\":\"Card\",\"child\":\"content\"},"
     + "     {\"id\":\"content\",\"component\":\"Text\","
     + "      \"text\":{\"path\":\"/headline\"},\"variant\":\"h3\"}"
-    + "   ]}},"
-    + "{\"version\":\"v0.9.1\",\"updateDataModel\":{"
-    + "   \"surfaceId\":\"example-focus\","
-    + "   \"value\":{\"headline\":\"完成 A2UI 接入\"}}}"
+    + "   ]}}"
     + "]";
 
 // 方式一：字符串（内部自动解析为 JSON 数组）
-client.sendA2UIData(new A2UIItem("example-focus", "示例", "card-example", ui))
-      .thenAccept(ack -> Log.d(TAG, "上报结果: " + ack.success));
+client.refreshA2UI(new A2UIRefreshItem("inst-example", "example-focus", ui))
+      .thenAccept(ack -> Log.d(TAG, "刷新结果: " + ack.success));
 
 // 方式二：直接构造结构化数组（推荐，避免字符串拼接出错）
-Map<String, Object> createSurface = new HashMap<>();
+Map<String, Object> updateComponents = new HashMap<>();
 // ... 填充 A2UI 消息结构
-client.sendA2UIData(new A2UIItem("example-focus", "示例", "card-example", uiList));
+client.refreshA2UI(new A2UIRefreshItem("inst-example", "example-focus", uiList));
 
-// 批量上报多个布局：
-// client.sendA2UIData(Arrays.asList(item1, item2));
+// 批量刷新多个视图：
+// client.refreshA2UI(Arrays.asList(item1, item2));
 ```
+
+服务端收到后触发 `PluginServerListener.onA2UIRefresh(session, payload)` 回调；刷新是局部内容替换，**不会**覆盖 `PluginSession` 缓存的完整卡片定义（`a2uiData`）。
 
 **书写要点（详见原始库文档）：**
 
@@ -662,7 +658,8 @@ A2UIArgs args = A2UIArgs.create()
                 .property("retries", A2UIArgSpec.intArg().defaultValue(3).max(10).build())
                 .build());
 
-client.sendA2UIData(new A2UIItem("example-focus", "card-example", "示例", ui, args));
+// A2UIItem 用于 onA2UIDataRequest 查询返回（含 args 参数 schema）
+new A2UIItem("example-focus", "card-example", "示例", ui, args);
 ```
 
 **动态 schema**：参数由插件实时决定时，声明 `dynamic + schemaGetter`；LineOS 在渲染表单前 拉取参数，插件在 `PluginListener.onA2UIArgsSchemaRequest(schemaGetter)` 中直接返回 `A2UIArgs`：
@@ -1086,7 +1083,7 @@ client.sendHostAction(HostActionRequest.execCmd()
 8. **参数 id 一致性**：`onDescribe` 的 `ParameterSpec.id` 即 `onCall` 中 `params` 的 key，两端必须一致。
 9. **A2UI 版本必须为 v0.9.1**：每条 envelope 带 `"version": "v0.9.1"`。
 10. **`supportsA2UI=true` 是LineOS 反向调用的前提**：不声明时插件仍可主动上报数据，但LineOS 的 `callA2UIAction` / `queryA2UIData` 会被拒绝。
-11. **检查上报结果的 ack**：`sendA2UIData` / `sendA2UIUpdateDataModel` 的返回值中 `success=false` 表示LineOS 处理失败，插件侧应有日志或重试策略。
+11. **检查上报结果的 ack**：`refreshA2UI` / `sendA2UIUpdateDataModel` 的返回值中 `success=false` 表示LineOS 处理失败，插件侧应有日志或重试策略。
 12. **模块事件是串行单播，不回复等于放弃**：`onModuleEvent` 中既不 `consume()` 也不 `ignore()` 时，会白白占用 1 秒超时后才轮到下一个插件——不打算处理时请**显式 `ignore()`**。详细分发规则见 [6.2](#62-分发规则重点)。
 
 ### 9.4 常见问题（FAQ）

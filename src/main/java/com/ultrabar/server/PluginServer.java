@@ -318,7 +318,7 @@ public class PluginServer {
      * 主动向插件拉取当前 a2ui 数据。
      * 服务端发送 {@code a2ui_data_request}，插件通过
      * {@link com.ultrabar.plugin.callback.PluginListener#onA2UIDataRequest()} 返回布局列表。
-     * 拉取成功后会自动缓存到 session 并触发 {@link PluginServerListener#onA2UIData}。
+     * 拉取成功后会自动缓存到 session，调用方从返回值的 {@code items} 取数据。
      *
      * @param packageName 目标插件包名
      */
@@ -341,12 +341,6 @@ public class PluginServer {
                         List<A2UIItem> items = result.items != null
                                 ? result.items : Collections.<A2UIItem>emptyList();
                         session.setA2UIData(items);
-                        A2UIDataPayload dataPayload = new A2UIDataPayload(items);
-                        try {
-                            listener.onA2UIData(session, dataPayload);
-                        } catch (Exception e) {
-                            log.error("onA2UIData listener failed packageName={}", packageName, e);
-                        }
                     }
                     return result;
                 });
@@ -648,8 +642,8 @@ public class PluginServer {
             case MODULE_EVENT_UNREGISTER:
                 handleModuleEventUnregister(channel, envelope);
                 return;
-            case A2UI_DATA:
-                handleA2UIData(channel, envelope);
+            case A2UI_REFRESH:
+                handleA2UIRefresh(channel, envelope);
                 return;
             case A2UI_UPDATE_DATA_MODEL:
                 handleA2UIUpdateDataModel(channel, envelope);
@@ -869,22 +863,22 @@ public class PluginServer {
         session.unregisterModuleEvents(payload.modules);
     }
 
-    private void handleA2UIData(Channel channel, Envelope envelope) {
+    private void handleA2UIRefresh(Channel channel, Envelope envelope) {
         PluginSession session = sessions.resolve(channel, envelope.getSessionId());
         if (session == null) {
-            log.warn("a2ui_data without session from {}", channel.remoteAddress());
+            log.warn("a2ui_refresh without session from {}", channel.remoteAddress());
             return;
         }
         session.touch();
-        A2UIDataPayload payload;
+        A2UIRefreshPayload payload;
         A2UIDataResultPayload ack = new A2UIDataResultPayload();
         ack.success = true;
         try {
-            payload = envelope.payloadAs(A2UIDataPayload.class);
+            payload = envelope.payloadAs(A2UIRefreshPayload.class);
         } catch (Exception e) {
             ack.success = false;
             ack.error = ErrorInfo.of(ErrorCodes.INVALID_PAYLOAD, e.getMessage(), false, null);
-            write(channel, Envelope.of(MessageType.A2UI_DATA_RESULT, envelope.getRequestId(), ack)
+            write(channel, Envelope.of(MessageType.A2UI_REFRESH_RESULT, envelope.getRequestId(), ack)
                     .withSession(session.sessionId(), session.sessionToken()));
             return;
         }
@@ -892,20 +886,20 @@ public class PluginServer {
             if (payload.timestamp == null) {
                 payload.timestamp = System.currentTimeMillis();
             }
-            session.setA2UIData(payload.data);
+            // 刷新是局部内容替换，不覆盖 session 缓存的完整卡片定义（a2uiData）
             try {
-                A2UIDataResultPayload result = listener.onA2UIData(session, payload);
+                A2UIDataResultPayload result = listener.onA2UIRefresh(session, payload);
                 if (result != null) {
                     ack = result;
                 }
             } catch (Exception e) {
-                log.error("onA2UIData listener failed packageName={}", session.packageName(), e);
+                log.error("onA2UIRefresh listener failed packageName={}", session.packageName(), e);
                 ack = new A2UIDataResultPayload();
                 ack.success = false;
                 ack.error = ErrorInfo.of(ErrorCodes.HANDLER_EXCEPTION, e.getMessage(), false, null);
             }
         }
-        write(channel, Envelope.of(MessageType.A2UI_DATA_RESULT, envelope.getRequestId(), ack)
+        write(channel, Envelope.of(MessageType.A2UI_REFRESH_RESULT, envelope.getRequestId(), ack)
                 .withSession(session.sessionId(), session.sessionToken()));
     }
 

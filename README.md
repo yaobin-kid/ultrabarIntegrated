@@ -1,4 +1,4 @@
-# Ultrabar Plugin SDK
+﻿# Ultrabar Plugin SDK
 
 ### [English](README.md) | [简体中文](README_zh.md) | [日本語](README_ja.md)
 
@@ -628,10 +628,10 @@ A2UI 基于 **[A2UI v0.9 协议](https://a2ui.org/specification/v0.9-a2ui/)**，
 
 | Envelope key       | 方向      | 对应 API                      | 用途            |
 | ------------------ | ------- | --------------------------- | ------------- |
-| `createSurface`    | 插件→主App | `sendA2UIData`            | 创建 UI surface |
-| `updateComponents` | 插件→主App | `sendA2UIData`            | 定义/更新组件树      |
+| `createSurface`    | 插件→主App | `refreshA2UI`            | 创建 UI surface |
+| `updateComponents` | 插件→主App | `refreshA2UI`            | 定义/更新组件树      |
 | `updateDataModel`  | 插件→主App | `sendA2UIUpdateDataModel` | 写入/更新数据模型     |
-| `deleteSurface`    | 插件→主App | `sendA2UIData`            | 删除 surface    |
+| `deleteSurface`    | 插件→主App | `refreshA2UI`            | 删除 surface    |
 | `action`           | 主App→插件 | `callA2UIAction`          | 用户交互回传        |
 
 ### 1. 启用 A2UI
@@ -649,11 +649,12 @@ reg.supportsA2UI = true;   // ★ 关键开关
 // ... 其他字段
 ```
 
-### 2. 插件端：上报 UI 结构（sendA2UIData）
+### 2. 插件端：刷新已存在视图（refreshA2UI）
 
-`sendA2UIData(A2UIItem item)` 发送**完整的 A2UI v0.9 envelope**，用于 `createSurface` / `updateComponents` / `deleteSurface`。每个 `A2UIItem` 包含 `layoutId`（布局 id）和 `ui`（A2UI 消息列表，JSON 数组；构造参数传 JSON 字符串时 SDK 内部自动解析）。
+`refreshA2UI(A2UIRefreshItem item)` 发送**完整的 A2UI v0.9 envelope**，用于刷新已存在视图的 `createSurface` / `updateComponents` / `deleteSurface`。每个 `A2UIRefreshItem` 包含 `instanceId`（实例 id）、`layoutId`（布局 id）和 `ui`（A2UI 消息列表，JSON 数组；构造参数传 JSON 字符串时 SDK 内部自动解析）。
 
-> 另有 `sendA2UIData(List<A2UIItem> items)` 重载可批量上报多个布局。
+> 另有 `refreshA2UI(List<A2UIRefreshItem> items)` 重载可批量刷新多个视图。
+> 卡片首次定义由服务端 `queryA2UIData` 拉取，插件在 `onA2UIDataRequest` 返回完整 `A2UIItem`（layoutId / name / cardId / ui / args）。
 
 **2.1 创建视图 伪代码**：
 
@@ -859,10 +860,10 @@ String ui = {
                }
             ]
          }
-client.sendA2UIData(new A2UIItem("example-focus", ui));
+client.refreshA2UI(new A2UIRefreshItem("inst-example", "example-focus", ui));
 ```
 
- 建议在 onRegisterSuccess 回调里调用  sendA2UIData 上报当前ui状态
+ 建议在 onRegisterSuccess 回调里调用  refreshA2UI 上报当前ui状态
 
 **2.2 更新视图状态值 伪代码**：
 
@@ -912,7 +913,7 @@ String update = {
 
 **2.4 服务端主动拉取数据（queryA2UIData）**
 
-除了插件主动 `sendA2UIData` 推送，主 App 也可以主动拉取插件当前的 a2ui 数据：
+除了插件主动 `refreshA2UI` 推送，主 App 也可以主动拉取插件当前的 a2ui 数据：
 
 ```Java
 // 主 App 端：发起拉取
@@ -937,7 +938,7 @@ client.setPluginListener(new PluginListener() {
 });
 ```
 
-拉取成功后，服务端会自动将数据缓存到 `PluginSession` 并触发 `PluginServerListener.onA2UIData` 回调（与 `sendA2UIData` 推送走同一通知通道）。
+拉取成功后，服务端会自动将数据缓存到 `PluginSession`，调用方从返回值的 `items` 取数据。
 
 <br />
 

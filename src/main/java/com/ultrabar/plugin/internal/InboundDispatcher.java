@@ -70,7 +70,7 @@ public final class InboundDispatcher {
             case CALL_RESULT:
             case HEARTBEAT_ACK:
             case EVENT_RESULT:
-            case A2UI_DATA_RESULT:
+            case A2UI_REFRESH_RESULT:
             case A2UI_DATA_REQUEST_RESULT:
             case A2UI_UPDATE_DATA_MODEL_RESULT:
             case A2UI_ACTION_CALL_RESULT:

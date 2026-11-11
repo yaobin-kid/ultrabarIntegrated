@@ -1,6 +1,6 @@
 package com.ultrabar.server;
 
-import com.ultrabar.plugin.model.A2UIDataPayload;
+import com.ultrabar.plugin.model.A2UIRefreshPayload;
 import com.ultrabar.plugin.model.A2UIDataResultPayload;
 import com.ultrabar.plugin.model.A2UIUpdateDataModelPayload;
 import com.ultrabar.plugin.model.A2UIUpdateDataModelResultPayload;
@@ -39,12 +39,12 @@ public interface PluginServerListener {
     }
 
     /**
-     * 插件端上报 A2UI 数据时触发。
-     * 此时数据已存入 {@link PluginSession} 中。
+     * 插件端刷新已存在的 A2UI 视图时触发（{@code PluginClient.refreshA2UI}）。
+     * 刷新是局部内容替换，不会覆盖 {@link PluginSession} 缓存的完整卡片定义。
      * 返回值会作为 ack 回传给插件；返回 null 视为成功。
-     * 若宿主处理失败（如渲染异常），可返回 success=false 的结果告知插件。
+     * 若宿主处理失败（如找不到对应实例），可返回 success=false 的结果告知插件。
      */
-    default A2UIDataResultPayload onA2UIData(PluginSession session, A2UIDataPayload payload) {
+    default A2UIDataResultPayload onA2UIRefresh(PluginSession session, A2UIRefreshPayload payload) {
         A2UIDataResultPayload r = new A2UIDataResultPayload();
         r.success = true;
         return r;

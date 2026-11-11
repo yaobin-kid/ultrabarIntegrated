@@ -17,13 +17,14 @@ public class A2UIProtocolTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    public void testA2UIDataPayloadFields() {
-        A2UIItem item = new A2UIItem("layout_music", "音乐", "card_music",
+    public void testA2UIRefreshPayloadFields() {
+        A2UIRefreshItem item = new A2UIRefreshItem("inst_music", "layout_music",
                 "[{\"status\":\"playing\",\"volume\":80}]");
-        java.util.List<A2UIItem> items = new java.util.ArrayList<A2UIItem>();
+        java.util.List<A2UIRefreshItem> items = new java.util.ArrayList<A2UIRefreshItem>();
         items.add(item);
-        A2UIDataPayload p = new A2UIDataPayload(items);
+        A2UIRefreshPayload p = new A2UIRefreshPayload(items);
         assertEquals(1, p.data.size());
+        assertEquals("inst_music", p.data.get(0).instanceId);
         assertEquals("layout_music", p.data.get(0).layoutId);
         assertNotNull(p.data.get(0).ui);
         assertEquals(1, p.data.get(0).ui.size());
@@ -35,18 +36,19 @@ public class A2UIProtocolTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    public void testA2UIDataPayloadJson() throws Exception {
-        A2UIItem item = new A2UIItem("layout_music", "音乐", "card_music",
+    public void testA2UIRefreshPayloadJson() throws Exception {
+        A2UIRefreshItem item = new A2UIRefreshItem("inst_music", "layout_music",
                 "[{\"status\":\"playing\"}]");
-        java.util.List<A2UIItem> items = new java.util.ArrayList<A2UIItem>();
+        java.util.List<A2UIRefreshItem> items = new java.util.ArrayList<A2UIRefreshItem>();
         items.add(item);
-        A2UIDataPayload p = new A2UIDataPayload(items);
+        A2UIRefreshPayload p = new A2UIRefreshPayload(items);
         String json = mapper.writeValueAsString(p);
         assertTrue(json.contains("playing"));
         assertTrue(json.contains("layout_music"));
 
-        A2UIDataPayload round = mapper.readValue(json, A2UIDataPayload.class);
+        A2UIRefreshPayload round = mapper.readValue(json, A2UIRefreshPayload.class);
         assertEquals(1, round.data.size());
+        assertEquals("inst_music", round.data.get(0).instanceId);
         assertEquals("layout_music", round.data.get(0).layoutId);
         assertEquals(1, round.data.get(0).ui.size());
         assertEquals("playing", ((Map<String, Object>) round.data.get(0).ui.get(0)).get("status"));
@@ -150,16 +152,16 @@ public class A2UIProtocolTest {
 
     @Test
     public void testMessageTypeA2UIPayloadBindings() {
-        // 6 种 a2ui 类型都注册了正确的 payload class
-        assertEquals(A2UIDataPayload.class, MessageType.A2UI_DATA.payloadType());
-        assertEquals(A2UIDataResultPayload.class, MessageType.A2UI_DATA_RESULT.payloadType());
+        // a2ui 相关类型都注册了正确的 payload class
+        assertEquals(A2UIRefreshPayload.class, MessageType.A2UI_REFRESH.payloadType());
+        assertEquals(A2UIDataResultPayload.class, MessageType.A2UI_REFRESH_RESULT.payloadType());
         assertEquals(A2UIUpdateDataModelPayload.class, MessageType.A2UI_UPDATE_DATA_MODEL.payloadType());
         assertEquals(A2UIUpdateDataModelResultPayload.class, MessageType.A2UI_UPDATE_DATA_MODEL_RESULT.payloadType());
         assertEquals(A2UIActionCallPayload.class, MessageType.A2UI_ACTION_CALL.payloadType());
         assertEquals(A2UIActionCallResultPayload.class, MessageType.A2UI_ACTION_CALL_RESULT.payloadType());
 
         // wire 名字
-        assertEquals("a2ui_data", MessageType.A2UI_DATA.wireName());
+        assertEquals("a2ui_refresh", MessageType.A2UI_REFRESH.wireName());
         assertEquals("a2ui_action_call", MessageType.A2UI_ACTION_CALL.wireName());
     }
 

@@ -50,8 +50,8 @@
 | `MODULE_EVENT_UNREGISTER` | module_event_unregister | C→S | ModuleEventUnregisterPayload |
 | `MODULE_EVENT` | module_event | S→C | ModuleEventPayload |
 | `MODULE_EVENT_RESULT` | module_event_result | C→S | ModuleEventResultPayload |
-| `A2UI_DATA` | a2ui_data | C→S | A2UIDataPayload |
-| `A2UI_DATA_RESULT` | a2ui_data_result | S→C | A2UIDataResultPayload |
+| `A2UI_REFRESH` | a2ui_refresh | C→S | A2UIRefreshPayload |
+| `A2UI_REFRESH_RESULT` | a2ui_refresh_result | S→C | A2UIDataResultPayload |
 | `A2UI_UPDATE_DATA_MODEL` | a2ui_update_data_model | C→S | A2UIUpdateDataModelPayload |
 | `A2UI_UPDATE_DATA_MODEL_RESULT` | a2ui_update_data_model_result | S→C | A2UIUpdateDataModelResultPayload |
 | `A2UI_ACTION_CALL` | a2ui_action_call | S→C | A2UIActionCallPayload |
@@ -209,13 +209,15 @@ CompletableFuture<EventResultPayload> sendEvent(String eventId, Map<String, Obje
 > ⚠️ **协议版本**：`data` / `dataModel` 传输的均为 **[A2UI v0.9](https://a2ui.org/specification/v0.9-a2ui/)** 格式 JSON，envelope 必须带 `"version": "v0.9"`。不要使用 v0.8 的 `beginRendering` / `surfaceUpdate` / `dataModelUpdate` 消息名。
 
 ```java
-CompletableFuture<A2UIDataResultPayload> sendA2UIData(A2UIItem item)
-CompletableFuture<A2UIDataResultPayload> sendA2UIData(List<A2UIItem> items)
-CompletableFuture<A2UIUpdateDataModelResultPayload> sendA2UIUpdateDataModel(String layoutId, String dataModel)
-CompletableFuture<A2UIUpdateDataModelResultPayload> sendA2UIUpdateDataModel(String layoutId, String dataModel, boolean incremental)
+CompletableFuture<A2UIDataResultPayload> refreshA2UI(A2UIRefreshItem item)
+CompletableFuture<A2UIDataResultPayload> refreshA2UI(List<A2UIRefreshItem> items)
+CompletableFuture<A2UIUpdateDataModelResultPayload> sendA2UIUpdateDataModel(String instanceId, String layoutId, String dataModel)
+CompletableFuture<A2UIUpdateDataModelResultPayload> sendA2UIUpdateDataModel(String instanceId, String layoutId, String dataModel, boolean incremental)
 ```
 
-**`sendA2UIData(items)`** — 每个 `A2UIItem` 包含 `layoutId`（布局 id）、`name`（布局名）、`cardId`（卡片 id）和 `ui`（A2UI 消息列表，类型 `List<Map<String, Object>>`，即 JSON 数组），4 个参数创建时必须全部传入；`ui` 支持重载（结构化数组或 JSON 字符串，后者 SDK 内部解析）。用于 `createSurface` / `updateComponents` / `deleteSurface`。构造时参数传 JSON 字符串则 SDK 内部自动解析为数组（单条 JSON 对象字符串自动包装为单元素数组），非法 JSON 抛 `IllegalArgumentException`：
+**`refreshA2UI(items)`** — 刷新一个或多个**已存在**的 A2UI 视图。每个 `A2UIRefreshItem` 包含 `instanceId`（实例 id）、`layoutId`（布局 id）和 `ui`（A2UI 消息列表，类型 `List<Map<String, Object>>`，即 JSON 数组），3 个参数创建时必须全部传入；`ui` 支持重载（结构化数组或 JSON 字符串，后者 SDK 内部解析，单条 JSON 对象字符串自动包装为单元素数组），非法 JSON 抛 `IllegalArgumentException`。用于 `createSurface` / `updateComponents` / `deleteSurface`。服务端收到后触发 `PluginServerListener.onA2UIRefresh`，不覆盖 session 缓存的完整卡片定义。
+
+> 卡片首次定义由服务端 `queryA2UIData` 拉取：插件在 `onA2UIDataRequest` 返回完整 `A2UIItem`（`layoutId` / `name` / `cardId` / `ui` / `args` 5 个属性）。
 
 ```json
 { "version": "v0.9", "createSurface": { "surfaceId": "main", "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json" } }
@@ -234,8 +236,8 @@ CompletableFuture<A2UIUpdateDataModelResultPayload> sendA2UIUpdateDataModel(Stri
 ```
 
 **服务端行为**：收到后
-1. `session.setA2UIData(data)` / `session.setA2UIDataModel(dataModel)` — 存入 PluginSession（单值覆盖）
-2. `listener.onA2UIData(session, payload)` / `listener.onA2UIUpdateDataModel(session, payload)` — 回调宿主，返回值作为 ack 回传插件（null 视为成功）
+1. 刷新（a2ui_refresh）不覆盖 session 缓存；updateDataModel 存入 `session.setA2UIDataModel(dataModel)`
+2. `listener.onA2UIRefresh(session, payload)` / `listener.onA2UIUpdateDataModel(session, payload)` — 回调宿主，返回值作为 ack 回传插件（null 视为成功）
 3. 回 ACK 给客户端
 
 **服务端侧数据读取**（无需回调，随时可取）：
@@ -289,7 +291,7 @@ CompletableFuture<A2UIDataRequestResultPayload> queryA2UIData(String packageName
 ```
 
 - 向插件主动拉取当前 a2ui 数据，触发插件端 `PluginListener.onA2UIDataRequest()`
-- 成功后自动缓存到 `PluginSession` 并触发 `PluginServerListener.onA2UIData`
+- 成功后自动缓存到 `PluginSession`，调用方从返回值的 `items` 取数据
 
 **注册后自动拉取**：插件注册成功且声明 `supportsA2UI=true` 时，服务端会自动调用一次 `queryA2UIData`，
 将插件当前的 a2ui 数据缓存到 `PluginSession`。这样注册完成后即可通过 `session.a2uiData()` 直接拿到数据，
@@ -443,7 +445,7 @@ server.setForegroundApp("com.ultrabar.music");           // 该插件前台，�
 | `onActionsUpdated(PluginSession)` | 事件 | 空 | Actions 配置更新 |
 | `onEventReceived(PluginSession, EventPayload)` | C→S | 空 | 客户端发 Event |
 | `onModuleEventFallback(ModuleEventPayload)` | 兜底 | 空 | 模块事件全部未消费时兜底 |
-| `onA2UIData(PluginSession, A2UIDataPayload)` | C→S | `A2UIDataResultPayload` | 客户端上报 A2UI 数据（已存入 session）；返回值作为 ack 回传，null 视为成功 |
+| `onA2UIRefresh(PluginSession, A2UIRefreshPayload)` | C→S | `A2UIDataResultPayload` | 客户端刷新已存在 A2UI 视图（局部替换，不写 session）；返回值作为 ack 回传，null 视为成功 |
 | `onA2UIUpdateDataModel(PluginSession, A2UIUpdateDataModelPayload)` | C→S | `A2UIUpdateDataModelResultPayload` | 客户端上报 A2UI dataModel（已存入 session）；返回值作为 ack 回传，null 视为成功 |
 
 ### 8.3 服务端：registerFallback（注册式兜底，独立于 PluginServerListener）
@@ -492,7 +494,7 @@ server.removeAllFallbacks(ModuleType module);
 | `startAsync()` / `stop()` | 生命周期 |
 | `call(...)` | 服务端主动调我（被动，非主动发） |
 | `sendEvent(String eventId, Map params)` | 发 Event |
-| `sendA2UIData(A2UIItem item)` | 上报（刷新）单个 A2UI 布局 |
+| `refreshA2UI(A2UIRefreshItem item)` | 刷新单个已存在的 A2UI 视图 |
 | `sendA2UIUpdateDataModel(String layoutId, String dataModel)` | 上报 dataModel JSON 字符串 |
 | `sendA2UIUpdateDataModel(String layoutId, String dataModel, boolean incremental)` | 增量上报 |
 | `subscribeModuleEvents(ModuleType... modules)` | 订阅模块事件（可一次多个） |
@@ -540,10 +542,10 @@ PluginClient         PluginServer          PluginServerListener
      │◄── A2UI_ACTION_CALL ──────────────────────►│
      ├── responder.sendSuccess() ──────────────────►│
      │                    │                         │
-     │  (插件上报 A2UI)  │                         │
-     ├── A2UI_DATA ────►│                         │
-     │◄── A2UI_DATA_RESULT │                      ├── onA2UIData()
-     │                    │  (数据已存入 session)    │
+     │  (插件刷新 A2UI 视图)│                       │
+     ├── A2UI_REFRESH ──►│                         │
+     │◄── A2UI_REFRESH_RESULT │                   ├── onA2UIRefresh()
+     │                    │  (局部刷新，不写 session)  │
      │                    │                         │
      │  (所有插件都没消费)  │                         │
      │                    │  invokeModuleEventFallback()
@@ -645,11 +647,11 @@ public class HostApp {
                         + " eventId=" + event.eventId + " params=" + event.params);
             }
 
-            // —— A2UI 数据回调 —— //
+            // —— A2UI 视图刷新回调 —— //
             @Override
-            public A2UIDataResultPayload onA2UIData(PluginSession session, A2UIDataPayload payload) {
-                // payload 此刻已存入 session.a2uiData()；这里做业务分发即可
-                System.out.println("[host] A2UI data from " + session.packageName()
+            public A2UIDataResultPayload onA2UIRefresh(PluginSession session, A2UIRefreshPayload payload) {
+                // 刷新是局部替换，不覆盖 session.a2uiData()；这里做业务分发即可
+                System.out.println("[host] A2UI refresh from " + session.packageName()
                         + " data=" + payload.data);
                 A2UIDataResultPayload r = new A2UIDataResultPayload();
                 r.success = true;
@@ -1041,13 +1043,13 @@ public class MusicPlugin {
         String createSurfaceJson = "{\"version\":\"v0.9\",\"createSurface\":{"
                 + "\"surfaceId\":\"main\","
                 + "\"catalogId\":\"https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json\"}}";
-        client.sendA2UIData(new A2UIItem("layout_music", "音乐", "card_music", createSurfaceJson));
+        client.refreshA2UI(new A2UIRefreshItem("inst_music", "layout_music", createSurfaceJson));
 
         // 7a'. 上报 A2UI v0.9 updateComponents envelope（定义组件树，component 为对象形式）
         String updateComponentsJson = "{\"version\":\"v0.9\",\"updateComponents\":{"
                 + "\"surfaceId\":\"main\",\"components\":["
                 + "{\"id\":\"root\",\"component\":{\"Text\":{\"text\":{\"path\":\"/track/name\"}}}}]}}";
-        client.sendA2UIData(new A2UIItem("layout_music", "音乐", "card_music", updateComponentsJson));
+        client.refreshA2UI(new A2UIRefreshItem("inst_music", "layout_music", updateComponentsJson));
 
         // 7b. 全量 updateDataModel（path:"/" 替换整个数据模型）
         String fullDataModelJson = "{\"version\":\"v0.9\",\"updateDataModel\":{"
