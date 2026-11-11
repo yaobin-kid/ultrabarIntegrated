@@ -229,12 +229,13 @@ public class A2UIIntegrationTest {
         model.put("text", "你好");
 
         String modelJson = Json.mapper().writeValueAsString(model);
-        A2UIUpdateDataModelResultPayload ack = client.sendA2UIUpdateDataModel("layout_music", modelJson, false)
+        A2UIUpdateDataModelResultPayload ack = client.sendA2UIUpdateDataModel("inst_music", "layout_music", modelJson, false)
                 .get(3, TimeUnit.SECONDS);
         assertTrue("ack 应成功", ack.success);
 
         assertTrue("listener 应收到回调", latch.await(3, TimeUnit.SECONDS));
         assertNotNull(receivedRef.get());
+        assertEquals("inst_music", receivedRef.get().instanceId);
         assertEquals("layout_music", receivedRef.get().layoutId);
         assertEquals(modelJson, receivedRef.get().dataModel);
         assertFalse("非增量", receivedRef.get().incremental);
@@ -262,7 +263,7 @@ public class A2UIIntegrationTest {
 
         String incJson = Json.mapper().writeValueAsString(incrementalModel);
         A2UIUpdateDataModelResultPayload ack = client.sendA2UIUpdateDataModel(
-                "layout_music", incJson, true).get(3, TimeUnit.SECONDS);
+                "inst_music", "layout_music", incJson, true).get(3, TimeUnit.SECONDS);
         assertTrue(ack.success);
         assertTrue("listener 应收到回调", latch.await(3, TimeUnit.SECONDS));
     }
@@ -286,7 +287,7 @@ public class A2UIIntegrationTest {
         });
 
         A2UIUpdateDataModelResultPayload ack = client.sendA2UIUpdateDataModel(
-                "layout_music", "{\"phase\":\"thinking\"}", false).get(3, TimeUnit.SECONDS);
+                "inst_music", "layout_music", "{\"phase\":\"thinking\"}", false).get(3, TimeUnit.SECONDS);
 
         assertTrue("listener 应收到回调", latch.await(3, TimeUnit.SECONDS));
         assertFalse("宿主失败时 ack.success 应为 false", ack.success);

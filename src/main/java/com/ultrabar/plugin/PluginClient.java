@@ -232,20 +232,22 @@ public class PluginClient {
      * 上报 a2ui updateDataModel 到服务端。服务端会将 dataModel 缓存到 PluginSession 中，
      * 并通过 {@link PluginServerListener#onA2UIUpdateDataModel} 回调通知宿主。
      *
-     * @param layoutId  布局 id
-     * @param dataModel dataModel JSON 字符串
+     * @param instanceId 实例 id
+     * @param layoutId   布局 id
+     * @param dataModel  dataModel JSON 字符串
      */
     public CompletableFuture<A2UIUpdateDataModelResultPayload> sendA2UIUpdateDataModel(
-            String layoutId, String dataModel) {
-        return sendA2UIUpdateDataModel(layoutId, dataModel, false);
+            String instanceId, String layoutId, String dataModel) {
+        return sendA2UIUpdateDataModel(instanceId, layoutId, dataModel, false);
     }
 
     /**
-     * 同 {@link #sendA2UIUpdateDataModel(String, String)}，但可标记是否为增量更新。
+     * 同 {@link #sendA2UIUpdateDataModel(String, String, String)}，但可标记是否为增量更新。
      */
     public CompletableFuture<A2UIUpdateDataModelResultPayload> sendA2UIUpdateDataModel(
-            String layoutId, String dataModel, boolean incremental) {
-        A2UIUpdateDataModelPayload payload = new A2UIUpdateDataModelPayload(layoutId, dataModel);
+            String instanceId, String layoutId, String dataModel, boolean incremental) {
+        A2UIUpdateDataModelPayload payload =
+                new A2UIUpdateDataModelPayload(instanceId, layoutId, dataModel);
         payload.incremental = incremental;
         return envelopes.request(MessageType.A2UI_UPDATE_DATA_MODEL, payload,
                 A2UIUpdateDataModelResultPayload.class);

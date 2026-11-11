@@ -76,7 +76,8 @@ public class A2UIProtocolTest {
 
     @Test
     public void testA2UIUpdateDataModelPayloadDefaultIncremental() {
-        A2UIUpdateDataModelPayload p = new A2UIUpdateDataModelPayload("layout_music", "{\"phase\":\"thinking\"}");
+        A2UIUpdateDataModelPayload p = new A2UIUpdateDataModelPayload("inst_music", "layout_music", "{\"phase\":\"thinking\"}");
+        assertEquals("inst_music", p.instanceId);
         assertEquals("layout_music", p.layoutId);
         assertEquals("{\"phase\":\"thinking\"}", p.dataModel);
         assertFalse(p.incremental);
@@ -97,12 +98,13 @@ public class A2UIProtocolTest {
 
     @Test
     public void testA2UIUpdateDataModelPayloadJson() throws Exception {
-        A2UIUpdateDataModelPayload p = new A2UIUpdateDataModelPayload("layout_music", "{\"phase\":\"thinking\"}");
+        A2UIUpdateDataModelPayload p = new A2UIUpdateDataModelPayload("inst_music", "layout_music", "{\"phase\":\"thinking\"}");
         String json = mapper.writeValueAsString(p);
         assertTrue(json.contains("thinking"));
         assertTrue(json.contains("layout_music"));
 
         A2UIUpdateDataModelPayload round = mapper.readValue(json, A2UIUpdateDataModelPayload.class);
+        assertEquals("inst_music", round.instanceId);
         assertEquals("layout_music", round.layoutId);
         assertEquals("{\"phase\":\"thinking\"}", round.dataModel);
     }

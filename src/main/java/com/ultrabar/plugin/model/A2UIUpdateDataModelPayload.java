@@ -8,6 +8,9 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class A2UIUpdateDataModelPayload implements Payload {
 
+    /** 实例 id（卡片实例） */
+    public String instanceId;
+
     /** 布局 id */
     public String layoutId;
 
@@ -24,7 +27,8 @@ public class A2UIUpdateDataModelPayload implements Payload {
     public A2UIUpdateDataModelPayload() {
     }
 
-    public A2UIUpdateDataModelPayload(String layoutId, String dataModel) {
+    public A2UIUpdateDataModelPayload(String instanceId, String layoutId, String dataModel) {
+        this.instanceId = instanceId;
         this.layoutId = layoutId;
         this.dataModel = dataModel;
         this.incremental = false;
