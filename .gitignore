@@ -12,3 +12,7 @@ build/
 logs/
 
 *.class
+
+USAGE_GUIDE.md
+
+ProtocolDesign.md
