@@ -885,6 +885,80 @@ public void onModuleEvent(ModuleEventPayload payload, ModuleEventResponder respo
 - `action`：`button`=按键（格式同 DOT_KEY），`rotate`=旋转
 - `event.value`：1=顺时针，-1=逆时针
 
+**SENSE_CUBE（多功能传感魔方）：**
+
+光感（`action = "illuminance"`）：
+
+```json
+{
+    "action": "illuminance",
+    "appState": "background",
+    "event": {
+        "level": "BRIGHT",
+        "unit": "Lux",
+        "value": 122
+    },
+    "module": "SENSE_CUBE",
+    "moduleId": "26",
+    "sn": "0000019F20E45C31",
+    "timestamp": 1794449768487
+}
+```
+
+温度（`action = "temperature"`）：
+
+```json
+{
+    "action": "temperature",
+    "appState": "background",
+    "event": {
+        "level": "MILD",
+        "unit": "°F",
+        "value": 74.66
+    },
+    "module": "SENSE_CUBE",
+    "moduleId": "26",
+    "sn": "0000019F20E45C31",
+    "timestamp": 1794449766512
+}
+```
+
+存在感应（`action = "presence"`）：
+
+```json
+{
+    "action": "presence",
+    "appState": "background",
+    "event": true,
+    "module": "SENSE_CUBE",
+    "moduleId": "26",
+    "sn": "0000019F20E45C31",
+    "timestamp": 1794449766412
+}
+```
+
+湿度（`action = "humidity"`）：
+
+```json
+{
+    "action": "humidity",
+    "appState": "background",
+    "event": {
+        "unit": "%",
+        "value": 38.9
+    },
+    "module": "SENSE_CUBE",
+    "moduleId": "26",
+    "sn": "0000019F20E45C31",
+    "timestamp": 1794450176184
+}
+```
+
+- `action`：`illuminance`=光感、`temperature`=温度、`presence`=存在感应、`humidity`=湿度
+- `event.value`：当前传感器数值（`presence` 为 `boolean`，true=有人）
+- `event.unit`：计量单位（Lux / °F / %）
+- `event.level`：体感/光照等级（如 `BRIGHT`、`MILD`），部分事件存在该字段
+
 ### 6.5 查询模块列表 queryModules
 
 ```java
