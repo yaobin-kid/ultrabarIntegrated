@@ -54,7 +54,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.github.yaobin-kid:ultrabarIntegrated:1.0.12'
+    implementation 'com.github.yaobin-kid:ultrabarIntegrated:1.1.0'
     implementation "io.netty:netty-all:4.1.94.Final"
     implementation "com.fasterxml.jackson.core:jackson-databind:2.15.2"
     implementation "org.slf4j:slf4j-simple:2.0.7"
