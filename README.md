@@ -1,5 +1,7 @@
 # Ultrabar Plugin SDK — Usage Guide
 
+> Language: [中文](./README_zh.md) | **English** | [日本語](./README_ja.md)
+
 > Applicable version: ultrabarIntegrated 1.0.12+ (protocol version = 2)
 > Audience: Third-party plugin developers integrating with LineOS (Ultrabar)
 > Prerequisites: Familiarity with Android Service and Gradle dependency configuration
