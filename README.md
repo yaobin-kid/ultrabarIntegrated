@@ -1,1066 +1,1200 @@
-﻿﻿﻿﻿# Ultrabar Plugin SDK
+# Ultrabar Plugin SDK — Usage Guide
 
-### [English](README.md) | [简体中文](README_zh.md) | [日本語](README_ja.md)
+> Applicable version: ultrabarIntegrated 1.0.12+ (protocol version = 2)
+> Audience: Third-party plugin developers integrating with LineOS (Ultrabar)
+> Prerequisites: Familiarity with Android Service and Gradle dependency configuration
 
-基于 Netty 的 Ultrabar 插件协议 SDK（协议 version = 2）。传输是 **一行一条 UTF-8 JSON**（`\n` 分帧）
+---
 
-| 角色          | 类                                  | 用途                                              |
-| ----------- | ---------------------------------- | ----------------------------------------------- |
-| 插件侧端        | `com.ultrabar.plugin.PluginClient` | 注册、上报 actions、处理 describe / get\_options / call |
-| 主侧(LineOS)端 | `com.ultrabar.server.PluginServer` | 按 `packageName` 管理会话、保存动作、向插件发起 call            |
+## Table of Contents
 
-三方开发者属于`插件侧端角色`，只集成 **PluginClient** 按步骤操作即可。  ` LineOS 将定期扫描 AndroidManifest.xml 数据，获取服务并启动（已启动将跳过）`
+1. [SDK Overview](#1-sdk-overview)
+2. [Quick Start](#2-quick-start)
+3. [Core Concepts & Communication Model](#3-core-concepts--communication-model)
+4. [Scenario Application Ability (Action Registration & Execution)](#4-scenario-application-ability-action-registration--execution)
+5. [A2UI Generative UI](#5-a2ui-generative-ui)
+6. [Module Events (DOT_KEY / KNOB_KEY)](#6-module-events-dot_key--knob_key)
+7. [Hotkeys & Messages](#7-hotkeys--messages)
+8. [Callback Quick Reference](#8-callback-quick-reference)
+9. [Notes & FAQ](#9-notes--faq)
 
-## 1.gradle 引入
+---
+
+## 1. SDK Overview
+
+The Ultrabar Plugin SDK is built on Netty for bidirectional communication between a plugin app and LineOS. The transport protocol is **one UTF-8 JSON per line** (framed by `\n`); all requests/responses are asynchronous (`CompletableFuture`).
+
+| Role | Class | Responsibility |
+| ---- | ----- | -------------- |
+| Plugin side (your app) | `com.ultrabar.plugin.PluginClient` | Register, report Actions, handle describe / get_options / call, report A2UI data |
+| LineOS side | `com.ultrabar.server.PluginServer` | Manage plugin sessions, invoke plugins, cache A2UI data |
+
+**As a third-party developer you only need to integrate `PluginClient`.** LineOS periodically scans the plugin services declared in `AndroidManifest.xml` and starts them automatically (skips if already running).
+
+The plugin SDK provides four major capabilities:
+
+1. **Scenario application ability**: The plugin declares to LineOS "what I can do" (e.g., play, pause), and LineOS calls the plugin back to execute when a user triggers it.
+2. **A2UI generative UI**: The plugin describes the UI structure and data in JSON, LineOS renders it as a native interface, and user interactions are passed back to the plugin.
+3. **Module events**: Receive real-time events from LineOS hardware modules (DOT_KEY buttons, KNOB_KEY knobs, etc.).
+4. **Hotkeys & messages**: Inject keystrokes into the PC (single key / combos / long-press), or pass messages bi-directionally with LineOS (supports strings and structured objects).
+
+---
+
+## 2. Quick Start
+
+### 2.1 Add Dependencies
+
+`build.gradle`:
 
 ```groovy
 repositories {
     maven { url 'https://jitpack.io' }
 }
-```
 
-必要依赖：
+dependencies {
+    implementation 'com.github.yaobin-kid:ultrabarIntegrated:1.0.12'
+    implementation "io.netty:netty-all:4.1.94.Final"
+    implementation "com.fasterxml.jackson.core:jackson-databind:2.15.2"
+    implementation "org.slf4j:slf4j-simple:2.0.7"
+}
 
-```groovy
-implementation 'com.github.yaobin-kid:ultrabarIntegrated:1.0.12' //sdk ver
-
-implementation "io.netty:netty-all:4.1.94.Final"
-implementation "com.fasterxml.jackson.core:jackson-databind:2.15.2"
-implementation "org.slf4j:slf4j-simple:2.0.7"
-```
-
-```groovy
-  packagingOptions {
+android {
+    packagingOptions {
         exclude 'META-INF/INDEX.LIST'
         exclude 'META-INF/io.netty.versions.properties'
     }
+}
 ```
 
-> **不要**使用 `netty-all`
+> ⚠️ The two `exclude` entries in `packagingOptions` are **mandatory** — otherwise Netty resource conflicts will break the build.
 
-## 2.服务
+### 2.2 Configure AndroidManifest
 
-`AndroidManifest.xml `  ：
+Declare a background service through which LineOS discovers and launches your plugin:
 
 ```xml
-   <service
+<manifest ...>
+    <!-- Network permission (also needed for loopback communication) -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application ...>
+        <service
             android:name=".service.BackgroundService"
             android:enabled="true"
             android:exported="true"
             android:permission="com.ultrabar.plugin.SERVER_REGISER_PERMISSION">
-            <meta-data  android:name="ultrabar.plugin"   android:value="com.test.music" />
-   </service>
+            <!-- value must equal your applicationId -->
+            <meta-data android:name="ultrabar.plugin" android:value="com.example.music" />
+        </service>
+    </application>
+</manifest>
 ```
 
-### 必须的设置
+**Three mandatory requirements:**
 
-> `meta-data` 属性 取值为 `applicationId`
-> `android:exported="true"`
-> android:permission="com.ultrabar.plugin.SERVER\_REGISER\_PERMISSION"
+| Configuration | Description |
+| ------------- | ----------- |
+| `meta-data android:value` | Must equal `applicationId`; LineOS uses it as the plugin's unique identifier (packageName) |
+| `android:exported="true"` | Must be exported, otherwise LineOS cannot launch the service |
+| `android:permission` | Must be `com.ultrabar.plugin.SERVER_REGISER_PERMISSION` to prevent other apps from impersonating it |
 
-## 3.权限
+### 2.3 Minimal Runnable Demo
 
-`AndroidManifest.xml `  ：
-
-```xml
-<uses-permission android:name="android.permission.INTERNET" />
-```
-
-## 4. BackgroundService 服务参考代码
-
-> 需在服务里完成 `PluginClient` 的启动工作 `start()` 部分。
->
-> 声明的 `BackgroundService` 系统自动扫描并完成启动工作（以启则跳过）。 开发阶段为验证流程开发者可自启
+Initialise and start `PluginClient` inside the service's `onCreate()`:
 
 ```java
-
 public class BackgroundService extends Service {
-    public static final String TAG = "BackgroundService";
-    private static final String CHANNEL_ID = "BackgroundServiceChannel";
+    private static final String TAG = "BackgroundService";
+    private static final String CHANNEL_ID = "plugin_bg_channel";
 
-    public BackgroundService() {
+    private PluginClient client;
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+
+        // Android 8.0+ foreground service requirement: notification channel + startForeground
+        createNotificationChannel();
+        Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle("Plugin service running")
+                .setSmallIcon(android.R.drawable.ic_menu_info_details)
+                .build();
+        startForeground(1001, notification);
+
+        startPluginClient();
+    }
+
+    private void startPluginClient() {
+        client = new PluginClient(); // default 127.0.0.1:39001
+
+        // 1. Registration info: name is the display name, packageName must equal applicationId
+        RegisterPayload rp = new RegisterPayload();
+        rp.name = "Example Music Plugin";
+        rp.packageName = "com.example.music";
+        client.setRegisterConfig(rp);
+
+        // 2. Declare the supported Action list
+        ActionSummary play = new ActionSummary();
+        play.actionId = "music.play";
+        play.name = "Play";
+        play.description = "Play music on the specified device";
+
+        ActionSummary pause = new ActionSummary();
+        pause.actionId = "music.pause";
+        pause.name = "Pause";
+        pause.description = "Pause playback on the specified device";
+
+        client.setActionsConfig(new ActionsPayload(Arrays.asList(play, pause)));
+
+        // 3. Set the listener (all callbacks are optional overrides)
+        client.setPluginListener(new PluginListener() {
+            @Override
+            public void onRegisterSuccess(RegisterResultPayload result) {
+                Log.d(TAG, "Registered, debug port: " + result.configServer.port);
+            }
+
+            @Override
+            public void onRegisterFailed(Throwable t) {
+                Log.e(TAG, "Registration failed: " + t.getMessage());
+            }
+
+            @Override
+            public void onCall(CallPayload call, CallResponder responder) {
+                if ("music.play".equals(call.actionId)) {
+                    // perform playback...
+                }
+                responder.sendSuccess(null);
+            }
+        });
+
+        // 4. Async start: connect → register → report Actions, fully automatic
+        client.startAsync();
     }
 
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
-                    CHANNEL_ID,
-                    "Background Service",
-                    NotificationManager.IMPORTANCE_LOW
-            );
+                    CHANNEL_ID, "Plugin Background Service", NotificationManager.IMPORTANCE_LOW);
             NotificationManager manager = getSystemService(NotificationManager.class);
-            if (manager != null) {
-                manager.createNotificationChannel(channel);
-            }
+            if (manager != null) manager.createNotificationChannel(channel);
         }
     }
 
-    @SuppressLint("ForegroundServiceType")
     @Override
-    public void onCreate() {
-        super.onCreate();
-        AudioPlayerManager.getInstance().init(this);
-        createNotificationChannel();
-        Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle("常驻后台服务")
-                .setContentText("正在运行...")
-                .setSmallIcon(android.R.drawable.ic_menu_info_details)
-                .build();
-
-        // 关键：启动后几秒内必须调用此方法，向系统“交差”
-        startForeground(1001, notification);
-
-
-        start();
-    }
-
-    public void start() {
-        PluginClient c = new PluginClient();
-        RegisterPayload rp = new RegisterPayload();
-        rp.name = "TestMusic";
-        rp.packageName = "com.test.music";
-
-
-        ActionsPayload ap = new ActionsPayload();
-
-        ActionSummary play = new ActionSummary();
-        play.actionId = "music.play";
-        play.name = "播放";
-        play.description = "执行设备的播放";
-
-
-        ActionSummary pause = new ActionSummary();
-        pause.actionId = "music.pause";
-        pause.name = "暂停";
-        pause.description = "执行设备的暂停动作";
-
-
-        ap.actions = Arrays.asList(play, pause);
-        c.setRegisterConfig(rp);
-        c.setActionsConfig(ap);
-
-        c.setPluginListener(new PluginListener() {
-            @Override
-            public void onRegisterSuccess(RegisterResultPayload result) {
-                Log.d(TAG, "注册端口号:" + result.configServer.port);
-                //start http server
-                RawHttpServer server = new RawHttpServer(result.configServer.port);
-                server.startServer();
-            }
-
-            @Override
-            public void onRegisterFailed(Throwable throwable) {
-
-            }
-
-            @Override
-            public void onActionsFailed(Throwable throwable) {
-
-            }
-
-            @Override
-            public void onActionsAck(ActionsResultPayload result) {
-                Log.d(TAG, "动作注册成功了");
-            }
-
-            @Override
-
-            public void onActionsUpdate(ActionsPayload actionsPayload) {
-
-            }
-
-
-            @Override
-            public void onDescribe(DescribePayload describe, DescribeResponder describeResponder) {
-                Log.d(TAG, "接受到数据查询方法:" + describe.actionId);
-                DescribeResultPayload resultPayload = new DescribeResultPayload();
-                resultPayload.actionId = describe.actionId;
-                resultPayload.success = true;
-                resultPayload.parameters = new ArrayList<>();
-
-
-                DescribeResultPayload.ParameterSpec spec1 = new DescribeResultPayload.ParameterSpec();
-                spec1.id = "deviceId";
-                spec1.name = "设备";
-                spec1.placeholder = "请选择设备";
-                spec1.required = true;
-                spec1.type = ParameterType.SELECT;
-                spec1.options = new DescribeResultPayload.OptionSpec();
-                spec1.options.searchable = false;
-                spec1.options.provider = OptionProvider.STATIC;
-                spec1.options.items = new ArrayList<>();
-                spec1.options.items.add(new Label("客厅播放器", "test01"));
-                spec1.options.items.add(new Label("卧室播放器", "test02"));
-
-
-                DescribeResultPayload.ParameterSpec spec2 = new DescribeResultPayload.ParameterSpec();
-                spec2.id = "title";
-                spec2.name = "歌曲名称";
-                spec2.placeholder = "输入歌曲名称";
-                spec2.required = true;
-                spec2.type = ParameterType.TEXT;
-                spec2.options = new DescribeResultPayload.OptionSpec();
-                spec2.options.searchable = false;
-                spec2.options.provider = OptionProvider.STATIC;
-
-
-                DescribeResultPayload.ParameterSpec spec3 = new DescribeResultPayload.ParameterSpec();
-                spec3.id = "in";
-                spec3.name = "设备";
-                spec3.placeholder = "输入源";
-                spec3.required = true;
-                spec3.type = ParameterType.SELECT;
-                spec3.options = new DescribeResultPayload.OptionSpec();
-                spec3.options.searchable = false;
-                spec3.options.provider = OptionProvider.REMOTE;
-                spec3.dependsOn = new ArrayList<>();
-                spec3.dependsOn.add("deviceId");
-
-                if ("music.play".equals(describe.actionId)) {
-                    resultPayload.parameters.add(spec1);
-                    resultPayload.parameters.add(spec2);
-                    resultPayload.parameters.add(spec3);
-                }
-
-                describeResponder.sendSuccess(resultPayload);
-            }
-
-            @Override
-            public void onCall(CallPayload call, CallResponder callResponder) {
-                if ("music.play".equals(call.actionId)) {
-                    AudioPlayerManager.getInstance().play();
-                    Intent intent = new Intent(MyApp.context, TestActivity.class);
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); // 必须！
-                    startActivity(intent);
-                } else if ("music.pause".equals(call.actionId)) {
-                    AudioPlayerManager.getInstance().pause();
-                }
-                callResponder.sendSuccess(null);
-            }
-
-            @Override
-            public void onOptions(GetOptionsPayload request, OptionsResponder optionsResponder) {
-                if ("music.play".equals(request.actionId)) {
-                    if ("in".equals(request.describeId)) {
-                        GetOptionsResultPayload result = new GetOptionsResultPayload();
-                        result.hasMore = false;
-                        result.nextCursor = "0";
-                        result.items = new ArrayList<>();
-                        result.items.add(new Label("qq音乐", "qq"));
-                        result.items.add(new Label("网易音乐", "163"));
-                        optionsResponder.sendSuccess(result);
-                    }
-                }
-            }
-        });
-
-        c.startAsync();
-
+    public void onDestroy() {
+        if (client != null) client.stop();
+        super.onDestroy();
     }
 
     @Nullable
     @Override
     public IBinder onBind(Intent intent) {
-
-
         return null;
     }
-
 }
 ```
 
-## PluginClient 详细说明
+With these three steps, your plugin can be discovered by LineOS and communicate with it.
+
+---
+
+## 3. Core Concepts & Communication Model
+
+### 3.1 Connection Lifecycle
+
+```
+startAsync()
+   │
+   ▼
+TCP connect (127.0.0.1:39001)
+   │
+   ▼
+REGISTER ─────────► LineOS validates packageName
+   ◄───────── REGISTER_RESULT (sessionId / sessionToken / configServer.port)
+   │
+   ▼
+ACTIONS ──────────► report action list
+   ◄───────── ACTIONS_RESULT (success / receivedCount)
+   │
+   ▼
+session ready ◄──── onRegisterSuccess fired
+   │
+   ▼
+heartbeat keep-alive (auto) + auto reconnect (re-registers and re-reports Actions on reconnect)
+```
+
+**Key points:**
+
+- `startAsync()` returns `CompletableFuture<Void>`, completing as soon as the connection is established; registration results are notified through the `onRegisterSuccess` / `onRegisterFailed` callbacks.
+- The SDK has built-in heartbeat and auto-reconnect. **After a successful reconnection, it automatically re-registers and re-reports Actions — no manual handling needed.**
+- `payload.configServer.port` in `onRegisterSuccess` is the HTTP debug port assigned by LineOS. If you want to provide a plugin debug page, start your HTTP server on this port.
+
+### 3.2 sessionToken Security
+
+`onRegisterSuccess` delivers a `sessionToken` — the identity credential for the current debug session. LineOS carries it when opening your debug page.
+
+> ⚠️ **You must validate the token's validity yourself**; do not blindly trust any request that carries a token.
+
+### 3.3 Threading Model
+
+All `PluginListener` callbacks run on the SDK's callback thread pool (not the Android main thread). **When you need to touch the UI, switch to the main thread yourself:**
 
 ```java
-    PluginClient client = new PluginClient();
-    //配置注册信息
-    RegisterPayload rp = new RegisterPayload();
-    rp.name = "Music"; //应用名称
-    rp.packageName = "com.ultrabar.music"; //建议包名
+new Handler(Looper.getMainLooper()).post(() -> {
+    // UI operations
+});
+```
 
+### 3.4 Session Uniqueness
 
-    //支持的动作
-    ActionSummary play = new ActionSummary();
-    play.actionId = "music.play";
-    play.name = "play music";
-    play.description = "play on a device";
-    
-    ActionSummary pause = new ActionSummary();
-    pause.actionId = "music.pause";
-    pause.name = "pause music";
-    pause.description = "pause a device";
-    
-    
-    ActionSummary stop = new ActionSummary();
-    stop.actionId = "music.stop";
-    stop.name = "stop all play";
-    stop.description = "stop all device  play";
+LineOS identifies a plugin session uniquely by `packageName`. Re-registering with the same `packageName` replaces the old connection.
 
+---
 
-    client.setActionsConfig(new ActionsPayload(Arrays.asList(play, pause, stop)));
-    client.setRegisterConfig(rp);
+## 4. Scenario Application Ability (Action Registration & Execution)
 
-    ExecutorService exec = Executors.newFixedThreadPool(4);
-    
-    client.setPluginListener(new PluginListener() {
-        @Override
-        public void onRegisterSuccess(RegisterResultPayload payload) {
-            // ============================================================
-            // 注册成功
-            //
-            // SDK 与主 App 完成注册后，会通过 payload 返回当前会话信息。
-            //
-            // configServer.port：
-            //     主 App 分配给当前插件的 HTTP 调试服务端口。
-            //
-            // 第三方 App 需要在该端口启动自己的 HTTP Server，
-            // 用于提供插件调试页面。
-            //
-            // 当主 App 打开插件调试页面时，会携带 sessionToken。
-            //
-            // sessionToken：
-            //     当前插件调试会话的身份凭证。
-            //
-            // 注意：
-            //     sessionToken 仅负责传递给第三方 App，
-            //     第三方 App 必须自行校验 Token 的合法性，
-            //     不要默认认为收到的 Token 一定可信。
-            //
-            // HTTP Server 建议在这里启动，并绑定到 payload.configServer.port。
-            // ============================================================
-    
-    
-            int httpPort = payload.configServer.port;
-            String sessionToken = payload.sessionToken;
-    
-            System.out.println("Register success: session=" + payload.sessionId+",port="+httpPort+",sessionToken=+sessionToken");
-        }
-    
-        @Override
-        public void onRegisterFailed(Throwable t) {
-            // 注册失败。
-            //
-            // 注册失败后表示当前插件暂时无法与主 App 正常通信，
-            // 此时不要启动依赖主 App 的 HTTP / Action 服务。
-            //
-            // 可以根据实际业务进行：
-            // 1. 记录错误日志
-            // 2. 提示用户
-            // 3. 等待 SDK 自动重连
-            // 4. 必要时重新初始化 Plugin Client
-    
-            System.err.println("Register failed: " + t.getMessage());
-        }
-    
-        @Override
-        public void onActionsFailed(Throwable t) {
-            System.err.println("Actions failed: " + t.getMessage());
-        }
-    
-        @Override
-        public void onActionsAck(ActionsResultPayload ack) {
-            // ============================================================
-            // Action 配置处理结果
-            //
-            // 当第三方 App 向主 App 发送 Action 配置后，
-            // 主 App 会返回处理结果。
-            //
-            // success：
-            //     主 App 是否成功接收/处理
-            //
-            // receivedCount：
-            //     主 App 实际接收到的 Action 数量
-            //
-            // 注意：
-            //     这是“Action 配置同步”的 ACK，
-            //     不是 onCall() 的 Action 执行结果。
-            // ============================================================
-    
-            System.out.println("Actions result: success=" + ack.success + " received=" + ack.receivedCount);
-        }
-    
-        @Override
-        public void onActionsUpdate(ActionsPayload update) {
-            int count = (update != null && update.actions != null) ? update.actions.size() : 0;
-            System.out.println("Actions update pushed: count=" + count);
-        }
-    
-    
-        @Override
-        public void onDescribe(DescribePayload payload, DescribeResponder responder) {
-    
-            // ============================================================
-            // Action 参数描述
-            //
-            // 主 App 在调用某个 Action 之前，会先通过 actionId 获取该 Action
-            // 的参数定义。
-            //
-            // 这里需要告诉主 App：
-            //   1. 这个 Action 需要哪些参数
-            //   2. 参数的 id / 名称 / 类型
-            //   3. 参数是否必填
-            //   4. 如果参数需要选择，选项由哪里提供
-            //
-            // 参数定义中的 id 非常重要：
-            // 后续 onCall() 收到的 payload.params 会使用这里定义的 id
-            // 作为参数 Key。
-            // ============================================================
-    
-    
-            DescribeResultPayload result = new DescribeResultPayload();
-            result.actionId = payload.actionId;
-            result.success = true;
-            if ("music.play".equals(payload.actionId)) { //获取播放动作的参数
-                DescribeResultPayload.ParameterSpec device = new DescribeResultPayload.ParameterSpec();
-                device.id = "deviceId";
-                device.name = "device";
-                device.required = true;
-                device.type = ParameterType.SELECT;
-                device.placeholder = "select a device";
-                DescribeResultPayload.OptionSpec options = new DescribeResultPayload.OptionSpec();
-                options.provider = OptionProvider.REMOTE;
-                options.searchable = true;
-                device.options = options;
-                result.parameters = Arrays.asList(device);
-            } else if ("music.pause".equals(payload.actionId)) { //pause 静态参数测试
-                DescribeResultPayload.ParameterSpec device = new DescribeResultPayload.ParameterSpec();
-                device.id = "deviceId2";
-                device.name = "device";
-                device.required = true;
-                device.type = ParameterType.SELECT;
-                device.placeholder = "select a device";
-                DescribeResultPayload.OptionSpec options = new DescribeResultPayload.OptionSpec();
-                options.provider = OptionProvider.STATIC;
-                options.searchable = true;
-                options.items = new ArrayList<>();
-                options.items.add(new Label("pause test 01", "pause_test_01"));
-                options.items.add(new Label("pause test 02", "pause_test_02"));
-                device.options = options;
-                result.parameters = Arrays.asList(device);
-            }
-    
-    
-            responder.sendSuccess(result);
-        }
-    
-    
-        @Override
-        public void onOptions(GetOptionsPayload payload, OptionsResponder responder) {
-            // ============================================================
-            // 动态参数选项
-            //
-            // 当 onDescribe() 中将参数的 OptionProvider 设置为 REMOTE 后，
-            // 主 App 会在需要展示该参数选项时调用这里。
-            //
-            // payload.actionId  -> 当前 Action
-            // payload.describeId -> 当前参数的 id
-            //
-            // 例如：
-            //   actionId  = music.play
-            //   describeId = deviceId
-            //
-            // 表示主 App 正在请求：
-            //   "请告诉我 music.play 的 deviceId 参数有哪些可选设备"
-            //
-            // 如果选项数量较多，可以通过 hasMore / nextCursor 实现分页。
-            // ============================================================
-    
-            GetOptionsResultPayload result = new GetOptionsResultPayload();
-            result.success = true;
-            result.hasMore = false;
-            result.nextCursor = null;
-    
-            if ("music.play".equals(payload.actionId)) { //动作id
-    
-                if ("deviceId".equals(payload.describeId)) { //参数id
-                    Label item = new Label();
-                    item.value = "sp00-1";
-                    item.label = "sony tv";
-                    Label item2 = new Label();
-                    item2.value = "sp00-2";
-                    item2.label = "sony amp";
-                    result.items = Arrays.asList(item, item2);
-                }
-            }
-    
-    
-            responder.sendSuccess(result);
-        }
-    
-    
-        @Override
-        public void onCall(CallPayload payload, CallResponder responder) {
-    
-            // ============================================================
-            // Action 执行, 解析出动作并执行最终返回 数据
-            //
-            // 当用户在主 App 中配置好 Action 并执行后，
-            // 主 App 会调用这里。
-            //
-            // payload.actionId
-            //     -> 要执行的 Action
-            //
-            // payload.params
-            //     -> 用户在 onDescribe() 定义的参数
-            //
-            // 注意：
-            // params 的 Key 必须与 onDescribe() 中
-            // ParameterSpec.id 保持一致。
-            //
-            // 例如 onDescribe()：
-            //
-            //     device.id = "deviceId";
-            //
-            // 那么这里必须通过：
-            //
-            //     params.get("deviceId");
-            //
-            // 获取用户选择的设备。
-            // ============================================================
-    
-    
-            String actionId = payload.actionId;
-            Map<String, Object> params = payload.params;
-            if ("music.play".equals(actionId)) {
-                // onDescribe DescribeResultPayload.ParameterSpec.id
-                String deviceId = (String) params.get("deviceId");
-                //todo 完成指定设备的播放操作
-    
-    
-            } else if ("music.pause".equals(actionId)) {
-                //onDescribe DescribeResultPayload.ParameterSpec.id
-                String deviceId2 = (String) params.get("deviceId2");
-                //todo 完成指定设备的暂停操作
-    
-            } else if ("music.stop".equals(actionId)) {
-                //todo 停止所有设备
-            }
-    
-            Map<String, Object> data = new HashMap<String, Object>();
-            data.put("actionId", payload.actionId);
-            data.put("status", "ok");
-    
-    
-            responder.sendSuccess(data);
-        }
-    });
+An Action is a "capability point" the plugin exposes to LineOS. The full chain has four steps:
 
-    client.startAsync().thenRun(new Runnable() {
-        @Override
-        public void run() {
-            System.out.println("Client started and will auto-register/send actions");
-        }
-    });
+```
+plugin reports actionId list ──► LineOS asks for parameter descriptions (onDescribe)
+   ──► (optional) LineOS pulls dynamic options (onOptions) ──► after user trigger LineOS calls back to execute (onCall)
+```
 
-    Thread.sleep(30_000);
-    client.stop();
-    exec.shutdownNow();
+### 4.1 Register Actions
+
+```java
+ActionSummary play = new ActionSummary();
+play.actionId = "music.play";        // globally unique ID, recommended "domain.verb" format
+play.name = "Play";                  // LineOS display name
+play.description = "Play music on the specified device";
+
+client.setActionsConfig(new ActionsPayload(Arrays.asList(play, pause, stop)));
+```
+
+When the action list changes at runtime, call:
+
+```java
+client.updateActions(new ActionsPayload(newList));
+```
+
+The report result is notified via `onActionsAck(ActionsResultPayload ack)`:
+
+```java
+@Override
+public void onActionsAck(ActionsResultPayload ack) {
+    // ack.success        — whether LineOS received it successfully
+    // ack.receivedCount  — actual number of actions received
+    // note: this is the "config sync" ACK, not the onCall execution result
 }
-
 ```
 
-动作列表变化时调用 `client.updateActions(new ActionsPayload(...))`。
+### 4.2 Parameter Description onDescribe
 
-## PluginServer（主 App）
-
-会话按注册时的 `packageName` 唯一；同一 `packageName` 再次注册会顶掉旧连接。只有注册回调返回 `success == true` 才会创建 `PluginSession`。
+Before invoking an Action, LineOS first obtains the parameters the action needs via `onDescribe` (used to render the configuration UI):
 
 ```java
-final PluginServer server = new PluginServer(39001);
+@Override
+public void onDescribe(DescribePayload payload, DescribeResponder responder) {
+    DescribeResultPayload result = new DescribeResultPayload();
+    result.actionId = payload.actionId;
+    result.success = true;
+    result.parameters = new ArrayList<>();
 
-server.setRegisterHandler(new PluginRegisterHandler() {
-    @Override
-    public RegisterResultPayload handleRegister(RegisterPayload request) {
-        RegisterResultPayload result = new RegisterResultPayload();
-        if (request.packageName == null) {
-            result.success = false;
-            result.error = ErrorInfo.of("REJECTED", "packageName required", false, null);
-            return result;
-        }
-        result.success = true;
-        result.configServer = new ConfigServer();
-        result.configServer.host = "127.0.0.1";
-        result.configServer.port = 8123;
-        // sessionId / sessionToken / heartbeat 不填时服务端会补默认值
-        return result;
+    if ("music.play".equals(payload.actionId)) {
+        // parameter 1: device selection (static options)
+        DescribeResultPayload.ParameterSpec device = new DescribeResultPayload.ParameterSpec();
+        device.id = "deviceId";            // ★ key: use this id to get the value in onCall
+        device.name = "Device";
+        device.placeholder = "Select a device";
+        device.required = true;
+        device.type = ParameterType.SELECT;
+
+        DescribeResultPayload.OptionSpec deviceOpts = new DescribeResultPayload.OptionSpec();
+        deviceOpts.provider = OptionProvider.STATIC;   // static options, delivered with the description
+        deviceOpts.searchable = false;
+        deviceOpts.items = new ArrayList<>();
+        deviceOpts.items.add(new Label("Living room player", "test01"));
+        deviceOpts.items.add(new Label("Bedroom player", "test02"));
+        device.options = deviceOpts;
+
+        // parameter 2: song title (text input)
+        DescribeResultPayload.ParameterSpec title = new DescribeResultPayload.ParameterSpec();
+        title.id = "title";
+        title.name = "Song title";
+        title.placeholder = "Enter song title";
+        title.required = true;
+        title.type = ParameterType.TEXT;
+
+        // parameter 3: input source (dynamic options, depends on deviceId)
+        DescribeResultPayload.ParameterSpec source = new DescribeResultPayload.ParameterSpec();
+        source.id = "source";
+        source.name = "Source";
+        source.required = true;
+        source.type = ParameterType.SELECT;
+        DescribeResultPayload.OptionSpec sourceOpts = new DescribeResultPayload.OptionSpec();
+        sourceOpts.provider = OptionProvider.REMOTE;   // dynamic options, triggers onOptions callback
+        sourceOpts.searchable = false;
+        source.options = sourceOpts;
+        source.dependsOn = new ArrayList<>();
+        source.dependsOn.add("deviceId");              // dependency: re-pull when deviceId changes
+
+        result.parameters.add(device);
+        result.parameters.add(title);
+        result.parameters.add(source);
     }
-});
 
-server.setListener(new PluginServerListener() {
-    @Override
-    public void onRegistered(PluginSession session) { }
-
-    @Override
-    public void onActionsUpdated(PluginSession session) { }
-
-    @Override
-    public void onUnregistered(PluginSession session) { }
-});
-
-server.start();
-
-// 查询会话
-PluginSession session = server.getSession("com.ultrabar.music");
-
-// 调用插件动作（需该会话已上报对应 actionId）
-Map<String, Object> params = new HashMap<String, Object>();
-params.put("deviceId", "sp00-1");
-server.call("music.play", params)
-        .thenAccept(result -> { /* CallResultPayload */ })
-        .exceptionally(err -> { err.printStackTrace(); return null; });
-
-// 多个插件可能有同名 actionId 时带上 packageName
-server.call("com.ultrabar.music", "music.play", params);
-
-// server.stop();
+    responder.sendSuccess(result);
+}
 ```
 
-## A2UI 功能（A2UI v0.9 协议）
+### 4.3 Dynamic Options onOptions
 
-A2UI 基于 **[A2UI v0.9 协议](https://a2ui.org/specification/v0.9-a2ui/)**，是插件（Agent）↔ 主 App（Renderer）之间的生成式 UI 通道：
-
-- **插件 → 主 App**：上报 A2UI envelope 消息（创建 surface、更新组件树、更新数据模型），主 App 缓存到 `PluginSession` 并通过 `PluginServerListener` 回调通知
-- **主 App → 插件**：用户在 UI 上的交互以 action 形式回传给插件处理
-
-> ⚠️ **协议版本**：本功能传输的所有 JSON 均为 **A2UI v0.9** 格式，每条 envelope 必须带 `"version": "v0.9"` 字段。**不要**使用 v0.8 的 `beginRendering` / `surfaceUpdate` / `dataModelUpdate` 消息名。
-
-### A2UI v0.9 消息类型对照
-
-| Envelope key       | 方向      | 对应 API                      | 用途            |
-| ------------------ | ------- | --------------------------- | ------------- |
-| `createSurface`    | 插件→主App | `refreshA2UI`            | 创建 UI surface |
-| `updateComponents` | 插件→主App | `refreshA2UI`            | 定义/更新组件树      |
-| `updateDataModel`  | 插件→主App | `sendA2UIUpdateDataModel` | 写入/更新数据模型     |
-| `deleteSurface`    | 插件→主App | `refreshA2UI`            | 删除 surface    |
-| `action`           | 主App→插件 | `callA2UIAction`          | 用户交互回传        |
-
-### 1. 启用 A2UI
-
-插件注册时声明 `supportsA2UI = true`（**必须**，否则主 App 调用会被服务端拒绝）：
+LineOS only calls back this method to fetch options when a parameter declares `OptionProvider.REMOTE`:
 
 ```java
-RegisterPayload reg = new RegisterPayload();
-reg.packageName = "com.example.plugin";
-reg.name = "示例插件";
-reg.versionCode = 1;
-reg.versionName = "1.0.0";
-reg.protocolVersion = 1;
-reg.supportsA2UI = true;   // ★ 关键开关
-// ... 其他字段
-```
+@Override
+public void onOptions(GetOptionsPayload payload, OptionsResponder responder) {
+    GetOptionsResultPayload result = new GetOptionsResultPayload();
+    result.success = true;
+    result.hasMore = false;
+    result.nextCursor = null;
 
-### 2. 插件端：刷新已存在视图（refreshA2UI）
-
-`refreshA2UI(A2UIRefreshItem item)` 发送**完整的 A2UI v0.9 envelope**，用于刷新已存在视图的 `createSurface` / `updateComponents` / `deleteSurface`。每个 `A2UIRefreshItem` 包含 `instanceId`（实例 id）、`layoutId`（布局 id）和 `ui`（A2UI 消息列表，JSON 数组；构造参数传 JSON 字符串时 SDK 内部自动解析）。
-
-> 另有 `refreshA2UI(List<A2UIRefreshItem> items)` 重载可批量刷新多个视图。
-> 卡片首次定义由服务端 `queryA2UIData` 拉取，插件在 `onA2UIDataRequest` 返回完整 `A2UIItem`（layoutId / name / cardId / ui / args）。
-
-**2.1 创建视图 伪代码**：
-
-```Java
-String ui = {  
-            "name": "Focus Card",
-            "description": "带按钮交互与数据绑定的任务卡片。",
-            "messages": [
-               {
-                  "createSurface": {
-                     "catalogId": "https://a2ui.org/specification/v0_9/standard_catalog.json",
-                     "sendDataModel": true,
-                     "surfaceId": "example-focus"
-                  },
-                  "version": "v0.9"
-               },
-               {
-                  "version": "v0.9",
-                  "updateComponents": {
-                     "components": [
-                        {
-                           "component": "Card",
-                           "styles": {
-                              "border-radius": "120px",
-                              "filter": "drop-shadow(0px 6px 24px 0px rgba(0, 0, 0, 0.08))",
-                              "padding": "0px",
-                              "width": "100%",
-                              "height": "100%"
-                           },
-                           "id": "root",
-                           "child": "card-stack"
-                        },
-                        {
-                           "component": "Column",
-                           "children": [
-                              "bg-image",
-                              "content"
-                           ],
-                           "styles": {
-                              "border-radius": "60px",
-                              "overflow": "hidden",
-                              "width": "100%",
-                              "position": "relative",
-                              "height": "100%"
-                           },
-                           "id": "card-stack"
-                        },
-                        {
-                           "fit": "cover",
-                           "component": "Image",
-                           "styles": {
-                              "top": "0px",
-                              "left": "0px",
-                              "width": "100%",
-                              "position": "absolute",
-                              "height": "100%"
-                           },
-                           "id": "bg-image",
-                           "url": "https://sslcdn.lifex360.com/icon/2026/07/7abvzteswetomhnej2eq.png"
-                        },
-                        {
-                           "component": "Column",
-                           "children": [
-                              "eyebrow",
-                              "headline",
-                              "body",
-                              "divider",
-                              "footer"
-                           ],
-                           "styles": {
-                              "padding": "24px",
-                              "z-index": "1",
-                              "gap": "14px",
-                              "position": "relative"
-                           },
-                           "id": "content",
-                           "align": "stretch"
-                        },
-                        {
-                           "component": "Text",
-                           "styles": {
-                              "margin-left": "20px",
-                              "color": "#FFFFFF",
-                              "font-weight": "bold",
-                              "font-size": "38px",
-                              "line-height": "38px"
-                           },
-                           "id": "eyebrow",
-                           "text": {
-                              "path": "/eyebrow"
-                           }
-                        },
-                        {
-                           "component": "Text",
-                           "styles": {
-                              "color": "#FFFFFF",
-                              "font-weight": "bold",
-                              "font-size": "38px",
-                              "line-height": "48px"
-                           },
-                           "id": "headline",
-                           "text": {
-                              "path": "/headline"
-                           }
-                        },
-                        {
-                           "component": "Text",
-                           "styles": {
-                              "color": "#FFFFFF",
-                              "font-size": "26px",
-                              "line-height": "38px"
-                           },
-                           "id": "body",
-                           "text": {
-                              "path": "/body"
-                           }
-                        },
-                        {
-                           "component": "Divider",
-                           "styles": {
-                              "color": "rgba(255, 255, 255, 0.3)",
-                              "height": "1px"
-                           },
-                           "id": "divider"
-                        },
-                        {
-                           "component": "Row",
-                           "children": [
-                              "progress",
-                              "button"
-                           ],
-                           "justify": "spaceBetween",
-                           "id": "footer",
-                           "align": "center"
-                        },
-                        {
-                           "component": "Text",
-                           "styles": {
-                              "color": "#FFFFFF",
-                              "font-size": "26px",
-                              "line-height": "34px"
-                           },
-                           "id": "progress",
-                           "text": {
-                              "path": "/progress"
-                           }
-                        },
-                        {
-                           "component": "Button",
-                           "action": {
-                              "functionCall": {
-                                 "call": "handleWidgetAction",
-                                 "args": {
-                                    "value": "打卡成功！"
-                                 }
-                              }
-                           },
-                           "styles": {
-                              "border-radius": "12px",
-                              "background-color": "#1A73E8",
-                              "padding": "12px 24px",
-                              "width": "220px",
-                              ":active": {
-                                 "background-color": "#1557B0",
-                                 "transform": "scale(0.97)",
-                                 "opacity": "0.85"
-                              },
-                              "height": "64px"
-                           },
-                           "id": "button",
-                           "child": "button-label"
-                        },
-                        {
-                           "component": "Text",
-                           "styles": {
-                              "color": "#FFFFFF",
-                              "font-weight": "bold",
-                              "font-size": "26px",
-                              "line-height": "34px",
-                              "text-align": "center"
-                           },
-                           "id": "button-label",
-                           "text": {
-                              "path": "/buttonLabel"
-                           }
-                        }
-                     ],
-                     "surfaceId": "example-focus"
-                  }
-               },
-               {
-                  "updateDataModel": {
-                     "surfaceId": "example-focus",
-                     "value": {
-                        "eyebrow": "今日重点Change",
-                        "progress": "1 / 3",
-                        "body": "通过 RecyclerView + A2UI，把服务端下发的 JSON 直接渲染成原生卡片。",
-                        "headline": "完成 A2UI 接入",
-                        "buttonLabel": "打卡"
-                     }
-                  },
-                  "version": "v0.9"
-               }
-            ]
-         }
-client.refreshA2UI(new A2UIRefreshItem("inst-example", "example-focus", ui));
-```
-
- 建议在 onRegisterSuccess 回调里调用  refreshA2UI 上报当前ui状态
-
-**2.2 更新视图状态值 伪代码**：
-
-```Java
-String update = {   
-            "version": "v0.9",
-            "updateDataModel": {
-                "surfaceId": "example-focus",
-                "value": {
-                    "eyebrow": "今日重点",
-                    "headline": "完成 A2UI 接入",
-                    "body": "通过 RecyclerView + A2UI，把服务端下发的 JSON 直接渲染成原生卡片。",
-                    "progress": "1 / 3",
-                    "buttonLabel": "打PC卡"
-                }
-            }
- }
-
- client.sendA2UIUpdateDataModel("example-focus", update);
-
-```
-
-<br />
-
-**2.3 事件回传 参考代码**
-
-```Java
-{
-                           "component": "Button",
-                           "action": {
-                              "functionCall": {
-                                 "call": "handleWidgetAction",
-                                 "args": {
-                                    "value": "打卡成功！"
-                                 }
-                              }
-                           },
-                          
-                           "id": "button",
-                           "child": "button-label"
-                        },
-
- functionCall 对象里的call属性取值 handleWidgetAction  点击时会把args 参数透传到 PluginListener.onA2UIActionCall 回调
-```
-
-<br />
-
-**2.4 服务端主动拉取数据（queryA2UIData）**
-
-除了插件主动 `refreshA2UI` 推送，主 App 也可以主动拉取插件当前的 a2ui 数据：
-
-```Java
-// 主 App 端：发起拉取
-server.queryA2UIData("com.example.plugin").thenAccept(result -> {
-    if (result.success) {
-        for (A2UIItem item : result.items) {
-            // item.layoutId / item.ui
-        }
+    if ("music.play".equals(payload.actionId) && "source".equals(payload.describeId)) {
+        result.items = new ArrayList<>();
+        result.items.add(new Label("QQ Music", "qq"));
+        result.items.add(new Label("NetEase Music", "163"));
     }
-});
+
+    responder.sendSuccess(result);
+}
 ```
 
-```Java
-// 插件端：实现回调返回当前数据
-client.setPluginListener(new PluginListener() {
-    @Override
-    public List<A2UIItem> onA2UIDataRequest() {
-        List<A2UIItem> items = new ArrayList<>();
-        items.add(new A2UIItem("example-focus", currentUiJson));
-        return items;   // 返回 null 或空列表表示无数据
-    }
-});
-```
+- `payload.actionId`: the current Action; `payload.describeId`: the current parameter id.
+- For large option lists, use `hasMore = true` + `nextCursor` for pagination; LineOS passes `cursor` in the request when paging.
 
-拉取成功后，服务端会自动将数据缓存到 `PluginSession`，调用方从返回值的 `items` 取数据。
+### 4.4 Execution Callback onCall
 
-<br />
-
-<br />
-
-### DOT\_KEY 模块注册 参考代码
+Called back here after a user triggers the Action in LineOS:
 
 ```java
-PluginClient client = new PluginClient();
-//注册模块 可变参数 传入需要的模块数据
-client.subscribeModuleEvents(ModuleType.DOT_KEY,ModuleType.KNOB_KEY);
-client.setPluginListener(new PluginListener(){
+@Override
+public void onCall(CallPayload payload, CallResponder responder) {
+    Map<String, Object> params = payload.params;
 
-    /**
-     * 模块事件回调函数
-     */
-    @Override
-    public void onModuleEvent(ModuleEventPayload payload, ModuleEventResponder responder) {
-        //在前台就消费该事件
-        if (ModuleEventPayload.APP_STATE_FOREGROUND.equals(payload.appState)) {
-            responder.consume(); //消费事件
-        }else{
-            responder.ignore(null); //忽略该事件
-        }
-        
-        Log.w(TAG, String.format("onModuleEvent 模块事件:%s", JSON.toJSON(payload)));
+    if ("music.play".equals(payload.actionId)) {
+        String deviceId = (String) params.get("deviceId"); // key must match ParameterSpec.id
+        String title = (String) params.get("title");
+        String source = (String) params.get("source");
+        // TODO: execute the real playback logic
     }
-    
+
+    // return value (optional), LineOS receives this Map
+    Map<String, Object> data = new HashMap<>();
+    data.put("status", "ok");
+    responder.sendSuccess(data);
+
+    // on failure:
+    // responder.sendError("PLAY_FAILED", "Device offline", false);
+}
+```
+
+> ⚠️ **The keys in `params` must exactly match the `ParameterSpec.id` defined in `onDescribe`** — this is an implicit contract between the two sides.
+
+---
+
+## 5. A2UI Generative UI
+
+A2UI lets the plugin describe the UI in JSON, rendered by LineOS as a native interface:
+
+- **Plugin → LineOS**: report UI structure (surface creation / component tree), update data model
+- **LineOS → Plugin**: user interactions (button clicks, etc.) passed back as actions
+
+> 📖 **Important: protocol and rendering details follow the original library documentation**
+>
+> This SDK (ultrabarIntegrated) only handles the **A2UI message transport channel between the plugin and LineOS**. The A2UI JSON format specification, component catalog, data binding syntax, and Action semantics are implemented and defined by the rendering library **[a2ui-android](https://github.com/yaobin-kid/a2ui-android)** integrated into LineOS.
+>
+> **Before writing A2UI JSON, be sure to read the original library docs: [https://github.com/yaobin-kid/a2ui-android](https://github.com/yaobin-kid/a2ui-android)**
+>
+> - Protocol version: **A2UI v0.9.1**
+> - Official spec: [A2UI v0.9.1 Specification](https://a2ui.org/specification/v0.9-a2ui/)
+> - Basic Catalog contains **18 component types**: layout (Row, Column, List, Card, Tabs, Modal), display (Text, Image, Icon, Video, AudioPlayer, Divider), input (Button, TextField, CheckBox, ChoicePicker, Slider, DateTimeInput)
+
+> ⚠️ **Protocol version requirement**: All A2UI JSON must be in **v0.9.1** format, and every envelope must carry the `"version": "v0.9.1"` field. Do not use v0.8 message names such as `beginRendering` / `surfaceUpdate` / `dataModelUpdate`.
+
+### 5.1 Enable A2UI
+
+Declare `supportsA2UI = true` during registration:
+
+```java
+RegisterPayload rp = new RegisterPayload();
+rp.name = "Example Plugin";
+rp.packageName = "com.example.music";
+rp.supportsA2UI = true;   // ★ the key switch
+client.setRegisterConfig(rp);
+```
+
+**Consequence of not declaring:** LineOS calls to `callA2UIAction` / `queryA2UIData` / `notifyA2UIRender` will be rejected by the server; but the plugin's own active data reporting to LineOS is unaffected.
+
+### 5.2 A2UI Message Type Reference
+
+| Envelope key | Direction | SDK API | Purpose |
+| ------------ | --------- | ------- | ------- |
+| `createSurface` | Plugin→LineOS | `refreshA2UI` | Create a UI surface |
+| `updateComponents` | Plugin→LineOS | `refreshA2UI` | Define / update component tree |
+| `updateDataModel` | Plugin→LineOS | `sendA2UIUpdateDataModel` | Write / update / delete data model |
+| `deleteSurface` | Plugin→LineOS | `refreshA2UI` | Delete a surface |
+| `action` (event) | LineOS→Plugin | callback `onA2UIActionCall` | User interaction callback |
+| Render notification | LineOS→Plugin | callback `onA2UIRender` | Card first-render / refresh notification |
+
+### 5.3 Refresh an Existing View refreshA2UI
+
+`refreshA2UI` is used to refresh an **already existing** A2UI view: locate the rendered view instance by `instanceId + layoutId`, and replace its content with new `ui` data.
+(The card's initial definition is pulled by the server-side `queryA2UIData`, and the plugin returns the full `A2UIItem` in `onA2UIDataRequest` — see §5.4.)
+
+```java
+// A2UIRefreshItem: instanceId (instance ID) + layoutId (layout ID) + ui (A2UI message list)
+// All 3 parameters must be provided at construction; ui is a JSON array (List<Map<String, Object>>):
+//   [{createSurface...}, {updateComponents...}, {updateDataModel}...]
+// ui supports overloads: pass a structured array directly, or a JSON string parsed by the SDK
+// (a single JSON object string is also auto-wrapped into a single-element array)
+String ui = "["
+    + "{\"version\":\"v0.9.1\",\"updateComponents\":{"
+    + "   \"surfaceId\":\"example-focus\","
+    + "   \"components\":["
+    + "     {\"id\":\"root\",\"component\":\"Card\",\"child\":\"content\"},"
+    + "     {\"id\":\"content\",\"component\":\"Text\","
+    + "      \"text\":{\"path\":\"/headline\"},\"variant\":\"h3\"}"
+    + "   ]}}"
+    + "]";
+
+// Approach 1: string (auto-parsed to JSON array internally)
+client.refreshA2UI(new A2UIRefreshItem("inst-example", "example-focus", ui))
+      .thenAccept(ack -> Log.d(TAG, "Refresh result: " + ack.success));
+
+// Approach 2: build a structured array directly (recommended, avoids string concatenation errors)
+Map<String, Object> updateComponents = new HashMap<>();
+// ... fill in the A2UI message structure
+client.refreshA2UI(new A2UIRefreshItem("inst-example", "example-focus", uiList));
+
+// batch-refresh multiple views:
+// client.refreshA2UI(Arrays.asList(item1, item2));
+```
+
+After receiving it, the server triggers the `PluginServerListener.onA2UIRefresh(session, payload)` callback; refresh is a local content replacement and **does not** overwrite the full card definition cached in `PluginSession` (`a2uiData`).
+
+**Writing notes (see the original library docs for details):**
+
+- The root component ID **must be `root`**; components reference each other by ID (e.g. `Card.child = "content"`)
+- `catalogId` uses the v0.9.1 Basic Catalog: `https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json`
+- `createSurface.theme.primaryColor` is the v0.9.1 theme field (`#RRGGBB` / `#AARRGGBB`), applied to Icon, Button, Tabs, and the selected/focused state of input controls; defaults to `#3F51B5`
+- `createSurface.sendDataModel = true` means the whole dataModel snapshot is carried back on interaction
+
+**Recommended timing:** Report the current UI snapshot in the `onRegisterSuccess` callback to ensure LineOS gets the latest state.
+
+### 5.4 Data Binding (Overview)
+
+Each Surface internally maintains a JSON object `dataModel`. A component's dynamic properties are bound to dataModel fields via `{ "path": "/xxx" }`, and bound components automatically re-render after `updateDataModel`.
+
+**path follows [RFC 6901 JSON Pointer](https://tools.ietf.org/html/rfc6901):**
+
+| Expression | Meaning |
+| ---------- | ------- |
+| `"/message"` | `message` field of the root object |
+| `"/user/name"` | `name` field under the `user` object |
+| `"/items/0/title"` | `title` of item 0 in the `items` array |
+| `"/items/-"` | Append position at the end of the array (write only) |
+
+Escaping rules: write `~` as `~0`, `/` as `~1`.
+
+**Two binding notations (note the usage distinction):**
+
+| Notation | Form | Applicable location |
+| -------- | ---- | ------------------- |
+| Object form | `{ "path": "/form/email" }` | Component properties (`Text.text`, `Image.url`, `Slider.value`, etc.) |
+| String shorthand | `"#/form/email"` | **Only** in `action.event.context` and `action.functionCall.args` |
+
+**List dynamic rendering:** `Row`/`Column`/`List`'s `children` supports `{ "path": "/arrayPath", "componentId": "templateComponentId" }`; the engine iterates the array and generates a template instance for each item; inside the template component you can write **relative paths** (without `/`), which are automatically prepended to the current array item path.
+
+> 📖 See the original library docs "[Data Binding](https://github.com/yaobin-kid/a2ui-android#4-数据绑定data-model-binding)" chapter for full details.
+
+### 5.5 Update Data sendA2UIUpdateDataModel
+
+When the UI structure is unchanged and only the bound data needs updating, you don't need to resend the whole envelope. The `updateDataModel` message body has three fields: `surfaceId` (required), `path` (optional), `value` (optional), corresponding to three usages.
+
+Method signature: `sendA2UIUpdateDataModel(instanceId, layoutId, dataModel)`, with an overload taking `incremental` (defaults to `true` for incremental merge, `false` for full replace):
+
+```java
+// Usage 1: no path, value is an object → fully replace dataModel
+String full = "{\"version\":\"v0.9.1\",\"updateDataModel\":{"
+    + "\"surfaceId\":\"example-focus\","
+    + "\"value\":{\"headline\":\"New title\",\"progress\":\"2 / 3\"}"
+    + "}}";
+client.sendA2UIUpdateDataModel("inst-example", "example-focus", full);
+
+// Usage 2: path + value → update only the specified path (intermediate paths are created if missing)
+String partial = "{\"version\":\"v0.9.1\",\"updateDataModel\":{"
+    + "\"surfaceId\":\"example-focus\","
+    + "\"path\":\"/progress\",\"value\":\"3 / 3\"}}";
+client.sendA2UIUpdateDataModel("inst-example", "example-focus", partial);
+
+// append an element to an array (path uses /items/-):
+// "{\"path\":\"/items/-\",\"value\":{\"title\":\"New task\"}}"
+
+// Usage 3: path present but no value → delete that path
+String del = "{\"version\":\"v0.9.1\",\"updateDataModel\":{"
+    + "\"surfaceId\":\"example-focus\",\"path\":\"/progress\"}}";
+client.sendA2UIUpdateDataModel("inst-example", "example-focus", del);
+
+// full replace (do not merge old data):
+// client.sendA2UIUpdateDataModel("inst-example", "example-focus", full, false);
+```
+
+**Check the result:** In the return value `A2UIUpdateDataModelResultPayload`, `success=false` means LineOS rejected the update — the plugin side should inspect the ack rather than blindly assume success:
+
+```java
+client.sendA2UIUpdateDataModel("inst-example", "example-focus", update).thenAccept(ack -> {
+    if (!ack.success) {
+        Log.e(TAG, "Data update rejected by LineOS: " + (ack.error != null ? ack.error.message : "unknown"));
+    }
 });
 ```
 
-#### DOT KEY 模块 payload 数据格式
+### 5.6 Event Callback onA2UIActionCall
+
+A2UI component `action` has **three forms**, and only the `event` form is passed back to the plugin:
+
+| Form | Trigger component | Executor | Passed to plugin |
+| ---- | ----------------- | -------- | ---------------- |
+| `event` | Button / Modal trigger | LineOS → **forwarded to the plugin** | ✅ goes through `onA2UIActionCall` |
+| `functionCall` | Button / any component | Surface built-in / registered functions (e.g. `formatString`, `formatCurrency`) | ❌ executed internally in the renderer |
+| `input` | TextField / CheckBox / Slider and other input controls | Inside the Surface (written back to dataModel) | ❌ auto-written back to dataModel |
+
+**To receive user interactions, the plugin must use the `event` form:**
 
 ```json
 {
-    "appState": "background", // none 无状态， background 当前程序在后台， foreground 程序在前天
-    "module": "DOT_KEY",  //模块类型
+  "id": "submit",
+  "component": "Button",
+  "variant": "filled",
+  "child": "submitText",
+  "action": {
+    "event": {
+      "name": "submitForm",
+      "context": {
+        "email": "#/form/email",
+        "agreed": "#/form/agreed"
+      }
+    }
+  }
+}
+```
+
+**Field mapping (event → A2UIActionCallPayload):**
+
+| A2UI event field | Plugin-side payload field | Description |
+| ---------------- | ------------------------- | ----------- |
+| `event.name` | `payload.actionName` | event name, e.g. `"submitForm"` |
+| `event.context` | `payload.context` | `Map<String, Object>`; the `#/path` references have already been **replaced with actual dataModel values**, no need to parse again |
+| `surfaceId` | `payload.layoutId` | the layout id of the event source |
+| — | `payload.instanceId` | the card instance id of the event source |
+| — | `payload.cardId` | the card id of the event source |
+
+Plugin-side reception:
+
+```java
+@Override
+public void onA2UIActionCall(A2UIActionCallPayload payload, A2UIActionCallResponder responder) {
+    String actionName = payload.actionName;          // event.name, e.g. "submitForm"
+    Map<String, Object> context = payload.context;   // event.context (#/path already resolved to actual values)
+    String instanceId = payload.instanceId;          // source card instance
+    String layoutId = payload.layoutId;              // source surfaceId
+
+    if ("submitForm".equals(actionName)) {
+        String email = context == null ? null : (String) context.get("email");
+        // TODO: handle the interaction
+
+        Map<String, Object> reply = new HashMap<>();
+        reply.put("handled", true);
+        responder.sendSuccess(reply);
+
+        // after handling you typically want to refresh the UI:
+        // client.sendA2UIUpdateDataModel(instanceId, layoutId, updateJson);
+        return;
+    }
+
+    // unrecognized action: return NO_HANDLER, LineOS can fall back
+    responder.sendError("NO_HANDLER", "no handler for " + actionName, false);
+}
+```
+
+> 📖 For the full semantics of the three action forms, the list of built-in functions, and custom function registration, see the original library docs "[Action Usage](https://github.com/yaobin-kid/a2ui-android#34-action-用法button-交互)" chapter.
+
+### 5.7 LineOS Active Pull onA2UIDataRequest
+
+Besides the plugin actively pushing, LineOS also actively pulls the plugin's current A2UI data (e.g. automatically once after a successful registration). Implement this callback to return the current snapshot:
+
+```java
+@Override
+public List<A2UIItem> onA2UIDataRequest() {
+    List<A2UIItem> items = new ArrayList<>();
+    // A2UIItem 4 required params: layoutId / cardId / name / ui
+    items.add(new A2UIItem("example-focus", "card-example", "Example", currentUiJson));
+    return items;   // return null or empty list for no data
+}
+```
+
+> 📌 After a successful pull, LineOS automatically caches the data into the plugin session. If this callback is not implemented, it defaults to returning an empty list.
+
+### 5.8 Card Parameter Schema (args)
+
+`A2UIItem.args` declares which fields the user can configure and what controls render them. Each of the 6 types has its **own dedicated Builder** — you can only set that type's own fields (compile-time isolation, no cross-setting):
+
+| Type | Builder | Settable |
+| ---- | ------- | -------- |
+| `int` | `intArg()` | `label` `required` `defaultValue(int)` `min(int)` `max(int)` |
+| `float` | `floatArg()` | `label` `required` `defaultValue(double)` `min(double)` `max(double)` |
+| `bool` | `boolArg()` | `label` `required` `defaultValue(boolean)` |
+| `string` | `stringArg()` | `label` `required` `defaultValue(String)` |
+| `select` | `selectArg()` | `label` `required` `defaultValue(String)` `option(value)` / `option(value, label)` |
+| `object` | `objectArg()` | `label` `required` `property(name, A2UIArgSpec)` (recursive nesting) |
+
+```java
+A2UIArgs args = A2UIArgs.create()
+        .arg("title", A2UIArgSpec.stringArg().label("Title").defaultValue("Params demo").build())
+        .arg("count", A2UIArgSpec.intArg().label("Count").defaultValue(3).min(1).max(99).build())
+        .arg("level", A2UIArgSpec.selectArg().label("Level").defaultValue("normal")
+                .option("low", "Low").option("normal", "Normal").build())
+        .arg("headers", A2UIArgSpec.objectArg().label("Nested param group")
+                .property("retries", A2UIArgSpec.intArg().defaultValue(3).max(10).build())
+                .build());
+
+// A2UIItem for onA2UIDataRequest query response (with args schema)
+new A2UIItem("example-focus", "card-example", "Example", ui, args);
+```
+
+**Dynamic schema:** When parameters are decided in real time by the plugin, declare `dynamic + schemaGetter`; LineOS pulls the parameters before rendering the form, and the plugin returns `A2UIArgs` directly in `PluginListener.onA2UIArgsSchemaRequest(schemaGetter)`:
+
+```java
+// plugin declares: dynamic parameters
+A2UIArgs args = A2UIArgs.dynamic("schema.argsdemo");
+
+// plugin side: respond to the pull, generate A2UIArgs in real time
+@Override
+public A2UIArgs onA2UIArgsSchemaRequest(String schemaGetter) {
+    return A2UIArgs.create()
+            .arg("fieldA", A2UIArgSpec.stringArg().label("Field A").defaultValue("v1").build())
+            .arg("fieldB", A2UIArgSpec.intArg().label("Field B").min(1).max(100).build());
+    // returning null means no configurable parameters; the server normalizes it to an empty A2UIArgs
+}
+```
+
+Static fields and dynamic declarations can coexist: static fields render first, and dynamic fields are merged and appended from the schema returned by the getter.
+
+### 5.9 Render Notification onA2UIRender
+
+LineOS actively notifies the plugin (`PluginServer.notifyA2UIRender`) when a card is **first rendered** and **refresh-rendered**; the plugin receives it in `PluginListener.onA2UIRender`:
+
+```java
+@Override
+public void onA2UIRender(A2UIRenderPayload payload, A2UIRenderResponder responder) {
+    // payload.instanceId  card instance id
+    // payload.layoutId    layout id
+    // payload.cardId      card id
+    // payload.args        args parameter values effective for this render (Map, may be null)
+    // payload.stage       FIRST_RENDER first render / REFRESH refresh render
+
+    if (payload.stage == A2UIRenderStage.FIRST_RENDER) {
+        // first render: pull initial data on demand, refresh content, etc.
+    }
+
+    responder.sendSuccess();
+}
+```
+
+Server-side call:
+
+```java
+server.notifyA2UIRender(packageName, instanceId, layoutId, cardId, argsMap,
+        A2UIRenderStage.FIRST_RENDER);
+```
+
+> 📌 If this callback is not implemented, it defaults to returning `NO_HANDLER`; the plugin must declare `supportsA2UI=true` to receive notifications.
+
+### 5.10 References
+
+| Reference | Link | Description |
+| --------- | ---- | ----------- |
+| a2ui-android rendering library | [github.com/yaobin-kid/a2ui-android](https://github.com/yaobin-kid/a2ui-android) | **Authoritative A2UI JSON writing doc**: component catalog, styles, data binding, actions, functions |
+| A2UI official spec | [a2ui.org/specification/v0.9-a2ui](https://a2ui.org/specification/v0.9-a2ui/) | Protocol spec original text |
+| RFC 6901 JSON Pointer | [tools.ietf.org/html/rfc6901](https://tools.ietf.org/html/rfc6901) | Data binding path syntax |
+
+---
+
+## 6. Module Events (DOT_KEY / KNOB_KEY)
+
+Events generated by LineOS hardware modules (buttons, knobs, etc.) can be distributed to plugins in real time.
+
+### 6.1 Subscribe to Module Events
+
+```java
+// varargs, pass in the module types you need
+client.subscribeModuleEvents(ModuleType.DOT_KEY, ModuleType.KNOB_KEY);
+
+// unsubscribe
+// client.unsubscribeModuleEvents(ModuleType.DOT_KEY);
+```
+
+> 📌 Subscriptions are stored in the LineOS-side session; after a disconnect/reconnect, the SDK automatically re-subscribes, no manual handling needed.
+
+### 6.2 Dispatch Rules (Key)
+
+Module events are **not broadcasts** — LineOS does **serial unicast** by priority: it asks candidate plugins one by one until one plugin "consumes" the event; if no one consumes it, it falls through to the fallback flow.
+
+Full dispatch flow:
+
+```
+module event produced (button press / knob rotate)
+   │
+   ▼
+① filter candidate plugins
+   · have called subscribeModuleEvents for this ModuleType
+   · and the current connection is alive
+   │
+   ▼
+② sort candidates (priority high → low)
+   · foreground plugins first, multiple foreground sorted by "most recent foreground time" descending
+   · background plugins next, multiple background sorted by "most recent active time" descending
+   │
+   ▼
+③ serial unicast: sent to candidates in sorted order
+   · the appState field in the event each plugin receives marks **its own**
+     foreground/background state (foreground / background)
+   · each candidate has an independent reply timeout (default 1000ms)
+   │
+   ├── plugin calls responder.consume() ──► ④a dispatch ends
+   │                                    result: handled, record the consuming package name
+   │
+   ├── plugin calls responder.ignore() ──► try next candidate
+   │
+   └── no reply before timeout (treated as ignore) ──► try next candidate
+   │
+   ▼ (no candidate consumed)
+⑤ fallback flow: event appState set to none
+   ├── if a registerFallback callback is registered for this ModuleType
+   │   ──► execute all registered fallback callbacks in order
+   └── otherwise ──► PluginServerListener.onModuleEventFallback(event)
+```
+
+**Rule summary:**
+
+| Rule | Description |
+| ---- | ----------- |
+| Unicast, not broadcast | An event is consumed by at most one plugin; once a higher-priority plugin calls `consume()`, subsequent plugins **do not receive** it |
+| Priority | Foreground > background; among the same class, the most recently foreground / most recently active one wins. |
+| appState semantics | The `appState` in the event is **the receiver's own state** (foreground/background), not the event source's state; it is `none` during fallback |
+| No reply = ignore | If neither `consume()` nor `ignore()` is called in `onModuleEvent`, after the timeout (default 1s) it is automatically treated as abandoned and the event flows to the next candidate |
+
+### 6.3 Receive Events onModuleEvent
+
+```java
+@Override
+public void onModuleEvent(ModuleEventPayload payload, ModuleEventResponder responder) {
+    // payload.appState is the current plugin's own foreground/background state (see 6.2 dispatch rules)
+    if (ModuleEventPayload.APP_STATE_FOREGROUND.equals(payload.appState)) {
+        // foreground: consume the event, dispatch stops immediately, subsequent plugins and fallback never trigger
+        responder.consume();
+        // TODO: handle the button/knob event payload.event
+    } else {
+        // background: explicitly give up, the event immediately flows to the next candidate (avoid the 1s timeout wait)
+        responder.ignore(null);
+    }
+}
+```
+
+**Event handling rules:**
+
+- `responder.consume()` — the plugin consumes the event, dispatch terminates
+- `responder.ignore(null)` — explicitly give up, the event **immediately** flows to the next candidate
+- Calling neither — after the timeout (default 1s) it is passively abandoned and also flows to the next candidate; **explicitly calling ignore is recommended to avoid slowing down the whole dispatch chain**
+
+### 6.4 Event Data Format
+
+**DOT_KEY (button):**
+
+```json
+{
+    "appState": "foreground",
+    "module": "DOT_KEY",
     "action": "button",
-    "event": {   //按键原始消息
-        "action": 1,    //1 down ，0 up
+    "event": {
+        "action": 1,
         "downTime": 169360339,
         "eventTime": 169360339,
-        "keyCode": 2,  //按键码， 取值 0、1、2
-        "repeatCount": 0  //长按+1
+        "keyCode": 2,
+        "repeatCount": 0
     },
-    "moduleId": "4",  //模块id
-    "sn": "xxxxx",  //模块串号
+    "moduleId": "4",
+    "sn": "xxxxx",
     "timestamp": 1793002523558
 }
 ```
 
-#### KNOB KEY 模块payload 数据
+- `event.action`: 1 = down, 0 = up
+- `event.keyCode`: key code, values 0 / 1 / 2
+- `event.repeatCount`: increments on long press
+
+**KNOB_KEY (knob + button):**
 
 ```json
-//button 按键事件
+// knob event (faster rotation → more frequent reports)
 {
-  "appState": "foreground",
-  "module": "KNOB_KEY",
-  "action": "button",
-  "event": {
-    "action": 1,
-    "downTime": 171968479,
-    "eventTime": 171968479,
-    "keyCode": 0,
-    "repeatCount": 0
-  },
-  "moduleId": "6",
-  "sn": "xxx",  //模块串号
-  "timestamp": 1793005131698
+    "appState": "foreground",
+    "module": "KNOB_KEY",
+    "action": "rotate",
+    "event": { "value": 1 },
+    "moduleId": "6",
+    "sn": "xxxx",
+    "timestamp": 1793005179031
 }
-
-
-//旋钮事件 （转得越快报得越快）
-{
-  "appState": "foreground",
-  "module": "KNOB_KEY",
-  "action": "rotate",
-  "event": {
-    "value": 1   // 1 顺时针，-1 逆时针
-  },
-  "moduleId": "6",
-  "sn": "xxxx",  //模块串号
-  "timestamp": 1793005179031
-}
-
 ```
 
-> 1.客户端调用 subscribeModuleEvents函数注册对于的模块事件
-> 2.客户端调用setPluginListener 注册回调并实现PluginListener 接口里的 onModuleEvent 方法。
-> 当模块触发对应功能时就回调该方法。如果消费该事件则调用 responder.consume(); responder.ignore(null) 忽略 或者超时LineOS 走兜底流程触发 模块绑定的profile 配置功能。
+- `action`: `button` = button (same format as DOT_KEY), `rotate` = rotation
+- `event.value`: 1 = clockwise, -1 = counter-clockwise
 
+**SENSE_CUBE (multi-function sensing cube):**
 
-# 查询所有模块
+Illuminance (`action = "illuminance"`):
+
+```json
+{
+    "action": "illuminance",
+    "appState": "background",
+    "event": {
+        "level": "BRIGHT",
+        "unit": "Lux",
+        "value": 122
+    },
+    "module": "SENSE_CUBE",
+    "moduleId": "26",
+    "sn": "0000019F20E45C31",
+    "timestamp": 1794449768487
+}
+```
+
+Temperature (`action = "temperature"`):
+
+```json
+{
+    "action": "temperature",
+    "appState": "background",
+    "event": {
+        "level": "MILD",
+        "unit": "°F",
+        "value": 74.66
+    },
+    "module": "SENSE_CUBE",
+    "moduleId": "26",
+    "sn": "0000019F20E45C31",
+    "timestamp": 1794449766512
+}
+```
+
+Presence (`action = "presence"`):
+
+```json
+{
+    "action": "presence",
+    "appState": "background",
+    "event": true,
+    "module": "SENSE_CUBE",
+    "moduleId": "26",
+    "sn": "0000019F20E45C31",
+    "timestamp": 1794449766412
+}
+```
+
+Humidity (`action = "humidity"`):
+
+```json
+{
+    "action": "humidity",
+    "appState": "background",
+    "event": {
+        "unit": "%",
+        "value": 38.9
+    },
+    "module": "SENSE_CUBE",
+    "moduleId": "26",
+    "sn": "0000019F20E45C31",
+    "timestamp": 1794450176184
+}
+```
+
+- `action`: `illuminance`=illuminance, `temperature`=temperature, `presence`=presence detection, `humidity`=humidity
+- `event.value`: current sensor value (`presence` is `boolean`, true=person present)
+- `event.unit`: unit of measurement (Lux / °F / %)
+- `event.level`: perceived/illuminance level (e.g. `BRIGHT`, `MILD`), present for some events
+
+### 6.5 Query Module List queryModules
+
 ```java
-
-PluginClient c = new PluginClient();
-//查询所有
-CompletableFuture<QueryModulesResultPayload> f = c.queryModules();
-//查询在线模块
-// CompletableFuture<QueryModulesResultPayload> f = c.queryModules(ModuleOnlineFilter.ONLINE);
-//查询离线模块
-//CompletableFuture<QueryModulesResultPayload> f = c.queryModules(ModuleOnlineFilter.OFFLINE);
-f.thenAccept(c -> {
-  //打印queryModules查询结果:{"modules":[{"module":"SENSE_CUBE","moduleId":"31","name":"Sense Cube","online":false,"sn":"0000019F20E45C31"},{"module":"DOT_KEY","moduleId":"37","name":"Dot Key","online":true,"sn":"0000019E4F84ABEF"}],"success":true}
-  Log.d(TAG, "queryModules查询结果:" + JSONObject.toJSONString(c));
+// query all
+client.queryModules().thenAccept(result -> {
+    for (ModuleInfo m : result.modules) {
+        Log.d(TAG, m.module + " / " + m.moduleId + " / " + m.name
+                + " / online=" + m.online + " / sn=" + m.sn);
+    }
 });
 
+// only online / offline
+// client.queryModules(ModuleOnlineFilter.ONLINE);
+// client.queryModules(ModuleOnlineFilter.OFFLINE);
 ```
-> 目前仅 返回  DOT_KEY, KNOB_KEY, SENSE_CUBE;
 
-#### QueryModulesResultPayload 数据结构
+Return structure:
+
 ```json
 {
     "modules": [
         {
-            "module": "SENSE_CUBE",   //模块 仅支持  DOT_KEY, KNOB_KEY, SENSE_CUBE;
-            "moduleId": "31",  //模块id
-            "name": "Sense Cube", //名称
-            "online": false, //在线状态 true 在线，false  离线
-            "sn": "0000019F20E45C31"  //设备串号
-        } 
+            "module": "DOT_KEY",
+            "moduleId": "37",
+            "name": "Dot Key",
+            "online": true,
+            "sn": "0000019E4F84ABEF"
+        }
     ],
     "success": true
 }
 ```
+
+> Currently only three modules are supported: `DOT_KEY`, `KNOB_KEY`, `SENSE_CUBE`.
+
+---
+
+## 7. Hotkeys & Messages
+
+This chapter introduces two direct plugin ↔ PC capabilities:
+
+- **Hotkeys**: Inject keyboard keystrokes into the PC, supporting single keys, combos and long-press (e.g. simulate Windows Ctrl+C copy);
+- **Message channel**: bi-directional message passing between the plugin and LineOS (addressed by instance id, content supports strings and structured objects).
+
+### 7.1 Key Code Convention
+
+The hotkey API's parameter is the **raw key code (int)**, consistent with the host platform — on the PC side it is the Windows VK virtual key code. For the full key code reference table see [hidKey.md](./hidKey.md).
+
+### 7.2 Short Press sendHotkey
+
+`sendHotkey(int... keys)` represents one complete "press and release" — the **SDK internally fills in the down + up automatically**, no need to pair the calls:
+
+```java
+// single key: press F1 once
+client.sendHotkey(0x70);
+
+// combo: simulate Windows paste Ctrl+V (modifier keys first)
+client.sendHotkey(0xE0, 0x19).thenAccept(ack -> {
+    if (!ack.success) {
+        Log.e(TAG, "Hotkey execution failed: " + ack.error.message);
+    }
+});
+```
+
+Semantic rules:
+
+- A combo is sent **as a whole in one go** (the keys array is packed into a single message), down follows the parameter order, up follows the **reverse order** (modifier keys pressed first and released last, consistent with a real keyboard);
+- Each call produces 2 callbacks on the server (one down + one up), message `pressType = short`;
+- The returned `CompletableFuture` is the ack of the up (channel writes are ordered, so the preceding down has already been delivered); `success=false` means the host failed to execute.
+
+### 7.3 Long Press sendHotkeyDown / sendHotkeyUp
+
+When "press and hold" semantics are needed, use `sendHotkeyDown` / `sendHotkeyUp` for explicit pairing, message `pressType = long`:
+
+```java
+client.sendHotkeyDown(0x5E);   // press down (no release)
+// ...holding...
+client.sendHotkeyUp(0x5E);     // release
+```
+
+**Auto-release protection:** If `sendHotkeyUp` is not called within 3000ms after `sendHotkeyDown` (adjustable via `client.setHotkeyAutoReleaseMs(...)`, set to 0 to disable), the SDK automatically sends an up once, preventing the key from getting stuck on the system side. An explicit `sendHotkeyUp` cancels this task.
+
+**Continuous-effect scenarios** (e.g. in Photoshop holding Ctrl+] continuously scales the brush linearly): A real keyboard's "continuous effect" comes from hardware auto-repeat — holding a key down produces repeated down events. The SDK injection only sends one down and does not auto-repeat; you need to send repeatedly at a fixed interval:
+
+```java
+client.setHotkeyAutoReleaseMs(0);          // disable auto-release while holding
+client.sendHotkeyDown(0x11);                   // 1. Ctrl down, send only once
+
+while (holding) {                          // 2. while holding: repeat send ] down every 80ms
+    client.sendHotkeyDown(0xDD);               //    simulate keyboard auto-repeat → brush keeps scaling
+    Thread.sleep(80);
+}
+
+client.sendHotkeyUp(0x11, 0xDD);               // 3. end: pass keys in the same order as down, SDK internally releases in reverse order (] first, then Ctrl)
+```
+
+> Repeating `sendHotkeyDown` for the same key **resets** the auto-release timer — as long as the repeat interval is shorter than the auto-release threshold, the default configuration will not accidentally trigger a release.
+
+### 7.4 Send Message sendMessage
+
+Send a message to a specified plugin instance (`message` is `Object`, supporting strings, Map, List, POJO and any other serializable object); defaults to pass-through to the Ultra WorkSpace PLUGIN side:
+
+```java
+// default destination ULTRA_WORKSPACE_PLUGIN — send a string
+client.sendMessage("plugin-001", "Start playback")
+      .thenAccept(ack -> {
+          if (!ack.success) {
+              Log.e(TAG, "Message delivery failed: " + ack.error.message);
+          }
+      });
+
+// send a structured object (the receiver gets a Map)
+Map<String, Object> body = new HashMap<>();
+body.put("action", "play");
+body.put("trackId", 42);
+client.sendMessage("plugin-001", body);
+
+// explicitly specify the pass-through destination (MessageDestination enum)
+client.sendMessage(MessageDestination.ULTRA_WORKSPACE_PLUGIN, "plugin-002", "Switch channel");
+```
+
+- `destination` is the `MessageDestination` enum (currently containing `ULTRA_WORKSPACE_PLUGIN`); adding destinations in the future only requires extending the enum, the API stays the same;
+- Empty `pluginId`, or null `message` / `destination` throws `IllegalArgumentException` locally on the client and does not send a request; an empty string `""` is a legal message content;
+- After the server receives it, it calls back `PluginServerListener.onMessage`, whose return value is used as the ack — `success=false` means the host failed to process it.
+
+### 7.5 Receive LineOS-Delivered Message onMessage
+
+The message channel is bidirectional. When LineOS calls `PluginServer.sendMessage(packageName, pluginId, message)`, the plugin receives it via `PluginListener.onMessage`:
+
+```java
+client.setPluginListener(new PluginListener() {
+    @Override
+    public void onMessage(MessagePayload payload, MessageResponder responder) {
+        String pluginId = payload.pluginId;       // target plugin instance id
+        Object message = payload.message;         // message content (may be String / Map / List etc.)
+        // payload.destination is null in this direction (only used plugin→LineOS direction)
+
+        if (message instanceof String) {
+            String text = (String) message;
+        } else if (message instanceof Map) {
+            Map<String, Object> body = (Map<String, Object>) message;
+        }
+
+        // must respond after processing, pick one:
+        responder.sendSuccess();
+        // responder.sendError("NOT_SUPPORTED", "This instance does not support messages", false);
+    }
+});
+```
+
+> The default implementation returns a `NO_HANDLER` error; if you don't need this capability, you can skip overriding it.
+
+### 7.6 Request Host to Execute Actions sendHostAction
+
+Five operations — open file, start app, open browser, input text, execute command — are unified into **one method**. Each action has its **own dedicated Builder** — you can only set that action's own parameters (compile-time isolation, no cross-setting); the parameter keys are encapsulated inside the SDK, and the caller doesn't need to care about protocol field names:
+
+```java
+// 1. open a file or folder (can only set path)
+client.sendHostAction(HostActionRequest.openFile()
+        .path("C:/Users/kid/Desktop/ap")
+        .build());
+
+// 2. start an app (can only set path and launchMode)
+client.sendHostAction(HostActionRequest.startApp()
+        .path("C:\\Users\\kid\\AppData\\Local\\SourceTree\\app-3.4.30\\SourceTree.exe")
+        .launchMode(HostActionRequest.HostLaunchMode.ACTIVATE_OR_START)  // optional
+        .build());
+
+// 3. open a browser (can only set url)
+client.sendHostAction(HostActionRequest.openBrowser()
+        .url("google.com")
+        .build());
+
+// 4. input text (can only set text)
+client.sendHostAction(HostActionRequest.inputText()
+        .text("hello")
+        .build());
+
+// 5. execute a command (can only set cmd)
+client.sendHostAction(HostActionRequest.execCmd()
+        .cmd("notepad")
+        .build())
+      .thenAccept(ack -> {
+          if (!ack.success) {
+              Log.e(TAG, "Execution failed: " + ack.error.message);
+          }
+      });
+```
+
+**launchMode start-up modes** (`HostActionRequest.HostLaunchMode` enum):
+
+| Enum value | Wire value | Meaning |
+| ---------- | ---------- | ------- |
+| `NEW_PROCESS` | 0 | Always start a new process |
+| `ACTIVATE_ONLY` | 1 | Only activate (do not start a new process, just activate an already-running process) |
+| `ACTIVATE_OR_START` | 2 | Start if no process was started; activate if a process is already running |
+
+- Action types are distinguished by the `HostAction` enum; the server calls back `PluginServerListener.onHostAction`, distinguishing actions accurately via `request.action` and getting parameters via `request.params`;
+- Each dedicated Builder's `build()` validates required parameters (e.g. `openFile()` requires `path`), throwing `IllegalArgumentException` if missing; when adding new actions, only extend the enum and Builder — **no need to add a new send method**;
+- `success=false` in the return value means the host failed to execute.
+
+---
+
+## 8. Callback Quick Reference
+
+All `PluginListener` methods have `default` empty implementations — override as needed:
+
+| Callback | Trigger timing | Must implement |
+| -------- | -------------- | -------------- |
+| `onRegisterSuccess(RegisterResultPayload)` | Registration successful (can get configServer.port / sessionToken) | Recommended |
+| `onRegisterFailed(Throwable)` | Registration failed | Recommended |
+| `onActionsAck(ActionsResultPayload)` | Action config sync ACK | Optional |
+| `onActionsFailed(Throwable)` | Action report failed | Optional |
+| `onActionsUpdate(ActionsPayload)` | LineOS pushes action list changes | Optional |
+| `onDescribe(DescribePayload, DescribeResponder)` | LineOS asks for Action parameter definitions | Required for actions with parameters |
+| `onOptions(GetOptionsPayload, OptionsResponder)` | Fetch REMOTE-type parameter options | Required if there are REMOTE parameters |
+| `onCall(CallPayload, CallResponder)` | Execute the Action | **Required** |
+| `onModuleEvent(ModuleEventPayload, ModuleEventResponder)` | Module hardware events | Required if you subscribed to modules |
+| `onA2UIActionCall(A2UIActionCallPayload, A2UIActionCallResponder)` | A2UI user interaction callback (defaults to NO_HANDLER) | Required if there are interactive components |
+| `onA2UIDataRequest()` | LineOS actively pulls A2UI data (defaults to empty list) | Recommended for A2UI plugins |
+| `onA2UIRender(A2UIRenderPayload, A2UIRenderResponder)` | Card first-render / refresh-render notification (defaults to NO_HANDLER) | Optional for A2UI plugins |
+| `onMessage(MessagePayload, MessageResponder)` | LineOS delivers a message (defaults to NO_HANDLER) | Optional |
+
+**Responder common conventions:**
+
+- `responder.sendSuccess(data)` — success, `data` can be null
+- `responder.sendError(code, message, retryable)` — failure; `retryable=true` hints LineOS can retry
+
+---
+
+## 9. Notes & FAQ
+
+### 9.1 Build & Integration
+
+1. **`packagingOptions` must exclude Netty meta files** (see 2.1), otherwise packaging conflicts.
+2. The `meta-data`'s `android:value` **must equal `applicationId`** — it is LineOS's unique identifier for the plugin; a mismatch will cause the session to not line up after registration.
+3. The service must be `android:exported="true"` and carry the fixed permission — both are indispensable.
+
+### 9.2 Runtime Behavior
+
+4. **Foreground service requirement:** `onCreate()` must call `startForeground()` within a few seconds, otherwise the system ANR/kills the process.
+5. **Callback threads are not the main thread:** All `PluginListener` callbacks run on the SDK's thread pool; for UI operations, switch via `Looper.getMainLooper()` yourself.
+6. **Auto-reconnect on disconnect:** The SDK automatically reconnects and re-registers + re-reports Actions; but **A2UI UI data is NOT automatically re-sent** — LineOS will actively pull it once after a successful registration (via `onA2UIDataRequest`), so implementing this callback properly ensures UI data is restored after a reconnect.
+7. **sessionToken must be validated yourself:** it is the debug session credential; do not trust it unconditionally in HTTP interfaces.
+8. **Hotkey down/up must be paired:** Forgetting `sendHotkeyUp` after `sendHotkeyDown` will cause the SDK to auto-release an up after the timeout (default 3000ms), but the release timing is out of your control; when precise long-press semantics are needed, guarantee the pairing yourself — see [7.3](#73-long-press-sendhotkeydown--sendhotkeyup).
+
+### 9.3 Protocol Contracts
+
+8. **Parameter id consistency:** The `ParameterSpec.id` in `onDescribe` is the key of `params` in `onCall`; both sides must be consistent.
+9. **A2UI version must be v0.9.1:** Every envelope carries `"version": "v0.9.1"`.
+10. **`supportsA2UI=true` is the prerequisite for LineOS reverse calls:** Without it the plugin can still actively report data, but LineOS's `callA2UIAction` / `queryA2UIData` will be rejected.
+11. **Check the report result's ack:** `success=false` in the return value of `refreshA2UI` / `sendA2UIUpdateDataModel` means LineOS failed to process it; the plugin side should log or retry.
+12. **Module events are serial unicast; no reply = give up:** When neither `consume()` nor `ignore()` is called in `onModuleEvent`, the event wastes a 1-second timeout before reaching the next plugin — when you don't intend to handle it, **explicitly call `ignore()`**. See [6.2](#62-dispatch-rules-key) for the full dispatch rules.
+
+### 9.4 Frequently Asked Questions (FAQ)
+
+**Q: Why can't LineOS see my Action after `onRegisterSuccess`?**
+A: Check whether `setActionsConfig` was called before `startAsync()`; check whether `onActionsAck`'s `receivedCount` matches your expectations.
+
+**Q: How do I self-test during development?**
+A: During development you can manually `startService()` in your own app to launch `BackgroundService` and verify the flow; in production LineOS scans the Manifest and launches it automatically.
+
+---
