@@ -394,37 +394,37 @@ public class PluginClient {
     }
 
     /**
-     * 向指定插件实例发送文本消息（仅支持文本），默认透传到 Ultra WorkSpace PLUGIN 端。
+     * 向指定插件实例发送消息，默认透传到 Ultra WorkSpace PLUGIN 端。
      * 服务端收到后回调 {@code PluginServerListener#onMessage}，
      * 返回值中的 success=false 表示处理失败。
      *
      * @param pluginId 目标插件实例 id（由接收端定义与解释）
-     * @param message  文本消息内容，不能为空
+     * @param message  消息内容，支持 String / Map / List / POJO 等可序列化对象
      */
     public CompletableFuture<MessageResultPayload> sendMessage(String pluginId,
-                                                               String message) {
+                                                               Object message) {
         return sendMessage(MessageDestination.ULTRA_WORKSPACE_PLUGIN, pluginId, message);
     }
 
     /**
-     * 向指定插件实例发送文本消息（仅支持文本），可指定透传目的地。
+     * 向指定插件实例发送消息，可指定透传目的地。
      * 其他透传场景换 destination 参数即可。
      *
      * @param destination 消息透传目的地，见 {@link MessageDestination}
      * @param pluginId    目标插件实例 id（由接收端定义与解释）
-     * @param message     文本消息内容，不能为空
+     * @param message     消息内容，支持 String / Map / List / POJO 等可序列化对象
      */
     public CompletableFuture<MessageResultPayload> sendMessage(MessageDestination destination,
                                                                String pluginId,
-                                                               String message) {
+                                                               Object message) {
         if (destination == null) {
             throw new IllegalArgumentException("destination must not be null");
         }
         if (pluginId == null || pluginId.isEmpty()) {
             throw new IllegalArgumentException("pluginId must not be empty");
         }
-        if (message == null || message.isEmpty()) {
-            throw new IllegalArgumentException("message must not be empty");
+        if (message == null) {
+            throw new IllegalArgumentException("message must not be null");
         }
         return envelopes.request(MessageType.MESSAGE,
                 new MessagePayload(destination, pluginId, message),

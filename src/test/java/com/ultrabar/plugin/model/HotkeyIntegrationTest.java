@@ -11,7 +11,9 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
@@ -345,8 +347,8 @@ public class HotkeyIntegrationTest {
         } catch (IllegalArgumentException expected) {
         }
         try {
-            client.sendMessage("plugin-001", "");
-            fail("空 message 应抛 IllegalArgumentException");
+            client.sendMessage("plugin-001", (Object) null);
+            fail("null message 应抛 IllegalArgumentException");
         } catch (IllegalArgumentException expected) {
         }
         try {
@@ -399,6 +401,56 @@ public class HotkeyIntegrationTest {
         assertEquals("LineOS下发的消息", received.message);
         assertNull("服务端→插件方向不携带 destination", received.destination);
         assertNotNull(received.timestamp);
+    }
+
+    // ====== 9a. message 支持 Map 等结构化对象 ======
+
+    @Test
+    public void testSendMessageWithStructuredObject() throws Exception {
+        final CountDownLatch registered = new CountDownLatch(1);
+        server.setListener(new PluginServerListener() {
+            @Override
+            public void onRegistered(PluginSession session) {
+                registered.countDown();
+            }
+        });
+
+        final AtomicReference<MessagePayload> receivedRef = new AtomicReference<MessagePayload>();
+        final CountDownLatch messageLatch = new CountDownLatch(1);
+        client = new PluginClient("127.0.0.1", serverPort);
+        RegisterPayload rp = new RegisterPayload();
+        rp.name = "HotkeyTestPlugin";
+        rp.packageName = PKG;
+        client.setRegisterConfig(rp);
+        client.setPluginListener(new PluginListener() {
+            @Override public void onRegisterSuccess(RegisterResultPayload payload) {}
+            @Override public void onCall(CallPayload payload, com.ultrabar.plugin.callback.CallResponder responder) {}
+
+            @Override
+            public void onMessage(MessagePayload payload, com.ultrabar.plugin.callback.MessageResponder responder) {
+                receivedRef.set(payload);
+                messageLatch.countDown();
+                responder.sendSuccess();
+            }
+        });
+        client.startAsync().get(5, TimeUnit.SECONDS);
+        assertTrue("client 注册超时", registered.await(5, TimeUnit.SECONDS));
+
+        Map<String, Object> body = new HashMap<String, Object>();
+        body.put("action", "play");
+        body.put("trackId", 42);
+
+        MessageResultPayload ack = server.sendMessage(PKG, "plugin-200", body)
+                .get(3, TimeUnit.SECONDS);
+        assertTrue("插件应回复成功", ack.success);
+        assertTrue("插件应收到消息", messageLatch.await(3, TimeUnit.SECONDS));
+
+        Object receivedMessage = receivedRef.get().message;
+        assertTrue("message 应为 Map 结构", receivedMessage instanceof Map);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> received = (Map<String, Object>) receivedMessage;
+        assertEquals("play", received.get("action"));
+        assertEquals(42, received.get("trackId"));
     }
 
     // ====== 9. 服务端 → 插件：插件回复失败回传服务端；未注册插件失败 ======

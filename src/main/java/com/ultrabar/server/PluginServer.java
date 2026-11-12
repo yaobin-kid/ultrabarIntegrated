@@ -276,17 +276,17 @@ public class PluginServer {
     }
 
     /**
-     * 向插件下发文本消息（仅支持文本）。
+     * 向插件下发消息。
      * 插件通过 {@link com.ultrabar.plugin.callback.PluginListener#onMessage} 接收并响应；
      * 返回的 future 为插件的处理回执，success=false 表示插件侧处理失败。
      *
      * @param packageName 目标插件包名
      * @param pluginId    目标插件实例 id（由插件侧定义与解释）
-     * @param message     文本消息内容，不能为空
+     * @param message     消息内容，支持 String / Map / List / POJO 等可序列化对象
      */
     public CompletableFuture<MessageResultPayload> sendMessage(String packageName,
                                                                String pluginId,
-                                                               String message) {
+                                                               Object message) {
         PluginSession session;
         try {
             session = getValidSession(packageName);
@@ -296,8 +296,8 @@ public class PluginServer {
         if (pluginId == null || pluginId.isEmpty()) {
             return failedFuture(new IllegalArgumentException("pluginId must not be empty"));
         }
-        if (message == null || message.isEmpty()) {
-            return failedFuture(new IllegalArgumentException("message must not be empty"));
+        if (message == null) {
+            return failedFuture(new IllegalArgumentException("message must not be null"));
         }
         // destination 仅用于插件→服务端方向，此处不携带
         MessagePayload payload = new MessagePayload(null, pluginId, message);
@@ -1067,7 +1067,7 @@ public class PluginServer {
             return;
         }
         if (payload == null || payload.pluginId == null || payload.pluginId.isEmpty()
-                || payload.message == null || payload.message.isEmpty()) {
+                || payload.message == null) {
             ack.success = false;
             ack.error = ErrorInfo.of(ErrorCodes.INVALID_PAYLOAD, "pluginId/message is required", false, null);
         } else {

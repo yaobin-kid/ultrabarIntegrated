@@ -98,12 +98,13 @@ public interface PluginServerListener {
     }
 
     /**
-     * 插件向指定实例发送文本消息时触发（{@code PluginClient.sendMessage}）。
+     * 插件向指定实例发送消息时触发（{@code PluginClient.sendMessage}）。
      * <p>
      * {@code payload.destination} 为消息透传目的地（{@code MessageDestination} 枚举，
      * 默认 ULTRA_WORKSPACE_PLUGIN，即透传到 Ultra WorkSpace PLUGIN 端；其他透传场景由插件在 payload 中指定）；
      * {@code payload.pluginId} 为目标插件实例 id（由接收端定义与解释），
-     * {@code payload.message} 为文本内容（协议仅支持文本）。
+     * {@code payload.message} 为消息内容，类型为 {@code Object}
+     * （字符串按原样传输，Map / List / POJO 等序列化为 JSON 结构）。
      * <p>
      * 返回值会作为 ack 回传给插件；返回 null 视为成功。
      * 若处理失败，可返回 success=false 的结果告知插件。

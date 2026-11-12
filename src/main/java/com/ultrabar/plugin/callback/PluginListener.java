@@ -102,8 +102,9 @@ public interface PluginListener {
     }
 
     /**
-     * 收到服务端下发的文本消息（{@code PluginServer.sendMessage}）。
-     * {@code payload.pluginId} 为目标插件实例 id，{@code payload.message} 为文本内容；
+     * 收到服务端下发的消息（{@code PluginServer.sendMessage}）。
+     * {@code payload.pluginId} 为目标插件实例 id，{@code payload.message} 为消息内容
+     * （类型为 {@code Object}：发送方传字符串则为 String，传 Map / POJO 则反序列化为 Map）；
      * {@code payload.destination} 仅用于插件→服务端方向，此方向为 null。
      * 需通过 {@link MessageResponder#sendSuccess()} 或
      * {@link MessageResponder#sendError(String, String, boolean)} 响应。

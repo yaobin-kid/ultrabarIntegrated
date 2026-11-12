@@ -14,7 +14,7 @@
 4. [场景应用能力（动作注册与执行）](#4-场景应用能力动作注册与执行)
 5. [A2UI 生成式 UI](#5-a2ui-生成式-ui)
 6. [模块事件（DOT_KEY / KNOB_KEY）](#6-模块事件dot_key--knob_key)
-7. [热键与文本消息](#7-热键与文本消息)
+7. [热键与消息](#7-热键与消息)
 8. [回调速查表](#8-回调速查表)
 9. [注意事项与常见问题](#9-注意事项与常见问题)
 
@@ -36,7 +36,7 @@ Ultrabar 插件 SDK 基于 Netty 实现插件 App 与 LineOS 之间的双向通�
 1. **场景应用能力**：插件向LineOS 声明"我能做什么"（如播放、暂停），LineOS 在用户触发时回调插件执行。
 2. **A2UI 生成式 UI**：插件用 JSON 描述 UI 结构与数据，LineOS 渲染为原生界面，用户交互回传给插件。
 3. **模块事件**：接收LineOS 硬件模块（DOT_KEY 按键、KNOB_KEY 旋钮等）的实时事件。
-4. **热键与文本消息**：向 PC 端注入按键（单键/组合键/长按），或与 LineOS 双向传递文本消息。
+4. **热键与消息**：向 PC 端注入按键（单键/组合键/长按），或与 LineOS 双向传递消息（支持字符串与结构化对象）。
 
 ---
 
@@ -922,12 +922,12 @@ client.queryModules().thenAccept(result -> {
 
 ---
 
-## 7. 热键与文本消息
+## 7. 热键与消息
 
 本章介绍两种插件 ↔ PC 端的直通能力：
 
 - **热键**：向 PC 端注入键盘按键，支持单键、组合键与长按（如模拟 Windows 的 Ctrl+C 复制）；
-- **文本消息**：插件与 LineOS 之间双向传递文本消息（按实例 id 寻址）。
+- **消息通道**：插件与 LineOS 之间双向传递消息（按实例 id 寻址，内容支持字符串与结构化对象）。
 
 ### 7.1 按键码约定
 
@@ -983,12 +983,12 @@ client.sendHotkeyUp(0x11, 0xDD);               // 3. 结束：传参与 down 同
 
 > 重复 `sendHotkeyDown` 同一个键会**重置**自动补发计时——只要重复间隔小于补发阈值，默认配置下也不会误触发补发。
 
-### 7.4 发送文本消息 sendMessage
+### 7.4 发送消息 sendMessage
 
-向指定插件实例发送文本消息（仅支持文本），默认透传到 Ultra WorkSpace PLUGIN 端：
+向指定插件实例发送消息（`message` 为 `Object`，支持字符串、Map、List、POJO 等任意可序列化对象），默认透传到 Ultra WorkSpace PLUGIN 端：
 
 ```java
-// 默认目的地 ULTRA_WORKSPACE_PLUGIN
+// 默认目的地 ULTRA_WORKSPACE_PLUGIN —— 发送字符串
 client.sendMessage("plugin-001", "开始播放")
       .thenAccept(ack -> {
           if (!ack.success) {
@@ -996,12 +996,18 @@ client.sendMessage("plugin-001", "开始播放")
           }
       });
 
+// 发送结构化对象（接收端拿到的是 Map）
+Map<String, Object> body = new HashMap<>();
+body.put("action", "play");
+body.put("trackId", 42);
+client.sendMessage("plugin-001", body);
+
 // 显式指定透传目的地（MessageDestination 枚举）
 client.sendMessage(MessageDestination.ULTRA_WORKSPACE_PLUGIN, "plugin-002", "切换频道");
 ```
 
 - `destination` 为 `MessageDestination` 枚举（当前含 `ULTRA_WORKSPACE_PLUGIN`），后续新增目的地只需扩展枚举，API 不变；
-- `pluginId` / `message` 为空、`destination` 为 null 会在客户端本地抛 `IllegalArgumentException`，不发起请求；
+- `pluginId` 为空、`message` / `destination` 为 null 会在客户端本地抛 `IllegalArgumentException`，不发起请求；空字符串 `""` 是合法消息内容；
 - 服务端收到后回调 `PluginServerListener.onMessage`，其返回值作为 ack 回传——`success=false` 表示宿主处理失败。
 
 ### 7.5 接收 LineOS 下发的消息 onMessage
@@ -1013,8 +1019,14 @@ client.setPluginListener(new PluginListener() {
     @Override
     public void onMessage(MessagePayload payload, MessageResponder responder) {
         String pluginId = payload.pluginId;       // 目标插件实例 id
-        String text = payload.message;            // 文本内容
+        Object message = payload.message;         // 消息内容（可能为 String / Map / List 等）
         // payload.destination 在此方向为 null（仅插件→LineOS 方向使用）
+
+        if (message instanceof String) {
+            String text = (String) message;
+        } else if (message instanceof Map) {
+            Map<String, Object> body = (Map<String, Object>) message;
+        }
 
         // 处理后必须响应，二选一：
         responder.sendSuccess();
@@ -1094,7 +1106,7 @@ client.sendHostAction(HostActionRequest.execCmd()
 | `onA2UIActionCall(A2UIActionCallPayload, A2UIActionCallResponder)` | A2UI 用户交互回传（默认回 NO_HANDLER）            | 有交互组件则必须   |
 | `onA2UIDataRequest()`                                              | LineOS 主动拉取 A2UI 数据（默认返回空列表）       | A2UI 插件建议      |
 | `onA2UIRender(A2UIRenderPayload, A2UIRenderResponder)`             | 卡片首次渲染/刷新渲染通知（默认回 NO_HANDLER）    | A2UI 插件可选      |
-| `onMessage(MessagePayload, MessageResponder)`                      | LineOS 下发文本消息（默认回 NO_HANDLER）          | 可选               |
+| `onMessage(MessagePayload, MessageResponder)`                      | LineOS 下发消息（默认回 NO_HANDLER）              | 可选               |
 
 **Responder 通用约定：**
 
