@@ -2,7 +2,7 @@
 
 > 言語: [中文](./README_zh.md) | [English](./README.md) | **日本語**
 
-> 対応バージョン: ultrabarIntegrated 1.0.12+（プロトコル version = 2）
+> 対応バージョン: ultrabarIntegrated 1.1.0+（プロトコル version = 2）
 > 対象読者: LineOS（Ultrabar）に接続するサードパーティプラグイン開発者
 > 前提条件: Android Service と Gradle 依存関係の設定に慣れていること
 

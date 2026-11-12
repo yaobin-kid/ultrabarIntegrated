@@ -2,7 +2,7 @@
 
 > 语言: **中文** | [English](./README.md) | [日本語](./README_ja.md)
 
-> 适用版本：ultrabarIntegrated 1.0.12+（协议 version = 2）
+> 适用版本：ultrabarIntegrated 1.1.0+（协议 version = 2）
 > 目标读者：接入 LineOS（Ultrabar）的第三方插件开发者
 > 前置要求：熟悉 Android Service、Gradle 依赖配置
 
