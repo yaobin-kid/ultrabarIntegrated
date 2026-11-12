@@ -787,36 +787,16 @@ client.subscribeModuleEvents(ModuleType.DOT_KEY, ModuleType.KNOB_KEY);
 
 **规则要点：**
 
-| 规则            | 说明                                                                                                                                                                |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 单播而非广播    | 一个事件最多只被一个插件消费；排在前面的插件 `consume()` 后，后面的插件**收不到**该事件                                                                             |
-| 优先级          | 前台 > 后台；同类中最近前台/最近活跃者优先。LineOS 通过 `setAppState(pkg, foreground)` / `setForegroundApp(pkg)` 维护前后台状态                                     |
-| appState 语义   | 事件里的 `appState` 是**接收方自己的状态**（foreground/background），不是事件源的状态；兜底时为 `none`                                                              |
-| 不回复 = ignore | `onModuleEvent` 中既不 `consume()` 也不 `ignore()`，超时（默认 1s）后自动视为放弃，事件流向下一候选                                                                 |
-| 超时配置        | LineOS 侧 `server.setModuleEventTimeoutMs(ms)` 调整单个候选的等待时长；也可在 `sendModuleEvent(..., timeoutMs)` 单次指定                                            |
-| 兜底互斥        | 某 ModuleType 一旦通过 `registerFallback` 注册了兜底回调，`PluginServerListener.onModuleEventFallback` 对该模块**不再生效**；未注册任何回调的模块才走 listener 兜底 |
+| 规则            | 说明                                                                                                   |
+| --------------- | ------------------------------------------------------------------------------------------------------ |
+| 单播而非广播    | 一个事件最多只被一个插件消费；排在前面的插件 `consume()` 后，后面的插件**收不到**该事件                |
+| 优先级          | 前台 > 后台；同类中最近前台/最近活跃者优先。                                                           |
+| appState 语义   | 事件里的 `appState` 是**接收方自己的状态**（foreground/background），不是事件源的状态；兜底时为 `none` |
+| 不回复 = ignore | `onModuleEvent` 中既不 `consume()` 也不 `ignore()`，超时（默认 1s）后自动视为放弃，事件流向下一候选    |
 
-**分发结果（LineOS 侧）** `ModuleEventDispatchResult`：
 
-- `handled()` —— 是否有插件消费了事件
-- `packageName()` —— 消费事件的插件包名（未消费为 null）
-- `fallback()` —— 是否进入了兜底流程
-- `event()` —— 实际分发/兜底使用的事件
 
-**LineOS 侧 API：**
 
-```java
-// 构造并分发事件（使用默认超时）
-server.sendModuleEvent(ModuleType.DOT_KEY, "4", "xxxxx", "button", eventObj);
-
-// 指定单候选超时
-server.sendModuleEvent(ModuleType.DOT_KEY, "4", "xxxxx", "button", eventObj, 2000);
-
-// 注册模块兜底回调（同 ModuleType 可注册多个，兜底时全部执行）
-server.registerFallback(ModuleType.DOT_KEY, event -> {
-    // 未被任何插件消费的 DOT_KEY 事件（appState = none）
-});
-```
 
 ### 6.3 接收事件 onModuleEvent
 
