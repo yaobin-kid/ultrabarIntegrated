@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 
 public class ClientMain {
@@ -120,6 +121,11 @@ public class ClientMain {
                 System.err.println("Register failed: " + t.getMessage());
 
 
+            }
+
+            @Override
+            public List<A2UIItem> onA2UIDataRequest() {
+                return PluginListener.super.onA2UIDataRequest();
             }
 
             @Override

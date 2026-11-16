@@ -25,6 +25,12 @@ public class A2UIItem extends A2UIBaseItem {
     /** 卡片 id（必填） */
     public String cardId;
 
+    /** 默认卡片宽度（像素） */
+    public static final int DEFAULT_WIDTH = 261;
+
+    /** 卡片宽度（像素），默认 {@link #DEFAULT_WIDTH} */
+    public int width = DEFAULT_WIDTH;
+
     /**
      * 卡片参数 schema（可选）。
      * <p>
@@ -39,7 +45,7 @@ public class A2UIItem extends A2UIBaseItem {
     }
 
     /**
-     * 完整构造：4 个参数必须全部传入，ui 为结构化数组，不含参数 schema。
+     * 完整构造：4 个参数必须全部传入，ui 为结构化数组，不含参数 schema，宽度取默认值。
      *
      * @param layoutId 布局 id
      * @param cardId   卡片 id
@@ -47,11 +53,11 @@ public class A2UIItem extends A2UIBaseItem {
      * @param ui       UI 数据（A2UI 消息序列）
      */
     public A2UIItem(String layoutId, String cardId, String name, List<Map<String, Object>> ui) {
-        this(layoutId, cardId, name, ui, null);
+        this(layoutId, cardId, name, DEFAULT_WIDTH, ui, null);
     }
 
     /**
-     * 完整构造：4 个必填参数 + 可选的参数 schema。
+     * 完整构造：4 个必填参数 + 可选的参数 schema，宽度取默认值。
      *
      * @param layoutId 布局 id
      * @param cardId   卡片 id
@@ -61,14 +67,44 @@ public class A2UIItem extends A2UIBaseItem {
      */
     public A2UIItem(String layoutId, String cardId, String name,
                     List<Map<String, Object>> ui, A2UIArgs args) {
+        this(layoutId, cardId, name, DEFAULT_WIDTH, ui, args);
+    }
+
+    /**
+     * 完整构造：指定卡片宽度，ui 为结构化数组，不含参数 schema。
+     *
+     * @param layoutId 布局 id
+     * @param cardId   卡片 id
+     * @param name     布局名称
+     * @param width    卡片宽度（像素）
+     * @param ui       UI 数据（A2UI 消息序列）
+     */
+    public A2UIItem(String layoutId, String cardId, String name, int width,
+                    List<Map<String, Object>> ui) {
+        this(layoutId, cardId, name, width, ui, null);
+    }
+
+    /**
+     * 完整构造：指定卡片宽度 + 可选的参数 schema。
+     *
+     * @param layoutId 布局 id
+     * @param cardId   卡片 id
+     * @param name     布局名称
+     * @param width    卡片宽度（像素）
+     * @param ui       UI 数据（A2UI 消息序列）
+     * @param args     卡片参数 schema，可为 null
+     */
+    public A2UIItem(String layoutId, String cardId, String name, int width,
+                    List<Map<String, Object>> ui, A2UIArgs args) {
         super(layoutId, ui);
         this.name = requireNonEmpty("name", name);
         this.cardId = requireNonEmpty("cardId", cardId);
+        this.width = width;
         this.args = args;
     }
 
     /**
-     * 完整构造：4 个参数必须全部传入，ui 为 JSON 字符串，内部解析为 JSON 数组，不含参数 schema。
+     * 完整构造：4 个参数必须全部传入，ui 为 JSON 字符串，宽度取默认值。
      *
      * @param layoutId 布局 id
      * @param cardId   卡片 id
@@ -77,11 +113,11 @@ public class A2UIItem extends A2UIBaseItem {
      * @throws IllegalArgumentException ui 不是合法的 JSON
      */
     public A2UIItem(String layoutId, String cardId, String name, String uiJson) {
-        this(layoutId, cardId, name, uiJson, null);
+        this(layoutId, cardId, name, DEFAULT_WIDTH, uiJson, null);
     }
 
     /**
-     * 完整构造：4 个必填参数 + 可选的参数 schema，ui 为 JSON 字符串。
+     * 完整构造：4 个必填参数 + 可选的参数 schema，ui 为 JSON 字符串，宽度取默认值。
      *
      * @param layoutId 布局 id
      * @param cardId   卡片 id
@@ -91,9 +127,39 @@ public class A2UIItem extends A2UIBaseItem {
      * @throws IllegalArgumentException ui 不是合法的 JSON
      */
     public A2UIItem(String layoutId, String cardId, String name, String uiJson, A2UIArgs args) {
+        this(layoutId, cardId, name, DEFAULT_WIDTH, uiJson, args);
+    }
+
+    /**
+     * 完整构造：指定卡片宽度，ui 为 JSON 字符串，不含参数 schema。
+     *
+     * @param layoutId 布局 id
+     * @param cardId   卡片 id
+     * @param name     布局名称
+     * @param width    卡片宽度（像素）
+     * @param uiJson   UI 数据（JSON 数组或单条 JSON 对象字符串）
+     * @throws IllegalArgumentException ui 不是合法的 JSON
+     */
+    public A2UIItem(String layoutId, String cardId, String name, int width, String uiJson) {
+        this(layoutId, cardId, name, width, uiJson, null);
+    }
+
+    /**
+     * 完整构造：指定卡片宽度 + 可选的参数 schema，ui 为 JSON 字符串。
+     *
+     * @param layoutId 布局 id
+     * @param cardId   卡片 id
+     * @param name     布局名称
+     * @param width    卡片宽度（像素）
+     * @param uiJson   UI 数据（JSON 数组或单条 JSON 对象字符串）
+     * @param args     卡片参数 schema，可为 null
+     * @throws IllegalArgumentException ui 不是合法的 JSON
+     */
+    public A2UIItem(String layoutId, String cardId, String name, int width, String uiJson, A2UIArgs args) {
         super(layoutId, uiJson);
         this.name = requireNonEmpty("name", name);
         this.cardId = requireNonEmpty("cardId", cardId);
+        this.width = width;
         this.args = args;
     }
 
