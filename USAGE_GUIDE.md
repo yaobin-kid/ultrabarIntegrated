@@ -647,6 +647,47 @@ public List<A2UIItem> onA2UIDataRequest() {
 
 > 📌 拉取成功后，LineOS 自动将数据缓存到插件会话。若未实现此回调，默认返回空列表。
 
+#### A2UIItem 的 8 个构造函数
+
+`ui` 有两种形态：结构化数组（`List<Map<String, Object>>`）或 JSON 字符串（`String`，SDK 内部解析，支持 `[...]` 数组和单个 `{...}` 对象）；`width` 为卡片宽度（像素），不传时取默认值 `A2UIItem.DEFAULT_WIDTH`（261）；`args` 为可选的参数 schema（见 5.8），可为 `null`。
+
+```java
+// ① 4 参：ui 为 JSON 字符串，宽度默认 261，无 args
+new A2UIItem("example-focus", "card-example", "示例", currentUiJson)
+
+// ② 5 参：4 参 + args，宽度默认 261
+new A2UIItem("example-focus", "card-example", "示例", currentUiJson, args)
+
+// ③ 5 参：指定宽度，ui 为 JSON 字符串，无 args
+new A2UIItem("example-focus", "card-example", "示例", 400, currentUiJson)
+
+// ④ 6 参：指定宽度 + args，ui 为 JSON 字符串
+new A2UIItem("example-focus", "card-example", "示例", 400, currentUiJson, args)
+
+// ⑤ 4 参：ui 为结构化数组，宽度默认 261，无 args
+new A2UIItem("example-focus", "card-example", "示例", currentUi)
+
+// ⑥ 5 参：ui 为结构化数组 + args，宽度默认 261
+new A2UIItem("example-focus", "card-example", "示例", currentUi, args)
+
+// ⑦ 5 参：指定宽度，ui 为结构化数组，无 args
+new A2UIItem("example-focus", "card-example", "示例", 400, currentUi)
+
+// ⑧ 6 参：指定宽度 + args，ui 为结构化数组
+new A2UIItem("example-focus", "card-example", "示例", 400, currentUi, args)
+```
+
+| 参数顺序 | 必填 | 说明 |
+| --- | --- | --- |
+| `layoutId` | ✅ | 布局 id |
+| `cardId` | ✅ | 卡片 id |
+| `name` | ✅ | 布局名称，用于展示/标识 |
+| `width` | ❌ | 卡片宽度（像素），省略时为 261 |
+| `ui` / `uiJson` | ✅ | UI 数据（A2UI 消息序列），数组或 JSON 字符串 |
+| `args` | ❌ | 参数 schema，省略或传 `null` 表示无参数 |
+
+> 📌 `name` / `cardId` / `layoutId` 为空字符串或 `null` 会抛 `IllegalArgumentException`；`uiJson` 不是合法 JSON 同样抛异常。
+
 ### 5.8 卡片参数 schema（args）
 
 `A2UIItem.args` 用于声明用户可配置哪些字段、用什么控件渲染。6 种类型各有**专属 Builder**，只能设置本类型自己的字段（编译期隔离，无法交叉设置）：

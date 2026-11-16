@@ -647,6 +647,47 @@ public List<A2UIItem> onA2UIDataRequest() {
 
 > 📌 取得成功後、LineOS はデータをプラグインセッションに自動キャッシュします。このコールバックを実装しない場合は、デフォルトで空リストが返されます。
 
+#### A2UIItem の 8 つのコンストラクタ
+
+`ui` は 2 つの形式があります：構造化配列（`List<Map<String, Object>>`）または JSON 文字列（`String`、SDK が内部で解析。`[...]` 配列と単一の `{...}` オブジェクトの両方に対応）。`width` はカード幅（ピクセル）で、省略時はデフォルト値 `A2UIItem.DEFAULT_WIDTH`（261）が使われます。`args` はオプションのパラメータ schema（5.8 参照）で、`null` 可です。
+
+```java
+// ① 4 引数：ui は JSON 文字列、幅はデフォルト 261、args なし
+new A2UIItem("example-focus", "card-example", "サンプル", currentUiJson)
+
+// ② 5 引数：4 引数 + args、幅はデフォルト 261
+new A2UIItem("example-focus", "card-example", "サンプル", currentUiJson, args)
+
+// ③ 5 引数：幅を指定、ui は JSON 文字列、args なし
+new A2UIItem("example-focus", "card-example", "サンプル", 400, currentUiJson)
+
+// ④ 6 引数：幅を指定 + args、ui は JSON 文字列
+new A2UIItem("example-focus", "card-example", "サンプル", 400, currentUiJson, args)
+
+// ⑤ 4 引数：ui は構造化配列、幅はデフォルト 261、args なし
+new A2UIItem("example-focus", "card-example", "サンプル", currentUi)
+
+// ⑥ 5 引数：ui は構造化配列 + args、幅はデフォルト 261
+new A2UIItem("example-focus", "card-example", "サンプル", currentUi, args)
+
+// ⑦ 5 引数：幅を指定、ui は構造化配列、args なし
+new A2UIItem("example-focus", "card-example", "サンプル", 400, currentUi)
+
+// ⑧ 6 引数：幅を指定 + args、ui は構造化配列
+new A2UIItem("example-focus", "card-example", "サンプル", 400, currentUi, args)
+```
+
+| パラメータ順 | 必須 | 説明 |
+| --- | --- | --- |
+| `layoutId` | ✅ | レイアウト id |
+| `cardId` | ✅ | カード id |
+| `name` | ✅ | レイアウト名（表示・識別用） |
+| `width` | ❌ | カード幅（ピクセル）。省略時は 261 |
+| `ui` / `uiJson` | ✅ | UI データ（A2UI メッセージシーケンス）。配列または JSON 文字列 |
+| `args` | ❌ | パラメータ schema。省略または `null` でパラメータなし |
+
+> 📌 `name` / `cardId` / `layoutId` が空文字列または `null` の場合は `IllegalArgumentException` をスローします。`uiJson` が不正な JSON の場合も同様に例外をスローします。
+
 ### 5.8 カードパラメータ schema（args）
 
 `A2UIItem.args` は、ユーザーがどのフィールドを設定可能か、どのコントロールで描画するかを宣言します。6 種類の型それぞれに**専用 Builder** があり、その型自身のフィールドしか設定できません（コンパイル時に分離、クロス設定不可）：

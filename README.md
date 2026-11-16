@@ -647,6 +647,47 @@ public List<A2UIItem> onA2UIDataRequest() {
 
 > 📌 After a successful pull, LineOS automatically caches the data into the plugin session. If this callback is not implemented, it defaults to returning an empty list.
 
+#### The 8 A2UIItem Constructors
+
+`ui` has two forms: a structured array (`List<Map<String, Object>>`) or a JSON string (`String`, parsed internally by the SDK; both a `[...]` array and a single `{...}` object are accepted). `width` is the card width in pixels; when omitted it falls back to `A2UIItem.DEFAULT_WIDTH` (261). `args` is an optional parameter schema (see 5.8) and may be `null`.
+
+```java
+// 1) 4 params: ui as JSON string, default width 261, no args
+new A2UIItem("example-focus", "card-example", "Example", currentUiJson)
+
+// 2) 5 params: 4 params + args, default width 261
+new A2UIItem("example-focus", "card-example", "Example", currentUiJson, args)
+
+// 3) 5 params: explicit width, ui as JSON string, no args
+new A2UIItem("example-focus", "card-example", "Example", 400, currentUiJson)
+
+// 4) 6 params: explicit width + args, ui as JSON string
+new A2UIItem("example-focus", "card-example", "Example", 400, currentUiJson, args)
+
+// 5) 4 params: ui as structured array, default width 261, no args
+new A2UIItem("example-focus", "card-example", "Example", currentUi)
+
+// 6) 5 params: ui as structured array + args, default width 261
+new A2UIItem("example-focus", "card-example", "Example", currentUi, args)
+
+// 7) 5 params: explicit width, ui as structured array, no args
+new A2UIItem("example-focus", "card-example", "Example", 400, currentUi)
+
+// 8) 6 params: explicit width + args, ui as structured array
+new A2UIItem("example-focus", "card-example", "Example", 400, currentUi, args)
+```
+
+| Parameter order | Required | Description |
+| --- | --- | --- |
+| `layoutId` | ✅ | Layout id |
+| `cardId` | ✅ | Card id |
+| `name` | ✅ | Layout name, used for display/identification |
+| `width` | ❌ | Card width in pixels; 261 when omitted |
+| `ui` / `uiJson` | ✅ | UI data (A2UI message sequence), array or JSON string |
+| `args` | ❌ | Parameter schema; omit or pass `null` for none |
+
+> 📌 An empty string or `null` for `name` / `cardId` / `layoutId` throws `IllegalArgumentException`; invalid `uiJson` throws as well.
+
 ### 5.8 Card Parameter Schema (args)
 
 `A2UIItem.args` declares which fields the user can configure and what controls render them. Each of the 6 types has its **own dedicated Builder** — you can only set that type's own fields (compile-time isolation, no cross-setting):
